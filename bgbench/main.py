@@ -1,5 +1,5 @@
 from bgbench.nim_game import NimGame
-from bgbench.llm import LLMConfig, LLMProvider, AnthropicLLM, OpenAILLM
+from bgbench.llm_integration import LLMConfig, LLMProvider, AnthropicLLM, OpenAILLM
 from bgbench.utils import LLMPlayer, GameRunner
 
 async def main():

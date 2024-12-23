@@ -14,8 +14,6 @@ class LLMPlayer:
         # Prepare the message for the LLM
         system_message = (
             f"Game state: {str(game_view.visible_state)}\n"
-            f"Rules: {game_view.rules_explanation}\n"
-            f"Move format: {game_view.move_format_instructions}\n"
             "Respond with only a number representing how many objects to take."
         )
         messages = [

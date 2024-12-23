@@ -7,7 +7,7 @@ async def main():
     claude_config = LLMConfig(
         provider=LLMProvider.ANTHROPIC,
         api_key="your_anthropic_key",
-        model="claude-3-opus-20240229",
+        model="anthropic:claude-3-opus-20240229",
         temperature=0.0
     )
     claude_llm = AnthropicLLM(claude_config)
@@ -15,7 +15,7 @@ async def main():
     gpt4_config = LLMConfig(
         provider=LLMProvider.OPENAI,
         api_key="your_openai_key",
-        model="gpt-4-turbo-preview",
+        model="openai:gpt-4-turbo-preview",
         temperature=0.0
     )
     gpt4_llm = OpenAILLM(gpt4_config)

@@ -15,7 +15,7 @@ async def main():
     gpt4_config = LLMConfig(
         provider=LLMProvider.OPENAI,
         api_key=api_key,
-        model="gpt-4o-mini",
+        model="gpt-4",
         temperature=0.0
     )
     gpt4_llm = OpenAILLM(gpt4_config)

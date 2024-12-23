@@ -12,14 +12,27 @@ class LLMPlayer:
 
     async def make_move(self, game_view: GameView) -> Any:
         # Prepare the message for the LLM
+        system_message = (
+            f"Game state: {str(game_view.visible_state)}\n"
+            f"Rules: {game_view.rules}\n"
+            f"Move format: {game_view.move_format}\n"
+            "Respond with only a number representing how many objects to take."
+        )
         messages = [
-            {"role": "system", "content": str(game_view.visible_state)},
-            {"role": "user", "content": "What is your move?"}
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": "What is your move? Respond with only a number."}
         ]
         # Get the move from the LLM
-        move = await self.llm.complete(messages)
-        self.conversation_history.append({"role": "assistant", "content": move})
-        return move
+        response = await self.llm.complete(messages)
+        self.conversation_history.append({"role": "assistant", "content": response})
+        
+        # Try to extract a number from the response
+        try:
+            # Remove any non-numeric characters and convert to int
+            move = int(''.join(c for c in response if c.isdigit()))
+            return move
+        except ValueError:
+            return 0  # Return invalid move if parsing fails
 
 class GameRunner:
     def __init__(self, game: Game, player1: LLMPlayer, player2: LLMPlayer):

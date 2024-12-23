@@ -1,5 +1,7 @@
 from typing import Protocol, List, Dict
-from llm import LLMClient, LLMConfig as LLMClientConfig
+# Import the correct classes or functions from the llm library
+# This is a placeholder; replace with actual imports from the llm library
+from llm import SomeLLMFunctionOrClass
 from enum import Enum
 
 class LLMProvider(Enum):
@@ -31,13 +33,13 @@ class LLMInterface(Protocol):
 class AnthropicLLM(LLMInterface):
     def __init__(self, config: LLMConfig):
         self.config = config
-        self.client = LLMClient(LLMClientConfig(
-            provider="anthropic",
+        # Initialize the client using the correct method from the llm library
+        self.client = SomeLLMFunctionOrClass(
             api_key=config.api_key,
             model=config.model,
             temperature=config.temperature,
             max_tokens=config.max_tokens
-        ))
+        )
         
     async def complete(self, messages: List[Dict[str, str]]) -> str:
         response = await self.client.complete(messages)
@@ -46,13 +48,13 @@ class AnthropicLLM(LLMInterface):
 class OpenAILLM(LLMInterface):
     def __init__(self, config: LLMConfig):
         self.config = config
-        self.client = LLMClient(LLMClientConfig(
-            provider="openai",
+        # Initialize the client using the correct method from the llm library
+        self.client = SomeLLMFunctionOrClass(
             api_key=config.api_key,
             model=config.model,
             temperature=config.temperature,
             max_tokens=config.max_tokens
-        ))
+        )
         
     async def complete(self, messages: List[Dict[str, str]]) -> str:
         response = await self.client.complete(messages)

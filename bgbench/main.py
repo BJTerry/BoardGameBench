@@ -1,4 +1,4 @@
-from bgbench.utils import NimGame
+from bgbench.nim_game import NimGame
 
 def main():
     game = NimGame()

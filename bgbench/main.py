@@ -1,28 +1,19 @@
 import os
 from dotenv import load_dotenv
 from bgbench.nim_game import NimGame
-from bgbench.llm_integration import LLMConfig, LLMProvider, AnthropicLLM, OpenAILLM
+from bgbench.llm_integration import create_llm
 from bgbench.utils import LLMPlayer, GameRunner
 
 load_dotenv()
 
 async def main():
     # Initialize LLMs
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY environment variable is not set")
-        
-    gpt4_config = LLMConfig(
-        provider=LLMProvider.OPENAI,
-        api_key=api_key,
-        model="gpt-4",
-        temperature=0.0
-    )
-    gpt4_llm = OpenAILLM(gpt4_config)
+    claude_llm = create_llm("claude-3-sonnet", temperature=0.0)
+    gpt4_llm = create_llm("gpt-4o", temperature=0.0)
     
     # Create players
-    player_a = LLMPlayer("Claude", gpt4_llm)
-    player_b = LLMPlayer("GPT-4", gpt4_llm)
+    player_a = LLMPlayer("Claude-3-Sonnet", claude_llm)
+    player_b = LLMPlayer("GPT-4-Turbo", gpt4_llm)
     
     # Initialize game
     game = NimGame(12, 3)

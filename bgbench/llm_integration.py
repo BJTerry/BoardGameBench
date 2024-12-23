@@ -1,27 +1,7 @@
 from typing import Protocol, List, Dict
-import aisuite as ai
-from enum import Enum
-
-class LLMProvider(Enum):
-    ANTHROPIC = "anthropic"
-    OPENAI = "openai"
-    # Add other providers as needed
-
-class LLMConfig:
-    """Configuration for LLM API calls."""
-    def __init__(
-        self,
-        provider: LLMProvider,
-        api_key: str,
-        model: str,
-        temperature: float = 0.0,
-        max_tokens: int = 1000
-    ):
-        self.provider = provider
-        self.api_key = api_key
-        self.model = model
-        self.temperature = temperature
-        self.max_tokens = max_tokens
+import os
+from pydantic_ai import Agent
+from pydantic_ai.models.openai import OpenAIModel
 
 class LLMInterface(Protocol):
     """Protocol for LLM API implementations."""
@@ -29,38 +9,47 @@ class LLMInterface(Protocol):
         ...
 
 class AnthropicLLM(LLMInterface):
-    def __init__(self, config: LLMConfig):
-        self.config = config
-        # Initialize the aisuite client
-        self.client = ai.Client()
-        
-    async def complete(self, messages: List[Dict[str, str]]) -> str:
-        # Convert messages to proper format
-        formatted_messages = []
-        for msg in messages:
-            formatted_messages.append({
-                "role": "assistant" if msg["role"] == "system" else msg["role"],
-                "content": msg["content"] if isinstance(msg["content"], str) else str(msg["content"])
-            })
-                
-        response = self.client.chat.completions.create(
-            model=self.config.model,
-            messages=formatted_messages,
-            temperature=self.config.temperature,
-            max_tokens=self.config.max_tokens
+    def __init__(self, model: str, temperature: float = 0.0, max_tokens: int = 1000):
+        # Configure via OpenRouter for Anthropic models
+        openrouter_model = OpenAIModel(
+            f"anthropic/{model}",
+            base_url='https://openrouter.ai/api/v1',
+            api_key=os.getenv('OPENROUTER_API_KEY'),
         )
-        return response.choices[0].message.content
+        self.agent = Agent(
+            openrouter_model,
+            model_settings={
+                'temperature': temperature,
+                'max_tokens': max_tokens
+            }
+        )
+
+    async def complete(self, messages: List[Dict[str, str]]) -> str:
+        result = await self.agent.run(messages=messages)
+        return result.data
 
 class OpenAILLM(LLMInterface):
-    def __init__(self, config: LLMConfig):
-        self.config = config
-        # Initialize the aisuite client
-        self.client = ai.Client()
+    def __init__(self, model: str, temperature: float = 0.0, max_tokens: int = 1000):
+        # Configure direct OpenAI access
+        openai_model = OpenAIModel(
+            model,
+            api_key=os.getenv('OPENAI_API_KEY'),
+        )
+        self.agent = Agent(
+            openai_model,
+            model_settings={
+                'temperature': temperature,
+                'max_tokens': max_tokens
+            }
+        )
         
     async def complete(self, messages: List[Dict[str, str]]) -> str:
-        response = self.client.chat.completions.create(
-            model=f"openai:{self.config.model}",
-            messages=messages,
-            temperature=self.config.temperature
-        )
-        return response.choices[0].message.content
+        result = await self.agent.run(messages=messages)
+        return result.data
+
+def create_llm(model: str, temperature: float = 0.0, max_tokens: int = 1000) -> LLMInterface:
+    """Factory function to create appropriate LLM instance based on model name."""
+    if model.startswith('claude'):
+        return AnthropicLLM(model, temperature, max_tokens)
+    else:
+        return OpenAILLM(model, temperature, max_tokens)

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 from .game import Game
-from .game_view import GameView
+from .utils import GameView
 
 @dataclass
 class NimState:
@@ -23,7 +23,7 @@ class NimGame(Game):
         )
     
     def get_initial_state(self) -> NimState:
-        return self.NimState(
+        return NimState(
             remaining=self.starting_count,
             current_player=0
         )
@@ -56,7 +56,7 @@ class NimGame(Game):
         return True, ""
     
     def apply_move(self, state: NimState, player_id: int, move: int) -> NimState:
-        return self.NimState(
+        return NimState(
             remaining=state.remaining - move,
             current_player=1 - player_id
         )

@@ -43,7 +43,7 @@ class AnthropicLLM(LLMInterface):
                 "content": msg["content"] if isinstance(msg["content"], str) else str(msg["content"])
             })
                 
-        response = await self.client.chat.completions.create(
+        response = self.client.chat.completions.create(
             model=self.config.model,
             messages=formatted_messages,
             temperature=self.config.temperature,
@@ -58,7 +58,7 @@ class OpenAILLM(LLMInterface):
         self.client = ai.Client()
         
     async def complete(self, messages: List[Dict[str, str]]) -> str:
-        response = await self.client.chat.completions.create(
+        response = self.client.chat.completions.create(
             model=f"openai:{self.config.model}",
             messages=messages,
             temperature=self.config.temperature

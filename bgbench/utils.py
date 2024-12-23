@@ -13,7 +13,7 @@ class LLMPlayer:
     async def make_move(self, game_view: GameView) -> Any:
         # Prepare the message for the LLM
         messages = [
-            {"role": "system", "content": game_view.visible_state},
+            {"role": "system", "content": str(game_view.visible_state)},
             {"role": "user", "content": "What is your move?"}
         ]
         # Get the move from the LLM

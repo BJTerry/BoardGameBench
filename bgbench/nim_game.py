@@ -41,7 +41,8 @@ class NimGame(Game):
         try:
             numbers = [int(s) for s in move_str.split() if s.isdigit()]
             return numbers[0] if numbers else None
-        except:
+        except Exception as e:
+            print(e)
             return None
     
     def validate_move(self, state: NimState, player_id: int, move: int) -> Tuple[bool, str]:

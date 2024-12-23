@@ -3,6 +3,11 @@ from typing import List, Optional, Tuple
 from .game import Game
 from .game_view import GameView
 
+@dataclass
+class NimState:
+    remaining: int
+    current_player: int
+
 class NimGame(Game):
     def get_rules_explanation(self) -> str:
         return (

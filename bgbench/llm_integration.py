@@ -1,7 +1,5 @@
 from typing import Protocol, List, Dict
-# Import the correct classes or functions from the llm library
-# This is a placeholder; replace with actual imports from the llm library
-from llm import SomeLLMFunctionOrClass
+import aisuite as ai
 from enum import Enum
 
 class LLMProvider(Enum):
@@ -33,29 +31,27 @@ class LLMInterface(Protocol):
 class AnthropicLLM(LLMInterface):
     def __init__(self, config: LLMConfig):
         self.config = config
-        # Initialize the client using the correct method from the llm library
-        self.client = SomeLLMFunctionOrClass(
-            api_key=config.api_key,
-            model=config.model,
-            temperature=config.temperature,
-            max_tokens=config.max_tokens
-        )
+        # Initialize the aisuite client
+        self.client = ai.Client()
         
     async def complete(self, messages: List[Dict[str, str]]) -> str:
-        response = await self.client.complete(messages)
-        return response["content"][0]["text"]
+        response = await self.client.chat.completions.create(
+            model=f"anthropic:{self.config.model}",
+            messages=messages,
+            temperature=self.config.temperature
+        )
+        return response.choices[0].message.content
 
 class OpenAILLM(LLMInterface):
     def __init__(self, config: LLMConfig):
         self.config = config
-        # Initialize the client using the correct method from the llm library
-        self.client = SomeLLMFunctionOrClass(
-            api_key=config.api_key,
-            model=config.model,
-            temperature=config.temperature,
-            max_tokens=config.max_tokens
-        )
+        # Initialize the aisuite client
+        self.client = ai.Client()
         
     async def complete(self, messages: List[Dict[str, str]]) -> str:
-        response = await self.client.complete(messages)
-        return response["choices"][0]["message"]["content"]
+        response = await self.client.chat.completions.create(
+            model=f"openai:{self.config.model}",
+            messages=messages,
+            temperature=self.config.temperature
+        )
+        return response.choices[0].message.content

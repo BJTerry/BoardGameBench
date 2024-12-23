@@ -43,10 +43,6 @@ async def main():
         if msg["role"] != "system":
             print(f"{msg['role']}: {msg['content']}\n")
 
-def main():
-    print("Welcome to bgbench!")
-    game = NimGame()
-    print(game.get_rules_explanation())
 
 if __name__ == "__main__":
     main()

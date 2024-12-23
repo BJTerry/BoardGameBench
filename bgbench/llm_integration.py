@@ -1,7 +1,6 @@
 from typing import Protocol, List, Dict
 import os
-from pydantic_ai import Agent
-from pydantic_ai.models.openai import OpenAIModel
+from openai import AsyncOpenAI
 
 class LLMInterface(Protocol):
     """Protocol for LLM API implementations."""
@@ -10,42 +9,40 @@ class LLMInterface(Protocol):
 
 class AnthropicLLM(LLMInterface):
     def __init__(self, model: str, temperature: float = 0.0, max_tokens: int = 1000):
-        # Configure via OpenRouter for Anthropic models
-        openrouter_model = OpenAIModel(
-            f"anthropic/{model}",
-            base_url='https://openrouter.ai/api/v1',
-            api_key=os.getenv('OPENROUTER_API_KEY'),
+        self.client = AsyncOpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=os.getenv("OPENROUTER_API_KEY"),
         )
-        self.agent = Agent(
-            openrouter_model,
-            model_settings={
-                'temperature': temperature,
-                'max_tokens': max_tokens
-            }
-        )
+        self.model = f"anthropic/{model}"
+        self.temperature = temperature
+        self.max_tokens = max_tokens
 
     async def complete(self, messages: List[Dict[str, str]]) -> str:
-        result = await self.agent.run(messages=messages)
-        return result.data
+        response = await self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            temperature=self.temperature,
+            max_tokens=self.max_tokens
+        )
+        return response.choices[0].message.content
 
 class OpenAILLM(LLMInterface):
     def __init__(self, model: str, temperature: float = 0.0, max_tokens: int = 1000):
-        # Configure direct OpenAI access
-        openai_model = OpenAIModel(
-            model,
-            api_key=os.getenv('OPENAI_API_KEY'),
+        self.client = AsyncOpenAI(
+            api_key=os.getenv("OPENAI_API_KEY")
         )
-        self.agent = Agent(
-            openai_model,
-            model_settings={
-                'temperature': temperature,
-                'max_tokens': max_tokens
-            }
-        )
+        self.model = model
+        self.temperature = temperature
+        self.max_tokens = max_tokens
         
     async def complete(self, messages: List[Dict[str, str]]) -> str:
-        result = await self.agent.run(messages=messages)
-        return result.data
+        response = await self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            temperature=self.temperature,
+            max_tokens=self.max_tokens
+        )
+        return response.choices[0].message.content
 
 def create_llm(model: str, temperature: float = 0.0, max_tokens: int = 1000) -> LLMInterface:
     """Factory function to create appropriate LLM instance based on model name."""

@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Any, Tuple
+from .utils import GameView
 
 class Game(ABC):
     @abstractmethod

@@ -8,7 +8,7 @@ packages = [{include = "bgbench"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"
-aisuite = {version = "^0.1.6", extras = ["anthropic"]}
+aisuite = {version = "^0.1.6", extras = ["anthropic", "openai"]}
 
 
 [tool.poetry.group.dev.dependencies]

@@ -35,16 +35,16 @@ class AnthropicLLM(LLMInterface):
         self.client = ai.Client()
         
     async def complete(self, messages: List[Dict[str, str]]) -> str:
-        # Convert messages to Anthropic format
+        # Convert messages to proper format
         formatted_messages = []
         for msg in messages:
-            if msg["role"] == "system":
-                formatted_messages.append({"role": "assistant", "content": str(msg["content"])})
-            else:
-                formatted_messages.append({"role": msg["role"], "content": str(msg["content"])})
+            formatted_messages.append({
+                "role": "assistant" if msg["role"] == "system" else msg["role"],
+                "content": msg["content"] if isinstance(msg["content"], str) else str(msg["content"])
+            })
                 
         response = await self.client.chat.completions.create(
-            model=self.config.model,  # Remove anthropic: prefix
+            model=self.config.model,
             messages=formatted_messages,
             temperature=self.config.temperature,
             max_tokens=self.config.max_tokens

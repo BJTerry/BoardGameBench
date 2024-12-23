@@ -8,7 +8,7 @@ packages = [{include = "bgbench"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"
-llm = "^0.19.1"
+aisuite = "^0.1.6"
 
 
 [tool.poetry.group.dev.dependencies]

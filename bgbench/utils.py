@@ -31,7 +31,10 @@ class GameRunner:
         history = []
         current_player = 0
 
-        while not state.is_terminal:
+        while True:
+            game_view = self.game.get_player_view(state, current_player)
+            if game_view.is_terminal:
+                break
             player = self.players[current_player]
             game_view = self.game.get_player_view(state, current_player)
             move = await player.make_move(game_view)

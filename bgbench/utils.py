@@ -58,5 +58,7 @@ class GameRunner:
                 print(f"Invalid move by {player.name}: {explanation}")
 
         final_view = self.game.get_player_view(state, current_player)
-        return final_view.winner, history
+        # Ensure we always return a valid winner (0 or 1)
+        winner = 0 if final_view.winner is None else final_view.winner
+        return winner, history
 

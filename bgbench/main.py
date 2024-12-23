@@ -1,12 +1,16 @@
+import os
+from dotenv import load_dotenv
 from bgbench.nim_game import NimGame
 from bgbench.llm_integration import LLMConfig, LLMProvider, AnthropicLLM, OpenAILLM
 from bgbench.utils import LLMPlayer, GameRunner
+
+load_dotenv()
 
 async def main():
     # Initialize LLMs
     gpt4_config = LLMConfig(
         provider=LLMProvider.OPENAI,
-        api_key="your_openai_key",
+        api_key=os.getenv("OPENAI_API_KEY"),
         model="openai:gpt-4-turbo-preview",
         temperature=0.0
     )

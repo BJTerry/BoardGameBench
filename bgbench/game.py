@@ -1,6 +1,14 @@
 from abc import ABC, abstractmethod
-from typing import Any, Tuple
-from .utils import GameView
+from dataclasses import dataclass
+from typing import Any, Tuple, List, Optional, Dict
+
+@dataclass
+class GameView:
+    """What a player can see of the game state."""
+    visible_state: Dict[str, Any]
+    valid_moves: List[Any]
+    is_terminal: bool
+    winner: Optional[int] = None
 
 class Game(ABC):
     @abstractmethod

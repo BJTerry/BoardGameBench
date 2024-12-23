@@ -1,9 +1,10 @@
 [tool.poetry]
 name = "bgbench"
 version = "0.1.0"
-description = ""
+description = "A benchmarking tool"
 authors = ["Your Name <you@example.com>"]
 readme = "README.md"
+packages = [{include = "bgbench"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"

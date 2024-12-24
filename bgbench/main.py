@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+from bgbench.logging_config import setup_logging
 from bgbench.nim_game import NimGame
 from bgbench.llm_integration import create_llm
 from bgbench.utils import LLMPlayer, GameRunner
@@ -7,6 +8,9 @@ from bgbench.utils import LLMPlayer, GameRunner
 load_dotenv()
 
 async def main():
+    # Set up logging
+    setup_logging()
+    
     # Initialize LLMs
     claude_llm = create_llm("claude-3-sonnet", temperature=0.0)
     gpt4_llm = create_llm("gpt-4o", temperature=0.0)

@@ -33,7 +33,8 @@ class NimGame(Game[NimState, NimMove]):
             current_player=0
         )
     
-    def get_player_view(self, state: NimState, player_id: int) -> GameView:
+    def get_player_view(self, state: NimState, player_id: int, 
+                       history: Optional[List[Dict[str, Any]]] = None) -> GameView:
         valid_moves = list(range(1, min(self.max_take, state.remaining) + 1))
         return GameView(
             visible_state={"remaining": state.remaining},

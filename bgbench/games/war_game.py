@@ -74,7 +74,8 @@ class WarGame(Game):
             face_down_count=0
         )
 
-    def get_player_view(self, state: WarState, player_id: int, history: List[Dict[str, Any]] = None) -> GameView:
+    def get_player_view(self, state: WarState, player_id: int, 
+                       history: Optional[List[Dict[str, Any]]] = None) -> GameView:
         visible_state = {
             "your_cards": len(state.player_hands[player_id]),
             "opponent_cards": len(state.player_hands[1 - player_id]),

@@ -1,4 +1,5 @@
 import os
+import argparse
 from dotenv import load_dotenv
 from bgbench.logging_config import setup_logging
 from bgbench.nim_game import NimGame
@@ -8,8 +9,13 @@ from bgbench.utils import LLMPlayer, GameRunner
 load_dotenv()
 
 async def main():
-    # Set up logging
-    setup_logging()
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Run a game between LLM players')
+    parser.add_argument('--debug', action='store_true', help='Enable debug logging')
+    args = parser.parse_args()
+    
+    # Set up logging with debug flag
+    setup_logging(debug=args.debug)
     
     # Initialize LLMs
     claude_llm = create_llm("claude-3-sonnet", temperature=0.0)

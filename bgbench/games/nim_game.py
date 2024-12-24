@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 from bgbench.game import Game
-from .game_view import GameView
+from bgbench.game_view import GameView
 
 @dataclass
 class NimState:

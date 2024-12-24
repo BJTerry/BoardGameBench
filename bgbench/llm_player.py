@@ -6,7 +6,7 @@ from bgbench.game_view import GameView
 logger = logging.getLogger("bgbench")
 
 class LLMInterface(Protocol):
-    async def complete(self, messages: List[Dict[str, str]]) -> str:
+    async def complete(self, messages: List[ChatCompletionMessageParam]) -> str:
         ...
 
 class LLMPlayer:

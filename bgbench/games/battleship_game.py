@@ -139,19 +139,29 @@ class BattleshipGame(Game):
         shot_history = []
         if history:
             for turn in history:
-                if turn["player"] == player_id and state.setup_complete:
+                if turn["player"] == player_id:
                     move = turn["move"]
-                    x, y = move
-                    coord = f"{string.ascii_uppercase[x]}{y+1}"
-                    # Determine if it was a hit or miss
-                    if (x, y) in state.boards[opponent_id].hits:
-                        # Check if it sunk a ship
-                        sunk_ship = next((ship for ship in state.boards[opponent_id].ships 
-                                        if (x, y) in ship.hits and ship.is_sunk), None)
-                        result = f"hit and sunk {sunk_ship.name}" if sunk_ship else "hit"
-                    else:
-                        result = "miss"
-                    shot_history.append(f"Turn {turn['turn']}: {coord} - {result}")
+                    if state.setup_complete:
+                        if len(move) == 2:  # Attack move
+                            x, y = move
+                            coord = f"{string.ascii_uppercase[x]}{y+1}"
+                            # Determine if it was a hit or miss
+                            if (x, y) in state.boards[opponent_id].hits:
+                                # Check if it sunk a ship
+                                sunk_ship = next((ship for ship in state.boards[opponent_id].ships 
+                                                if (x, y) in ship.hits and ship.is_sunk), None)
+                                result = f"hit and sunk {sunk_ship.name}" if sunk_ship else "hit"
+                            else:
+                                result = "miss"
+                            shot_history.append(f"Turn {turn['turn']}: {coord} - {result}")
+                    else:  # Setup move
+                        x, y, is_horizontal = move
+                        direction = "horizontally" if is_horizontal else "vertically"
+                        coord = f"{string.ascii_uppercase[x]}{y+1}"
+                        ships_placed = len(state.boards[player_id].ships)
+                        if ships_placed < len(SHIPS):
+                            ship_name = SHIPS[ships_placed][0]
+                            shot_history.append(f"Turn {turn['turn']}: Placed {ship_name} {direction} at {coord}")
         
         visible_state = {
             "your_board": self._format_board(state.boards[player_id], True),

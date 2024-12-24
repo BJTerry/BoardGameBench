@@ -40,8 +40,8 @@ class AnthropicLLM(LLMInterface):
                 temperature=self.temperature,
                 max_tokens=self.max_tokens
             )
-            if response.choices and response.choices[0].message.content:
-                content = response.choices[0].message.content
+            if response.choices and response.choices[0].message.get("content"):
+                content = response.choices[0].message.get("content")
                 logger.info(f"Received response ({len(content)} chars): {content[:5000]}...")
                 return content
             raise ValueError("No content in response")

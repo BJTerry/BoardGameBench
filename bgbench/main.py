@@ -39,7 +39,8 @@ async def main():
     
     # Instantiate the selected game
     game_module = game_modules[args.game]
-    game_class = getattr(game_module, f"{args.game.capitalize()}Game")
+    game_class_name = ''.join(word.capitalize() for word in args.game.split('_')) + "Game"
+    game_class = getattr(game_module, game_class_name)
     game = game_class()
     arena = Arena(game, confidence_threshold=0.70)
     

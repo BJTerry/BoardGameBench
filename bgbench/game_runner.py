@@ -22,7 +22,26 @@ class GameRunner:
                 break
                 
             player = self.players[current_player]
-            move = await player.make_move(game_view)
+            move_str = await player.make_move(game_view)
+            move = self.game.parse_move(move_str)
+            if move is None:
+                logger.warning(f"Invalid move format by {player.name}: {move_str}")
+                retry_count = 1
+                MAX_RETRIES = 5
+                
+                while retry_count < MAX_RETRIES:
+                    logger.warning(f"Retry attempt {retry_count} of {MAX_RETRIES}")
+                    move_str = await player.make_move(game_view, "Invalid move format. Please follow the format instructions exactly.")
+                    move = self.game.parse_move(move_str)
+                    if move is not None:
+                        break
+                    retry_count += 1
+                    logger.warning(f"Invalid move format by {player.name}: {move_str}")
+                
+                if move is None:
+                    logger.warning(f"{player.name} exceeded {MAX_RETRIES} invalid move format attempts and concedes the game")
+                    return self.players[1 - current_player], history
+
             valid, explanation = self.game.validate_move(state, current_player, move)
             
             if not valid:
@@ -33,7 +52,13 @@ class GameRunner:
                 
                 while retry_count < MAX_RETRIES:
                     logger.warning(f"Retry attempt {retry_count} of {MAX_RETRIES}")
-                    move = await player.make_move(game_view, explanation)
+                    move_str = await player.make_move(game_view, explanation)
+                    move = self.game.parse_move(move_str)
+                    if move is None:
+                        logger.warning(f"Invalid move format by {player.name}: {move_str}")
+                        retry_count += 1
+                        continue
+                        
                     valid, explanation = self.game.validate_move(state, current_player, move)
                     if valid:
                         break

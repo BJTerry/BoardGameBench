@@ -1,5 +1,6 @@
 from typing import Protocol, List, Dict, TypedDict
 from openai.types.chat import ChatCompletionMessageParam
+from openai.types.chat import ChatCompletionMessageParam
 import os
 import logging
 from openai import AsyncOpenAI
@@ -26,7 +27,7 @@ class AnthropicLLM(LLMInterface):
         self.temperature = temperature
         self.max_tokens = max_tokens
 
-    async def complete(self, messages: List[Dict[str, str]]) -> str:
+    async def complete(self, messages: List[ChatCompletionMessageParam]) -> str:
         logger.info(f"Sending request to {self.model}")
         logger.info(f"Number of messages in conversation: {len(messages)}")
         for msg in messages:
@@ -53,7 +54,7 @@ class OpenAILLM(LLMInterface):
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             raise ValueError("OPENAI_API_KEY environment variable is not set")
-            
+                
         self.client = AsyncOpenAI(
             api_key=api_key
         )
@@ -61,8 +62,8 @@ class OpenAILLM(LLMInterface):
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
-        
-    async def complete(self, messages: List[Dict[str, str]]) -> str:
+            
+    async def complete(self, messages: List[ChatCompletionMessageParam]) -> str:
         logger.debug(f"Sending request to {self.model}")
         for msg in messages:
             logger.debug(f"Message ({msg['role']}): {msg['content'][:10000]}...")

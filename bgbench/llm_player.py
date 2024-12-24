@@ -1,5 +1,6 @@
 import logging
 from typing import List, Dict, Any, Protocol, Optional
+from openai.types.chat import ChatCompletionMessageParam
 from bgbench.game_view import GameView
 
 logger = logging.getLogger("bgbench")
@@ -25,7 +26,7 @@ class LLMPlayer:
             f"{game_view.move_format_instructions}"
         )
         
-        messages = [{"role": "system", "content": system_message}]
+        messages: List[ChatCompletionMessageParam] = [{"role": "system", "content": system_message}]
         
         if invalid_move_explanation:
             # Include the previous failed move and explanation

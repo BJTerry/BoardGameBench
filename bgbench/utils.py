@@ -58,6 +58,9 @@ class GameRunner:
             
             if not valid:
                 logger.warning(f"Invalid move by {player.name}: {explanation}")
+                # If it's not their turn, switch players
+                if "not your turn" in explanation.lower():
+                    current_player = 1 - current_player
                 continue
                 
             state = self.game.apply_move(state, current_player, move)

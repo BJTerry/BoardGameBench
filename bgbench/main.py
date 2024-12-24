@@ -3,7 +3,9 @@ import argparse
 import logging
 from dotenv import load_dotenv
 from bgbench.logging_config import setup_logging
-from bgbench.games.nim_game import NimGame
+import importlib
+import pkgutil
+from bgbench.games import nim_game
 from bgbench.llm_integration import create_llm
 from bgbench.llm_player import LLMPlayer
 from bgbench.arena import Arena
@@ -13,7 +15,15 @@ logger = logging.getLogger("bgbench")
 load_dotenv()
 
 async def main():
+    # Dynamically find available games
+    game_modules = {
+        name: importlib.import_module(f"bgbench.games.{name}")
+        for _, name, _ in pkgutil.iter_modules(nim_game.__path__)
+    }
+    game_names = list(game_modules.keys())
+
     parser = argparse.ArgumentParser(description='Run a game between LLM players')
+    parser.add_argument('--game', choices=game_names, required=True, help='The game to play')
     parser.add_argument('--debug', action='store_true', help='Enable debug logging')
     args = parser.parse_args()
     
@@ -27,7 +37,10 @@ async def main():
         # LLMPlayer("gpt-4", create_llm("gpt-4", temperature=0.0)),
     ]
     
-    game = NimGame(12, 3)
+    # Instantiate the selected game
+    game_module = game_modules[args.game]
+    game_class = getattr(game_module, f"{args.game.capitalize()}Game")
+    game = game_class()
     arena = Arena(game, confidence_threshold=0.70)
     
     for player in players:

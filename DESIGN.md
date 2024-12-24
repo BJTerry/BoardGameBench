@@ -2,72 +2,61 @@
 
 ## Architecture Overview
 
-The framework is designed around several key abstractions that enable flexible game implementation and LLM integration while maintaining clear separation of concerns.
+The framework enables flexible game implementation and LLM integration while maintaining clear separation of concerns.
 
 ### Core Components
 
 1. Game Engine
-   - Game interface
-   - State management
+   - Abstract Game interface
+   - Game-specific state classes
    - Move validation
-   - Player views
+   - Player views through GameView
 
 2. LLM Integration
-   - Provider abstraction
-   - Conversation management
-   - Move parsing
+   - Provider abstraction via LLMInterface
+   - OpenRouter integration for Anthropic
+   - Basic conversation management
+   - Simple move parsing
 
-3. Rating System
-   - Elo calculations
-   - Uncertainty handling
-   - Tournament management
+3. Game Implementations
+   - NimGame
+   - BattleshipGame 
+   - WarGame
+   - Each with specific state classes
 
 ## Key Design Decisions
 
-### 1. Game State Visibility
+### 1. Game State & Views
 
-We use a `GameView` abstraction to handle hidden information:
-- Each player only sees what they're allowed to see
-- Game state and player view are separate
-- Prevents accidental information leaks
-- Supports card games and other hidden information games
+Each game implements:
+- get_player_view() returning GameView
+- validate_move() for move checking
+- get_move_format_instructions() for LLM guidance
+- apply_move() for state transitions
 
-### 2. Conversation Management
+### 2. Move Handling
 
-LLM interactions are structured as a conversation:
-- Maintains context for better decisions
-- Includes game rules and move format
-- Handles invalid moves through feedback
-- Supports different provider message formats
+Two-phase move process:
+1. Validation via validate_move()
+2. Application via apply_move()
 
-### 3. Move Validation
+### 3. LLM Integration
 
-Two-step validation process:
-1. Parse: Convert text to structured move
-2. Validate: Check move against game rules
-- Provides clear feedback for invalid moves
-- Allows retries without losing context
-
-### 4. Async Design
-
-The framework is async-first:
-- Efficient handling of LLM API calls
-- Support for parallel game execution
-- Scalable tournament management
+Basic async interface:
+- complete() method for queries
+- Simple message format
+- Minimal error handling
+- No retry logic yet
 
 ## Class Relationships
 
 ```mermaid
 classDiagram
     Game <|-- NimGame
-    Game <|-- OtherGames
+    Game <|-- BattleshipGame
+    Game <|-- WarGame
     LLMInterface <|-- AnthropicLLM
-    LLMInterface <|-- OpenAILLM
-    GameRunner o-- Game
-    GameRunner o-- LLMPlayer
     LLMPlayer o-- LLMInterface
-    TournamentRunner o-- GameRunner
-    TournamentRunner o-- EloSystem
 
     class Game {
         +get_rules_explanation()
@@ -81,55 +70,45 @@ classDiagram
         +complete()
     }
 
-    class GameRunner {
-        +play_game()
-    }
-
-    class TournamentRunner {
-        +run_match()
+    class LLMPlayer {
+        +get_move()
     }
 ```
 
-## Extension Points
+## Current Limitations
 
-### Adding New Games
+1. Error Handling
+   - Basic error checking only
+   - No retry mechanism
+   - Limited validation feedback
 
-1. Implement Game interface
-2. Define game-specific state
-3. Implement move validation
-4. Define player views
-5. Provide rule explanations
+2. Missing Features
+   - Tournament management
+   - Rating system
+   - Game analysis tools
+   - Performance optimization
 
-### Adding New LLM Providers
+3. Inconsistencies
+   - GameView usage varies
+   - Move validation not uniform
+   - Error handling differs
 
-1. Implement LLMInterface
-2. Handle provider-specific API format
-3. Manage rate limits and retries
-4. Handle error cases
+## Next Steps
 
-## Future Considerations
+1. Standardization
+   - Consistent GameView usage
+   - Uniform move validation
+   - Standard error handling
 
-1. Performance Optimization
-   - Conversation history pruning
-   - Batch game execution
-   - Caching common responses
+2. Core Improvements
+   - Add retry logic to LLMs
+   - Improve error messages
+   - Better move validation
 
-2. Analysis Tools
-   - Game replay visualization
-   - Performance analytics
-   - Strategy analysis
-
-3. Robustness
-   - API failure handling
-   - Rate limiting
-   - Cost monitoring
-   - Timeout handling
-
-4. Tournament Features
-   - Swiss-system tournaments
-   - Round-robin automation
-   - Multi-game matches
-   - Variance reduction
+3. Future Features
+   - Basic tournament support
+   - Simple rating system
+   - Game replay capability
 
 ## Implementation Guidelines
 
@@ -137,75 +116,48 @@ classDiagram
 
 ```python
 class YourGame(Game):
+    def validate_move(self, state, player_id, move):
+        # Validate move legality
+        pass
+        
+    def get_move_format_instructions(self):
+        # Return move format help
+        pass
+        
     def get_player_view(self, state, player_id):
-        # 1. Calculate visible state
-        # 2. Determine valid moves
-        # 3. Check game end conditions
-        return GameView(...)
+        # Return GameView for player
+        pass
 ```
 
-### LLM Provider Implementation
-
-```python
-class YourLLM(LLMInterface):
-    async def complete(self, messages):
-        # 1. Format provider-specific request
-        # 2. Handle API calls
-        # 3. Parse response
-        # 4. Handle errors
-        return response
-```
-
-## Testing Strategy
+### Testing Focus
 
 1. Game Logic
-   - State transitions
    - Move validation
+   - State transitions
    - Win conditions
-   - Hidden information
 
 2. LLM Integration
-   - API handling
+   - Basic API handling
    - Response parsing
-   - Error cases
-   - Rate limiting
+   - Simple error cases
 
-3. Tournament Logic
-   - Elo calculations
-   - Match scheduling
-   - Results recording
-
-## Configuration Management
+## Configuration
 
 1. LLM Settings
    - API keys
    - Model selection
-   - Temperature
-   - Token limits
+   - Basic parameters
 
 2. Game Parameters
    - Initial states
-   - Rule variations
-   - Time controls
+   - Basic rules
 
-3. Tournament Settings
-   - Match counts
-   - Pairing systems
-   - Rating parameters
-
-## Monitoring and Logging
+## Monitoring
 
 1. Game Progress
    - Move history
-   - State transitions
-   - Time per move
+   - Basic state logging
 
 2. LLM Performance
    - Response times
-   - Token usage
-   - Error rates
-
-3. Tournament Stats
-   - Rating changes
-   - Win rates
-   - Invalid move rates
+   - Error tracking

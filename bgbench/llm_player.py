@@ -1,5 +1,5 @@
 import logging
-from typing import List, Dict, Any, Protocol
+from typing import List, Dict, Any, Protocol, Optional
 from bgbench.game_view import GameView
 
 logger = logging.getLogger("bgbench")

@@ -61,7 +61,16 @@ class NimGame(Game):
             remaining=state.remaining - move,
             current_player=1 - player_id
         )
+
+    def get_current_player(self, state: NimState) -> int:
+        return state.current_player
+
+    def get_next_state(self, state: NimState, move: int) -> NimState:
+        return NimState(
+            remaining=state.remaining - move,
+            current_player=1 - state.current_player
+        )
+
     def __init__(self, starting_count: int = 12, max_take: int = 3):
         self.starting_count = starting_count
         self.max_take = max_take
-        

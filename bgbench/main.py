@@ -23,8 +23,8 @@ async def main():
     players = [
         LLMPlayer("claude-3-haiku", create_llm("claude-3-haiku", temperature=0.0)),
         LLMPlayer("gpt-4o-mini", create_llm("gpt-4o-mini", temperature=0.0)),
-        LLMPlayer("claude-3-opus", create_llm("claude-3-opus", temperature=0.0)),
-        LLMPlayer("gpt-4", create_llm("gpt-4", temperature=0.0)),
+        # LLMPlayer("claude-3-opus", create_llm("claude-3-opus", temperature=0.0)),
+        # LLMPlayer("gpt-4", create_llm("gpt-4", temperature=0.0)),
     ]
     
     game = NimGame(12, 3)

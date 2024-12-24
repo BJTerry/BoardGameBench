@@ -49,9 +49,14 @@ class EloSystem:
         """
         rating_diff = player_a.rating - player_b.rating
         # Uncertainty decreases with more games played
-        uncertainty = math.sqrt(2 * (400 ** 2) / (player_a.games_played + player_b.games_played))
+        total_games = player_a.games_played + player_b.games_played
+        if total_games == 0:
+            # Maximum uncertainty when no games played
+            return 0.5
+            
+        uncertainty = math.sqrt(2 * (400 ** 2) / total_games)
         
-        if uncertainty == 0:
+        if uncertainty < 0.0001:  # Avoid division by zero
             return 1.0 if rating_diff > 0 else 0.0
         
         # Using normal distribution to calculate probability

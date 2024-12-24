@@ -36,9 +36,10 @@ class WarGame(Game):
             current_player=0
         )
 
-    def get_player_view(self, state: WarState, player_id: int, history: List[Dict[str, Any]]) -> GameView:
+    def get_player_view(self, state: WarState, player_id: int, history: List[Dict[str, Any]] = None) -> GameView:
         visible_state = {
             "your_hand": state.player_hands[player_id],
+            "opponent_cards": len(state.player_hands[1 - player_id]),
             "board": state.board
         }
         return GameView(
@@ -46,7 +47,7 @@ class WarGame(Game):
             valid_moves=[state.player_hands[player_id][0]] if state.player_hands[player_id] else [],
             is_terminal=not any(state.player_hands),
             winner=0 if not state.player_hands[1] else 1 if not state.player_hands[0] else None,
-            history=history
+            history=history if history else []
         )
 
     def parse_move(self, move_str: str) -> Optional[int]:

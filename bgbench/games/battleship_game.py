@@ -207,8 +207,7 @@ class BattleshipGame(Game):
             is_terminal=self._is_game_over(state),
             winner=self._get_winner(state),
             history=history if history else [],
-            move_format_instructions=move_instructions,
-            rules_explanation=None
+            move_format_instructions=move_instructions
         )
     
     def _get_valid_moves(self, state: BattleshipState, player_id: int) -> List[str]:

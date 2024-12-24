@@ -121,8 +121,6 @@ class WarGame(Game):
         return True, ""
 
     def apply_move(self, state: WarState, player_id: int, move: str) -> WarState:
-        cards_to_play = state.cards_needed
-        
         # Handle war state
         if state.war_state:
             # Play face down cards first

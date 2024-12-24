@@ -2,7 +2,6 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional, Tuple, Set
 from bgbench.game import Game
 from bgbench.game_view import GameView
-import random
 import string
 import copy
 

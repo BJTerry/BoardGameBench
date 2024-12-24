@@ -1,4 +1,4 @@
-from typing import Protocol, List, Dict, TypedDict, Union, Iterable
+from typing import Protocol, List, Union, Iterable
 from openai.types.chat import ChatCompletionMessageParam, ChatCompletionMessage
 import os
 import logging
@@ -21,9 +21,6 @@ def extract_content(message: Union[ChatCompletionMessageParam, ChatCompletionMes
     elif isinstance(content, Iterable):
         return "".join([c["text"] if "text" in c else "" for c in content])
     return ""
-    """Protocol for LLM API implementations."""
-    async def complete(self, messages: List[ChatCompletionMessageParam]) -> str:
-        ...
 
 class AnthropicLLM(LLMInterface):
     def __init__(self, model: str, temperature: float = 0.0, max_tokens: int = 1000):

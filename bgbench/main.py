@@ -1,4 +1,3 @@
-import os
 import argparse
 import logging
 from dotenv import load_dotenv

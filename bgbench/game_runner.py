@@ -16,7 +16,7 @@ class GameRunner:
         
         while True:
             current_player = self.game.get_current_player(state)
-            game_view = self.game.get_player_view(state, current_player)
+            game_view = self.game.get_player_view(state, current_player, history)
             
             if game_view.is_terminal:
                 break

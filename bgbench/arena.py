@@ -74,7 +74,20 @@ class Arena:
             player_a.rating = new_rating_a
             player_b.rating = new_rating_b
             
-            # Log current standings
+            # Log current standings and pairwise confidences
             self.log_standings()
+            self.log_pairwise_confidences()
             
         return {p.llm_player.name: p.rating.rating for p in self.players}
+
+    def log_pairwise_confidences(self):
+        """Log confidence levels between adjacent players sorted by rating"""
+        logger.info("\nPairwise Confidences:")
+        sorted_players = sorted(self.players, key=lambda p: p.rating.rating, reverse=True)
+        
+        for i in range(len(sorted_players) - 1):
+            player_a = sorted_players[i]
+            player_b = sorted_players[i + 1]
+            prob = self.elo_system.probability_stronger(player_a.rating, player_b.rating)
+            logger.info(f"{player_a.llm_player.name} vs {player_b.llm_player.name}: "
+                       f"{prob*100:.1f}% confident")

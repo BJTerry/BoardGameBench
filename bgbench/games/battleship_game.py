@@ -70,18 +70,28 @@ class BattleshipGame(Game):
     
     def get_move_format_instructions(self, state: BattleshipState) -> str:
         if not state.setup_complete:
+            ships_to_place = [ship for ship in SHIPS 
+                            if not any(s.name == ship[0] for s in state.boards[state.current_player].ships)]
+            next_ship = ships_to_place[0] if ships_to_place else None
+            
             return (
-                "Place your ships by specifying coordinate and direction for each. "
-                "You must respond with exactly two parts: a coordinate (letter A-J followed by number 1-10) "
-                "and a direction (h or v), separated by a space. "
-                "For example: 'A1 h' for horizontal at A1 or 'B2 v' for vertical at B2. "
-                "Do not include any other text in your response."
+                f"SETUP MODE: Place your {next_ship[0]} (length: {next_ship[1]} spaces)\n"
+                "FORMAT: <letter><number> <direction>\n"
+                "- letter must be A-J (column)\n"
+                "- number must be 1-10 (row)\n"
+                "- direction must be h (horizontal) or v (vertical)\n"
+                "Examples:\n"
+                "- 'A1 h' places horizontally starting at A1\n"
+                "- 'B2 v' places vertically starting at B2\n"
+                "Respond with ONLY the coordinate and direction, nothing else."
             )
         return (
-            "Call your shot using grid coordinates. "
-            "You must respond with exactly one coordinate: a letter A-J followed by a number 1-10. "
-            "For example: 'B5' or 'H10'. "
-            "Do not include any other text in your response."
+            "ATTACK MODE: Call your shot\n"
+            "FORMAT: <letter><number>\n"
+            "- letter must be A-J (column)\n"
+            "- number must be 1-10 (row)\n"
+            "Examples: 'B5' or 'H10'\n"
+            "Respond with ONLY the coordinate, nothing else."
         )
     
     def get_initial_state(self) -> BattleshipState:

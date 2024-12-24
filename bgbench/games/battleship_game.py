@@ -83,9 +83,20 @@ class BattleshipGame(Game):
         )
     
     def get_move_format_instructions(self) -> str:
-        if not state.setup_complete:
-            ships_to_place = [ship for ship in SHIPS 
-                            if not any(s.name == ship[0] for s in state.boards[state.current_player].ships)]
+        return (
+            "FORMAT: <letter><number> <direction> during setup\n"
+            "- letter must be A-J (column)\n"
+            "- number must be 1-10 (row)\n"
+            "- direction must be h (horizontal) or v (vertical)\n"
+            "Examples:\n"
+            "- 'A1 h' places horizontally starting at A1\n"
+            "- 'B2 v' places vertically starting at B2\n"
+            "\n"
+            "FORMAT: <letter><number> during gameplay\n"
+            "- letter must be A-J (column)\n"
+            "- number must be 1-10 (row)\n"
+            "Examples: 'B5' or 'H10'"
+        )
             next_ship = ships_to_place[0] if ships_to_place else None
             
             return (

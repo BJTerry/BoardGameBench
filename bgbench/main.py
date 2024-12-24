@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from bgbench.logging_config import setup_logging
 import importlib
 import pkgutil
-from bgbench.games import nim_game
+from bgbench import games
 from bgbench.llm_integration import create_llm
 from bgbench.llm_player import LLMPlayer
 from bgbench.arena import Arena
@@ -18,7 +18,7 @@ async def main():
     # Dynamically find available games
     game_modules = {
         name: importlib.import_module(f"bgbench.games.{name}")
-        for _, name, _ in pkgutil.iter_modules(nim_game.__path__)
+        for _, name, _ in pkgutil.iter_modules(games.__path__)
     }
     game_names = list(game_modules.keys())
 

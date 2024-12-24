@@ -15,7 +15,7 @@ def setup_logging(debug=False):
     bgbench_logger.setLevel(logging.DEBUG if debug else logging.INFO)
     
     # Create formatters
-    console_formatter = logging.Formatter('%(levelname)s - %(message)s')
+    console_formatter = logging.Formatter('%(message)s')  # Remove prefix for console
     file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     
     # Console handler - less verbose

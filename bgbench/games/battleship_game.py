@@ -101,7 +101,11 @@ class BattleshipGame(Game):
             "Examples: 'B5' or 'H10'"
         )
     
-    def get_initial_state(self) -> BattleshipState:
+    def get_move_format_instructions(self) -> str:
+        return (
+            self.get_move_format_instructions_setup() + "\n\n" +
+            self.get_move_format_instructions_gameplay()
+        )
         return BattleshipState(
             boards=[
                 Board(ships=[], hits=set(), misses=set()),

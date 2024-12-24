@@ -75,28 +75,14 @@ class BattleshipGame(Game):
             current_player=0,
             setup_complete=False
         )
-        return (
-            "We are playing Battleship on a 10x10 grid (A-J × 1-10). "
-            "First, place your ships by specifying start coordinate and direction (h/v). "
-            "Ships are: Carrier (5), Battleship (4), Cruiser (3), Submarine (3), Destroyer (2). "
-            "During play, call shots using coordinates (e.g., 'B5'). "
-            "On your boards:\n"
-            "- 'S' marks your ship locations\n"
-            "- 'H' marks hits (both on your ships and hits you've made)\n"
-            "- 'M' marks misses (both on your board and your missed shots)\n"
-            "You will see two boards:\n"
-            "1. Your board: Shows your ships and all enemy shots\n"
-            "2. Target board: Shows your hits and misses, but not enemy ship locations\n"
-            "The shot history shows all moves made and their results.\n"
-            "First to sink all opponent's ships wins."
-        )
     
     def get_move_format_instructions_setup(self) -> str:
         return (
-            "FORMAT: <letter><number> <direction> during setup\n"
+            "FORMAT: <letter><number> <direction>\n"
             "- letter must be A-J (column)\n"
             "- number must be 1-10 (row)\n"
             "- direction must be h (horizontal) or v (vertical)\n"
+            "- do not add any explanatory text before or after your move, just the move\n"
             "Examples:\n"
             "- 'A1 h' places horizontally starting at A1\n"
             "- 'B2 v' places vertically starting at B2"
@@ -107,6 +93,7 @@ class BattleshipGame(Game):
             "FORMAT: <letter><number> during gameplay\n"
             "- letter must be A-J (column)\n"
             "- number must be 1-10 (row)\n"
+            "- do not add any explanatory text before or after your move, just the move\n"
             "Examples: 'B5' or 'H10'"
         )
     

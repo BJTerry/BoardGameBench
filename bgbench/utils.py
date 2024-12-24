@@ -1,6 +1,9 @@
 import random
+import logging
 from typing import List, Dict, Any, Protocol, Tuple
 from .game import Game, GameView
+
+logger = logging.getLogger("bgbench")
 class LLMInterface(Protocol):
     async def complete(self, messages: List[Dict[str, str]]) -> str:
         ...

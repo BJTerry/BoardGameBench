@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 from .game import Game
-from .utils import GameView
+from .game_view import GameView
 
 @dataclass
 class NimState:

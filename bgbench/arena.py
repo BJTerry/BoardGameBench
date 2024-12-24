@@ -78,6 +78,20 @@ class Arena:
             self.log_standings()
             self.log_pairwise_confidences()
             
+            # Check if all pairwise probabilities are above the threshold
+            sorted_players = sorted(self.players, key=lambda p: p.rating.rating, reverse=True)
+            all_above_threshold = True
+            for i in range(len(sorted_players) - 1):
+                player_a = sorted_players[i]
+                player_b = sorted_players[i + 1]
+                prob = self.elo_system.probability_stronger(player_a.rating, player_b.rating)
+                if prob < self.confidence_threshold:
+                    all_above_threshold = False
+                    break
+            
+            if all_above_threshold:
+                break
+
         return {p.llm_player.name: p.rating.rating for p in self.players}
 
     def log_pairwise_confidences(self):

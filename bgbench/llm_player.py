@@ -17,8 +17,10 @@ class LLMPlayer:
     async def make_move(self, game_view: GameView, invalid_move_explanation: str = None) -> Any:
         # Prepare the message for the LLM
         system_message = (
-            f"Game state: {str(game_view.visible_state)}\n"
-            "Respond with only a number representing how many objects to take."
+            "You are playing a game. Here is the current state:\n"
+            f"{str(game_view.visible_state)}\n\n"
+            "Make your move according to these instructions:\n"
+            f"{game_view.move_format_instructions}"
         )
         
         messages = [{"role": "system", "content": system_message}]
@@ -27,18 +29,13 @@ class LLMPlayer:
             # Include the previous failed move and explanation
             if self.conversation_history:
                 messages.append({"role": "assistant", "content": self.conversation_history[-1]["content"]})
-            messages.append({"role": "user", "content": f"That move was invalid: {invalid_move_explanation}. Please try a different move."})
+            messages.append({"role": "user", "content": f"That move was invalid: {invalid_move_explanation}. Please try again following the move format instructions exactly."})
         else:
-            messages.append({"role": "user", "content": "What is your move? Respond with only a number."})
+            messages.append({"role": "user", "content": "What is your move? Respond with only your move following the format instructions exactly."})
 
         # Get the move from the LLM
         response = await self.llm.complete(messages)
+        response = response.strip()
         self.conversation_history.append({"role": "assistant", "content": response})
         
-        # Try to extract a number from the response
-        try:
-            # Remove any non-numeric characters and convert to int
-            move = int(''.join(c for c in response if c.isdigit()))
-            return move
-        except ValueError:
-            return 0  # Return invalid move if parsing fails
+        return response

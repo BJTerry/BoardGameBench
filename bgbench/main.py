@@ -1,14 +1,12 @@
 import os
 import argparse
 import logging
-import random
 from dotenv import load_dotenv
 from bgbench.logging_config import setup_logging
 from bgbench.games.nim_game import NimGame
 from bgbench.llm_integration import create_llm
 from bgbench.llm_player import LLMPlayer
-from bgbench.game_runner import GameRunner
-from bgbench.rating import PlayerRating, RatingAnalyzer
+from bgbench.arena import Arena
 
 logger = logging.getLogger("bgbench")
 
@@ -21,46 +19,26 @@ async def main():
     
     setup_logging(debug=args.debug)
     
-    # Initialize LLMs and players
-    claude_llm = create_llm("claude-3-haiku", temperature=0.0)
-    gpt4_llm = create_llm("gpt-4o-mini", temperature=0.0)
-    
-    player_a = LLMPlayer("claude-3-haiku", claude_llm)
-    player_b = LLMPlayer("gpt-4o-mini", gpt4_llm)
-    
-    # Initialize rating system
-    analyzer = RatingAnalyzer(confidence_threshold=0.70)
-    rating_a = PlayerRating(name=player_a.name, rating=1500, games_played=0)
-    rating_b = PlayerRating(name=player_b.name, rating=1500, games_played=0)
+    # Create multiple LLM players
+    players = [
+        LLMPlayer("claude-3-haiku", create_llm("claude-3-haiku", temperature=0.0)),
+        LLMPlayer("gpt-4o-mini", create_llm("gpt-4o-mini", temperature=0.0)),
+        LLMPlayer("claude-3-opus", create_llm("claude-3-opus", temperature=0.0)),
+        LLMPlayer("gpt-4", create_llm("gpt-4", temperature=0.0)),
+    ]
     
     game = NimGame(12, 3)
-    game_count = 0
+    arena = Arena(game, confidence_threshold=0.70)
     
-    while True:
-        game_count += 1
-        logger.info(f"\nStarting game {game_count}")
-        
-        # Randomly order players for this game
-        players = [player_a, player_b]
-        random.shuffle(players)
-        runner = GameRunner(game, players[0], players[1])
-        winner, history = await runner.play_game()
-        
-        # Update ratings
-        rating_a, rating_b = analyzer.elo_system.update_ratings(
-            rating_a, rating_b, winner.name == player_a.name
-        )
-        
-        logger.info(f"Game {game_count} winner: {winner.name}")
-        logger.info(f"Current ratings: {rating_a.name}: {rating_a.rating:.0f}, "
-                   f"{rating_b.name}: {rating_b.rating:.0f}")
-        
-        # Check if we have reached confidence threshold
-        complete, explanation = analyzer.is_evaluation_complete(rating_a, rating_b)
-        logger.info(explanation)
-        
-        if complete:
-            break
+    for player in players:
+        arena.add_player(player)
+    
+    final_ratings = await arena.evaluate_all()
+    
+    # Print final standings
+    logger.info("\nFinal Ratings:")
+    for name, rating in sorted(final_ratings.items(), key=lambda x: x[1], reverse=True):
+        logger.info(f"{name}: {rating:.0f}")
 
 if __name__ == "__main__":
     import asyncio

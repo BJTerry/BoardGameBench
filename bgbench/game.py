@@ -35,6 +35,16 @@ class Game(ABC):
         pass
     
     @abstractmethod
+    def get_current_player(self, state: Any) -> int:
+        """Return the ID of the player whose turn it is."""
+        pass
+
+    @abstractmethod
+    def get_next_state(self, state: Any, move: Any) -> Any:
+        """Return the next state after a move, including any turn changes."""
+        pass
+
+    @abstractmethod
     def apply_move(self, state: Any, player_id: int, move: Any) -> Any:
         """Apply move to state and return new state."""
         pass

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
-from .game import Game
+from bgbench.game import Game
 from .game_view import GameView
 
 @dataclass

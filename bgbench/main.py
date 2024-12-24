@@ -1,6 +1,7 @@
 import os
 import argparse
 import logging
+import random
 from dotenv import load_dotenv
 from bgbench.logging_config import setup_logging
 from bgbench.nim_game import NimGame
@@ -38,8 +39,10 @@ async def main():
         game_count += 1
         logger.info(f"\nStarting game {game_count}")
         
-        # Play a game
-        runner = GameRunner(game, player_a, player_b)
+        # Randomly order players for this game
+        players = [player_a, player_b]
+        random.shuffle(players)
+        runner = GameRunner(game, players[0], players[1])
         winner, history = await runner.play_game()
         
         # Update ratings

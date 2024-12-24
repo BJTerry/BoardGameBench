@@ -13,14 +13,6 @@ class Game(ABC, Generic[StateType, MoveType]):
     """
     
     @abstractmethod
-    def get_rules_explanation(self) -> str:
-        """Return a clear explanation of the game rules.
-        
-        Returns:
-            A string explaining the rules in a way an LLM can understand.
-        """
-        pass
-    
 
     @abstractmethod
     def get_initial_state(self) -> StateType:

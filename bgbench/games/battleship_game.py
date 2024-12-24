@@ -71,10 +71,18 @@ class BattleshipGame(Game):
     def get_move_format_instructions(self, state: BattleshipState) -> str:
         if not state.setup_complete:
             return (
-                "Place your ships by specifying coordinate and direction for each, "
-                "e.g., 'A1 h' for horizontal at A1 or 'B2 v' for vertical at B2"
+                "Place your ships by specifying coordinate and direction for each. "
+                "You must respond with exactly two parts: a coordinate (letter A-J followed by number 1-10) "
+                "and a direction (h or v), separated by a space. "
+                "For example: 'A1 h' for horizontal at A1 or 'B2 v' for vertical at B2. "
+                "Do not include any other text in your response."
             )
-        return "Call your shot using grid coordinates (e.g., 'B5')"
+        return (
+            "Call your shot using grid coordinates. "
+            "You must respond with exactly one coordinate: a letter A-J followed by a number 1-10. "
+            "For example: 'B5' or 'H10'. "
+            "Do not include any other text in your response."
+        )
     
     def get_initial_state(self) -> BattleshipState:
         return BattleshipState(

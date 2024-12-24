@@ -28,12 +28,21 @@ class GameRunner:
             if not valid:
                 logger.warning(f"Invalid move by {player.name}: {explanation}")
                 continue
+
+            # Print formatted turn information
+            turn_number = len(history) + 1
+            logger.info(f"\nTurn {turn_number}")
+            logger.info(f"Current Player: {player.name}")
+            logger.info("Game State:")
+            logger.info(f"{game_view.visible_state}")
+            logger.info(f"Move: {move}\n")
                 
             state = self.game.get_next_state(state, move)
             history.append({
                 "player": current_player, 
                 "move": move, 
-                "state_before": game_view.visible_state
+                "state_before": game_view.visible_state,
+                "turn": turn_number
             })
 
         final_view = self.game.get_player_view(state, current_player)

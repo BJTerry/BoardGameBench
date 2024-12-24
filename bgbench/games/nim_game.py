@@ -37,6 +37,8 @@ class NimGame(Game[NimState, NimMove]):
                        history: Optional[List[Dict[str, Any]]] = None) -> GameView:
         valid_moves = list(range(1, min(self.max_take, state.remaining) + 1))
         return GameView(
+            move_format_instructions=self.get_move_format_instructions(),
+            rules_explanation=self.get_rules_explanation(),
             visible_state={"remaining": state.remaining},
             valid_moves=valid_moves,
             is_terminal=state.remaining == 0,

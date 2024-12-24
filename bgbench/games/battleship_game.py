@@ -65,7 +65,16 @@ class BattleshipGame(Game):
     def __init__(self):
         self.size = 10  # 10x10 grid
         
-    def get_rules_explanation(self) -> str:
+    def get_initial_state(self) -> BattleshipState:
+        """Return the initial state of the Battleship game."""
+        return BattleshipState(
+            boards=[
+                Board(ships=[], hits=set(), misses=set()),
+                Board(ships=[], hits=set(), misses=set())
+            ],
+            current_player=0,
+            setup_complete=False
+        )
         return (
             "We are playing Battleship on a 10x10 grid (A-J × 1-10). "
             "First, place your ships by specifying start coordinate and direction (h/v). "

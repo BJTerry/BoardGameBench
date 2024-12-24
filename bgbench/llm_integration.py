@@ -28,7 +28,8 @@ class AnthropicLLM(LLMInterface):
     async def complete(self, messages: List[Dict[str, str]]) -> str:
         logger.info(f"Sending request to {self.model}")
         logger.info(f"Number of messages in conversation: {len(messages)}")
-        logger.info(f"Last message ({messages[-1]['role']}): {messages[-1]['content'][:50]}...")
+        for msg in messages:
+            logger.debug(f"Message ({msg['role']}): {msg['content'][:10000]}...")
         
         try:
             response = await self.client.chat.completions.create(
@@ -38,7 +39,7 @@ class AnthropicLLM(LLMInterface):
                 max_tokens=self.max_tokens
             )
             content = response.choices[0].message.content
-            logger.info(f"Received response ({len(content)} chars): {content[:50]}...")
+            logger.info(f"Received response ({len(content)} chars): {content[:5000]}...")
             return content
         except Exception as e:
             logger.error(f"Error calling Anthropic API: {str(e)}")
@@ -61,7 +62,7 @@ class OpenAILLM(LLMInterface):
     async def complete(self, messages: List[Dict[str, str]]) -> str:
         logger.debug(f"Sending request to {self.model}")
         for msg in messages:
-            logger.debug(f"Message ({msg['role']}): {msg['content'][:100]}...")
+            logger.debug(f"Message ({msg['role']}): {msg['content'][:10000]}...")
             
         try:
             response = await self.client.chat.completions.create(
@@ -71,7 +72,7 @@ class OpenAILLM(LLMInterface):
                 max_tokens=self.max_tokens
             )
             content = response.choices[0].message.content
-            logger.debug(f"Response: {content[:100]}...")
+            logger.debug(f"Response: {content[:10000]}...")
             return content
         except Exception as e:
             logger.error(f"Error calling OpenAI API: {str(e)}")

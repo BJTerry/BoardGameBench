@@ -12,6 +12,7 @@ class Ship:
     size: int
     positions: Set[Tuple[int, int]]  # Set of (x,y) coordinates
     hits: Set[Tuple[int, int]] = None  # Track hits on this ship
+    sunk_reported: bool = False
     
     def __post_init__(self):
         self.hits = set()
@@ -27,14 +28,20 @@ class Board:
     misses: Set[Tuple[int, int]]  # All misses on this board
     
     def is_valid_shot(self, x: int, y: int) -> bool:
-        return (x, y) not in self.hits and (x, y) not in self.misses
+        # Can't shoot same spot twice (whether hit or miss)
+        return 0 <= x < 10 and 0 <= y < 10 and (x, y) not in self.hits and (x, y) not in self.misses
     
     def receive_shot(self, x: int, y: int) -> Tuple[str, Optional[str]]:
+        if not self.is_valid_shot(x, y):
+            raise ValueError("Invalid shot location")
+            
         for ship in self.ships:
             if (x, y) in ship.positions:
                 ship.hits.add((x, y))
                 self.hits.add((x, y))
-                if ship.is_sunk:
+                # Only report sunk if this hit was the final one needed
+                if ship.is_sunk and not ship.sunk_reported:
+                    ship.sunk_reported = True
                     return "hit", f"sunk {ship.name}"
                 return "hit", None
         self.misses.add((x, y))
@@ -145,12 +152,15 @@ class BattleshipGame(Game):
                         if len(move) == 2:  # Attack move
                             x, y = move
                             coord = f"{string.ascii_uppercase[x]}{y+1}"
-                            # Determine if it was a hit or miss
+                            # Check the result of this specific shot
                             if (x, y) in state.boards[opponent_id].hits:
-                                # Check if it sunk a ship
-                                sunk_ship = next((ship for ship in state.boards[opponent_id].ships 
-                                                if (x, y) in ship.hits and ship.is_sunk), None)
-                                result = f"hit and sunk {sunk_ship.name}" if sunk_ship else "hit"
+                                # Find the ship that was hit at this coordinate
+                                hit_ship = next((ship for ship in state.boards[opponent_id].ships 
+                                               if (x, y) in ship.positions), None)
+                                if hit_ship and hit_ship.is_sunk and len(hit_ship.hits) == len(hit_ship.positions):
+                                    result = f"hit and sunk {hit_ship.name}"
+                                else:
+                                    result = "hit"
                             else:
                                 result = "miss"
                             shot_history.append(f"Turn {turn['turn']}: {coord} - {result}")
@@ -250,8 +260,10 @@ class BattleshipGame(Game):
             if len(move) != 2:
                 return False, "Shot move should be coordinate only"
             x, y = move
+            if not (0 <= x < self.size and 0 <= y < self.size):
+                return False, "Shot location out of bounds"
             if not state.boards[1-player_id].is_valid_shot(x, y):
-                return False, "Invalid or repeated shot location"
+                return False, "Cannot shoot the same location twice"
             return True, ""
     
     def _get_ship_positions(self, x: int, y: int, size: int, is_horizontal: bool) -> Set[Tuple[int, int]]:

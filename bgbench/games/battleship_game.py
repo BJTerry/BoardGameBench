@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional, Tuple, Set
 from bgbench.game import Game
 from bgbench.game_view import GameView
@@ -11,7 +11,7 @@ class Ship:
     name: str
     size: int
     positions: Set[Tuple[int, int]]  # Set of (x,y) coordinates
-    hits: Set[Tuple[int, int]] = None  # Track hits on this ship
+    hits: Set[Tuple[int, int]] = field(default_factory=set)  # Track hits on this ship
     sunk_reported: bool = False
     
     def __post_init__(self):
@@ -82,7 +82,7 @@ class BattleshipGame(Game):
             "First to sink all opponent's ships wins."
         )
     
-    def get_move_format_instructions(self, state: BattleshipState) -> str:
+    def get_move_format_instructions(self) -> str:
         if not state.setup_complete:
             ships_to_place = [ship for ship in SHIPS 
                             if not any(s.name == ship[0] for s in state.boards[state.current_player].ships)]

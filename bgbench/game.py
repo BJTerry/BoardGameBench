@@ -113,3 +113,16 @@ class Game(ABC, Generic[StateType, MoveType]):
             ValueError: If the move is invalid
         """
         pass
+
+    @abstractmethod
+    def get_next_state(self, state: StateType, move: MoveType) -> StateType:
+        """Return the next state after applying the move.
+        
+        Args:
+            state: Current game state
+            move: The move to apply
+            
+        Returns:
+            New game state
+        """
+        pass

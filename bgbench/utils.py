@@ -48,16 +48,18 @@ class GameRunner:
             game_view = self.game.get_player_view(state, current_player)
             if game_view.is_terminal:
                 break
+                
             player = self.players[current_player]
-            game_view = self.game.get_player_view(state, current_player)
             move = await player.make_move(game_view)
             valid, explanation = self.game.validate_move(state, current_player, move)
-            if valid:
-                state = self.game.apply_move(state, current_player, move)
-                history.append({"player": current_player, "move": move, "state_before": game_view.visible_state})
-                current_player = 1 - current_player
-            else:
-                print(f"Invalid move by {player.name}: {explanation}")
+            
+            if not valid:
+                logger.warning(f"Invalid move by {player.name}: {explanation}")
+                continue
+                
+            state = self.game.apply_move(state, current_player, move)
+            history.append({"player": current_player, "move": move, "state_before": game_view.visible_state})
+            current_player = 1 - current_player
 
         final_view = self.game.get_player_view(state, current_player)
         winner_idx = 0 if final_view.winner is None else final_view.winner

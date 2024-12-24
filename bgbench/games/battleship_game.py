@@ -64,7 +64,14 @@ class BattleshipGame(Game):
             "First, place your ships by specifying start coordinate and direction (h/v). "
             "Ships are: Carrier (5), Battleship (4), Cruiser (3), Submarine (3), Destroyer (2). "
             "During play, call shots using coordinates (e.g., 'B5'). "
-            "Responses will be 'hit', 'miss', or 'hit and sunk <ship>'. "
+            "On your boards:\n"
+            "- 'S' marks your ship locations\n"
+            "- 'H' marks hits (both on your ships and hits you've made)\n"
+            "- 'M' marks misses (both on your board and your missed shots)\n"
+            "You will see two boards:\n"
+            "1. Your board: Shows your ships and all enemy shots\n"
+            "2. Target board: Shows your hits and misses, but not enemy ship locations\n"
+            "The shot history shows all moves made and their results.\n"
             "First to sink all opponent's ships wins."
         )
     
@@ -128,10 +135,29 @@ class BattleshipGame(Game):
     def get_player_view(self, state: BattleshipState, player_id: int, history: List[Dict[str, Any]] = None) -> GameView:
         opponent_id = 1 - player_id
         
+        # Format shot history
+        shot_history = []
+        if history:
+            for turn in history:
+                if turn["player"] == player_id and state.setup_complete:
+                    move = turn["move"]
+                    x, y = move
+                    coord = f"{string.ascii_uppercase[x]}{y+1}"
+                    # Determine if it was a hit or miss
+                    if (x, y) in state.boards[opponent_id].hits:
+                        # Check if it sunk a ship
+                        sunk_ship = next((ship for ship in state.boards[opponent_id].ships 
+                                        if (x, y) in ship.hits and ship.is_sunk), None)
+                        result = f"hit and sunk {sunk_ship.name}" if sunk_ship else "hit"
+                    else:
+                        result = "miss"
+                    shot_history.append(f"Turn {turn['turn']}: {coord} - {result}")
+        
         visible_state = {
             "your_board": self._format_board(state.boards[player_id], True),
             "target_board": self._format_board(state.boards[opponent_id], False),
-            "setup_complete": state.setup_complete
+            "setup_complete": state.setup_complete,
+            "shot_history": shot_history
         }
         
         if not state.setup_complete:

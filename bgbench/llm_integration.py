@@ -1,13 +1,12 @@
 from typing import Protocol, List, Dict, TypedDict, Union, Iterable
-from openai.types.chat import ChatCompletionMessageParam
-
-class LLMInterface(Protocol):
-    async def complete(self, messages: List[ChatCompletionMessageParam]) -> str:
-        ...
 from openai.types.chat import ChatCompletionMessageParam, ChatCompletionMessage
 import os
 import logging
 from openai import AsyncOpenAI
+
+class LLMInterface(Protocol):
+    async def complete(self, messages: List[ChatCompletionMessageParam]) -> str:
+        ...
 
 logger = logging.getLogger(__name__)
 

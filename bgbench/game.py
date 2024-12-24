@@ -21,14 +21,6 @@ class Game(ABC, Generic[StateType, MoveType]):
         """
         pass
     
-    @abstractmethod
-    def get_move_format_instructions(self) -> str:
-        """Explain how moves should be formatted in responses.
-        
-        Returns:
-            A string explaining the expected format for move inputs.
-        """
-        pass
 
     @abstractmethod
     def get_initial_state(self) -> StateType:

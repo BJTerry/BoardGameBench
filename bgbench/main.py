@@ -21,10 +21,10 @@ async def main():
     
     # Initialize LLMs and players
     claude_llm = create_llm("claude-3-haiku", temperature=0.0)
-    gpt4_llm = create_llm("gpt-4o", temperature=0.0)
+    gpt4_llm = create_llm("gpt-4o-mini", temperature=0.0)
     
-    player_a = LLMPlayer("Claude-3-Sonnet", claude_llm)
-    player_b = LLMPlayer("GPT-4-Turbo", gpt4_llm)
+    player_a = LLMPlayer("claude-3-haiku", claude_llm)
+    player_b = LLMPlayer("gpt-4o-mini", gpt4_llm)
     
     # Initialize rating system
     analyzer = RatingAnalyzer(confidence_threshold=0.95)

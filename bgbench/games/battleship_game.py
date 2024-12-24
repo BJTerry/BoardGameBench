@@ -97,27 +97,6 @@ class BattleshipGame(Game):
             "- number must be 1-10 (row)\n"
             "Examples: 'B5' or 'H10'"
         )
-            next_ship = ships_to_place[0] if ships_to_place else None
-            
-            return (
-                f"SETUP MODE: Place your {next_ship[0]} (length: {next_ship[1]} spaces)\n"
-                "FORMAT: <letter><number> <direction>\n"
-                "- letter must be A-J (column)\n"
-                "- number must be 1-10 (row)\n"
-                "- direction must be h (horizontal) or v (vertical)\n"
-                "Examples:\n"
-                "- 'A1 h' places horizontally starting at A1\n"
-                "- 'B2 v' places vertically starting at B2\n"
-                "Respond with ONLY the coordinate and direction, nothing else."
-            )
-        return (
-            "ATTACK MODE: Call your shot\n"
-            "FORMAT: <letter><number>\n"
-            "- letter must be A-J (column)\n"
-            "- number must be 1-10 (row)\n"
-            "Examples: 'B5' or 'H10'\n"
-            "Respond with ONLY the coordinate, nothing else."
-        )
     
     def get_initial_state(self) -> BattleshipState:
         return BattleshipState(
@@ -150,7 +129,8 @@ class BattleshipGame(Game):
             result += f"{i+1:2d} {' '.join(row)}\n"
         return result
     
-    def get_player_view(self, state: BattleshipState, player_id: int, history: List[Dict[str, Any]] = None) -> GameView:
+    def get_player_view(self, state: BattleshipState, player_id: int, 
+                       history: Optional[List[Dict[str, Any]]] = None) -> GameView:
         opponent_id = 1 - player_id
         
         # Format shot history
@@ -202,7 +182,7 @@ class BattleshipGame(Game):
             is_terminal=self._is_game_over(state),
             winner=self._get_winner(state),
             history=history if history else [],
-            move_format_instructions=self.get_move_format_instructions(state),
+            move_format_instructions=self.get_move_format_instructions(),
             rules_explanation=self.get_rules_explanation()
         )
     

@@ -175,7 +175,7 @@ class WarGame(Game):
     def get_current_player(self, state: WarState) -> int:
         return state.current_player
 
-    def get_next_state(self, state: WarState, move: int) -> WarState:
-        new_state = self.apply_move(state, state.current_player, move)
+    def get_next_state(self, state: WarState, move: str) -> WarState:
+        new_state = self.apply_move(state, state.current_player, str(move))
         new_state.current_player = 1 - state.current_player
         return new_state

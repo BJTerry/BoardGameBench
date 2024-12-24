@@ -27,15 +27,23 @@ class GameRunner:
             
             if not valid:
                 logger.warning(f"Invalid move by {player.name}: {explanation}")
-                # Try again with the invalid move feedback
-                continue_trying = True
-                while continue_trying:
+                # Try again with the invalid move feedback, max 5 attempts
+                retry_count = 1
+                MAX_RETRIES = 5
+                
+                while retry_count < MAX_RETRIES:
+                    logger.warning(f"Retry attempt {retry_count} of {MAX_RETRIES}")
                     move = await player.make_move(game_view, explanation)
                     valid, explanation = self.game.validate_move(state, current_player, move)
                     if valid:
-                        continue_trying = False
-                    else:
-                        logger.warning(f"Invalid move by {player.name}: {explanation}")
+                        break
+                    retry_count += 1
+                    logger.warning(f"Invalid move by {player.name}: {explanation}")
+                
+                if not valid:
+                    logger.warning(f"{player.name} exceeded {MAX_RETRIES} invalid move attempts and concedes the game")
+                    # Return the other player as winner
+                    return self.players[1 - current_player], history
 
             # Print formatted turn information
             turn_number = len(history) + 1

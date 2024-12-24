@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from bgbench.game import Game
 from bgbench.game_view import GameView
 import random

@@ -75,8 +75,8 @@ class OpenAILLM(LLMInterface):
                 max_tokens=self.max_tokens
             )
             content = response.choices[0].message.content if response.choices and response.choices[0].message.content else ""
-                logger.debug(f"Response: {content[:10000]}...")
-                return content
+            logger.debug(f"Response: {content[:10000]}...")
+            return content
             raise ValueError("No content in response")
         except Exception as e:
             logger.error(f"Error calling OpenAI API: {str(e)}")

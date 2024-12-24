@@ -41,8 +41,8 @@ class AnthropicLLM(LLMInterface):
                 max_tokens=self.max_tokens
             )
             content = response.choices[0].message.content if response.choices and response.choices[0].message.content else ""
-                logger.info(f"Received response ({len(content)} chars): {content[:5000]}...")
-                return content
+            logger.info(f"Received response ({len(content)} chars): {content[:5000]}...")
+            return content
             raise ValueError("No content in response")
         except Exception as e:
             logger.error(f"Error calling Anthropic API: {str(e)}")

@@ -8,3 +8,4 @@ class GameView:
     valid_moves: List[Any]
     is_terminal: bool
     winner: Optional[int] = None
+    history: List[Dict[str, Any]] = None  # Add this line

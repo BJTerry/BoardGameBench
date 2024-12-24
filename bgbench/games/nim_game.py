@@ -8,7 +8,12 @@ class NimState:
     remaining: int
     current_player: int
 
-class NimGame(Game):
+@dataclass
+class NimMove:
+    """Represents a move in Nim game."""
+    count: int
+
+class NimGame(Game[NimState, NimMove]):
     def get_rules_explanation(self) -> str:
         return (
             f"We are playing Nim. There are {self.starting_count} objects in a pile. "
@@ -37,37 +42,82 @@ class NimGame(Game):
             winner=state.current_player if state.remaining == 0 else None
         )
     
-    def parse_move(self, move_str: str) -> Optional[int]:
+    def parse_move(self, move_str: str) -> Optional[NimMove]:
+        """Parse move from LLM response string.
+        
+        Args:
+            move_str: The raw string from the LLM containing a number
+            
+        Returns:
+            NimMove object if valid, None if parsing failed
+        """
         try:
             numbers = [int(s) for s in move_str.split() if s.isdigit()]
-            return numbers[0] if numbers else None
-        except Exception as e:
-            print(e)
+            if not numbers:
+                return None
+            return NimMove(count=numbers[0])
+        except (ValueError, IndexError):
             return None
     
-    def validate_move(self, state: NimState, player_id: int, move: int) -> Tuple[bool, str]:
+    def validate_move(self, state: NimState, player_id: int, move: NimMove) -> Tuple[bool, str]:
+        """Validate if a move is legal in the current state.
+        
+        Args:
+            state: Current game state
+            player_id: ID of player making the move
+            move: The NimMove to validate
+            
+        Returns:
+            Tuple of (is_valid, explanation_string)
+        """
         if state.current_player != player_id:
             return False, "It's not your turn."
-        if not isinstance(move, int):
-            return False, "Move must be a number."
-        if move < 1 or move > self.max_take:
+        if not isinstance(move, NimMove):
+            return False, "Invalid move type"
+        if move.count < 1 or move.count > self.max_take:
             return False, f"You must take between 1 and {self.max_take} objects."
-        if move > state.remaining:
+        if move.count > state.remaining:
             return False, f"There are only {state.remaining} objects remaining."
         return True, ""
     
-    def apply_move(self, state: NimState, player_id: int, move: int) -> NimState:
+    def apply_move(self, state: NimState, player_id: int, move: NimMove) -> NimState:
+        """Apply move to state and return new state.
+        
+        Args:
+            state: Current game state
+            player_id: ID of player making the move
+            move: The NimMove to apply
+            
+        Returns:
+            New game state after applying the move
+            
+        Raises:
+            ValueError: If the move is invalid
+        """
+        valid, reason = self.validate_move(state, player_id, move)
+        if not valid:
+            raise ValueError(reason)
+            
         return NimState(
-            remaining=state.remaining - move,
+            remaining=state.remaining - move.count,
             current_player=1 - player_id
         )
 
     def get_current_player(self, state: NimState) -> int:
         return state.current_player
 
-    def get_next_state(self, state: NimState, move: int) -> NimState:
+    def get_next_state(self, state: NimState, move: NimMove) -> NimState:
+        """Return the next state after applying the move.
+        
+        Args:
+            state: Current game state
+            move: The NimMove to apply
+            
+        Returns:
+            New game state
+        """
         return NimState(
-            remaining=state.remaining - move,
+            remaining=state.remaining - move.count,
             current_player=1 - state.current_player
         )
 

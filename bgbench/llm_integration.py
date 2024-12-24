@@ -1,4 +1,5 @@
-from typing import Protocol, List, Dict
+from typing import Protocol, List, Dict, TypedDict
+from openai.types.chat import ChatCompletionMessageParam
 import os
 import logging
 from openai import AsyncOpenAI
@@ -7,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 class LLMInterface(Protocol):
     """Protocol for LLM API implementations."""
-    async def complete(self, messages: List[Dict[str, str]]) -> str:
+    async def complete(self, messages: List[ChatCompletionMessageParam]) -> str:
         ...
 
 class AnthropicLLM(LLMInterface):
@@ -38,9 +39,11 @@ class AnthropicLLM(LLMInterface):
                 temperature=self.temperature,
                 max_tokens=self.max_tokens
             )
-            content = response.choices[0].message.content
-            logger.info(f"Received response ({len(content)} chars): {content[:5000]}...")
-            return content
+            if response.choices and response.choices[0].message.content:
+                content = response.choices[0].message.content
+                logger.info(f"Received response ({len(content)} chars): {content[:5000]}...")
+                return content
+            raise ValueError("No content in response")
         except Exception as e:
             logger.error(f"Error calling Anthropic API: {str(e)}")
             raise
@@ -71,9 +74,11 @@ class OpenAILLM(LLMInterface):
                 temperature=self.temperature,
                 max_tokens=self.max_tokens
             )
-            content = response.choices[0].message.content
-            logger.debug(f"Response: {content[:10000]}...")
-            return content
+            if response.choices and response.choices[0].message.content:
+                content = response.choices[0].message.content
+                logger.debug(f"Response: {content[:10000]}...")
+                return content
+            raise ValueError("No content in response")
         except Exception as e:
             logger.error(f"Error calling OpenAI API: {str(e)}")
             raise

@@ -14,7 +14,7 @@ class LLMPlayer:
         self.llm = llm
         self.conversation_history = []
 
-    async def make_move(self, game_view: GameView, invalid_move_explanation: str = None) -> Any:
+    async def make_move(self, game_view: GameView, invalid_move_explanation: Optional[str] = None) -> Any:
         # Prepare the message for the LLM
         system_message = (
             "You are playing a game. Here are the rules:\n"

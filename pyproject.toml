@@ -8,8 +8,9 @@ packages = [{include = "bgbench"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"
-aisuite = {version = "^0.1.6", extras = ["anthropic", "openai"]}
 python-dotenv = "^1.0.1"
+pydantic-ai = "^0.0.15"
+openai = "^1.58.1"
 
 
 [tool.poetry.group.dev.dependencies]

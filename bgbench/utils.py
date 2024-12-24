@@ -1,3 +1,4 @@
+import random
 from typing import List, Dict, Any, Protocol, Tuple
 from .game import Game, GameView
 class LLMInterface(Protocol):
@@ -38,7 +39,6 @@ class GameRunner:
         self.players = [player1, player2]
 
     async def play_game(self) -> Tuple[LLMPlayer, List[Dict[str, Any]]]:
-        import random
         state = self.game.get_initial_state()
         history = []
         # Randomly choose starting player

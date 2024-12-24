@@ -18,7 +18,7 @@ async def main():
     setup_logging(debug=args.debug)
     
     # Initialize LLMs
-    claude_llm = create_llm("claude-3-sonnet", temperature=0.0)
+    claude_llm = create_llm("claude-3-haiku", temperature=0.0)
     gpt4_llm = create_llm("gpt-4o", temperature=0.0)
     
     # Create players
@@ -37,13 +37,6 @@ async def main():
     for move in history:
         print(f"Player {move['player']}: took {move['move']} objects, "
               f"{move['state_before']['remaining']} remaining")
-        
-    # Access conversation history
-    print("\nClaude's thought process:")
-    for msg in player_a.conversation_history:
-        if msg["role"] != "system":
-            print(f"{msg['role']}: {msg['content']}\n")
-
 
 if __name__ == "__main__":
     import asyncio

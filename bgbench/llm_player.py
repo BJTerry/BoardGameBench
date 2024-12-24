@@ -17,7 +17,9 @@ class LLMPlayer:
     async def make_move(self, game_view: GameView, invalid_move_explanation: str = None) -> Any:
         # Prepare the message for the LLM
         system_message = (
-            "You are playing a game. Here is the current state:\n"
+            "You are playing a game. Here are the rules:\n"
+            f"{game_view.rules_explanation}\n\n"
+            "Current game state:\n"
             f"{str(game_view.visible_state)}\n\n"
             "Make your move according to these instructions:\n"
             f"{game_view.move_format_instructions}"

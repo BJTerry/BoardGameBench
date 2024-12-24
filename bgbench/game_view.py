@@ -10,3 +10,4 @@ class GameView:
     winner: Optional[int] = None
     history: List[Dict[str, Any]] = None
     move_format_instructions: str = None
+    rules_explanation: str = None

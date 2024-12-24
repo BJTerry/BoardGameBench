@@ -20,8 +20,8 @@ class Game(ABC):
         pass
     
     @abstractmethod
-    def get_player_view(self, state: Any, player_id: int, history: List[Dict[str, Any]]) -> 'GameView':
-        """Return what this player can see of the current state, including history."""
+    def get_player_view(self, state: Any, player_id: int, history: List[Dict[str, Any]] = None) -> 'GameView':
+        """Return what this player can see of the current state, including history and rules."""
         pass
     
     @abstractmethod

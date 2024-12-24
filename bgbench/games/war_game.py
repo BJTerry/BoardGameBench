@@ -96,6 +96,13 @@ class WarGame(Game):
             valid_moves=["play"] if can_play else [],
             is_terminal=not any(state.player_hands),
             winner=0 if not state.player_hands[1] else 1 if not state.player_hands[0] else None,
+            history=history if history else [],
+            move_format_instructions=self.get_move_format_instructions(),
+            rules_explanation=self.get_rules_explanation()
+            visible_state=visible_state,
+            valid_moves=["play"] if can_play else [],
+            is_terminal=not any(state.player_hands),
+            winner=0 if not state.player_hands[1] else 1 if not state.player_hands[0] else None,
             history=history if history else []
         )
 

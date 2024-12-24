@@ -28,7 +28,7 @@ async def main():
     player_b = LLMPlayer("gpt-4o-mini", gpt4_llm)
     
     # Initialize rating system
-    analyzer = RatingAnalyzer(confidence_threshold=0.95)
+    analyzer = RatingAnalyzer(confidence_threshold=0.70)
     rating_a = PlayerRating(name=player_a.name, rating=1500, games_played=0)
     rating_b = PlayerRating(name=player_b.name, rating=1500, games_played=0)
     

@@ -40,9 +40,10 @@ class AnthropicLLM(LLMInterface):
                 temperature=self.temperature,
                 max_tokens=self.max_tokens
             )
-            content = response.choices[0].message.content if response.choices and response.choices[0].message.content else ""
-            logger.info(f"Received response ({len(content)} chars): {content[:5000]}...")
-            return content
+            if response.choices and response.choices[0].message.content:
+                content = response.choices[0].message.content
+                logger.info(f"Received response ({len(content)} chars): {content[:5000]}...")
+                return content
             raise ValueError("No content in response")
         except Exception as e:
             logger.error(f"Error calling Anthropic API: {str(e)}")
@@ -74,9 +75,10 @@ class OpenAILLM(LLMInterface):
                 temperature=self.temperature,
                 max_tokens=self.max_tokens
             )
-            content = response.choices[0].message.content if response.choices and response.choices[0].message.content else ""
-            logger.debug(f"Response: {content[:10000]}...")
-            return content
+            if response.choices and response.choices[0].message.content:
+                content = response.choices[0].message.content
+                logger.debug(f"Response: {content[:10000]}...")
+                return content
             raise ValueError("No content in response")
         except Exception as e:
             logger.error(f"Error calling OpenAI API: {str(e)}")

@@ -82,7 +82,7 @@ class BattleshipGame(Game):
             "First to sink all opponent's ships wins."
         )
     
-    def get_move_format_instructions(self) -> str:
+    def get_move_format_instructions(self, state: 'BattleshipState') -> str:
         if not state.setup_complete:
             ships_to_place = [ship for ship in SHIPS 
                             if not any(s.name == ship[0] for s in state.boards[state.current_player].ships)]

@@ -4,20 +4,23 @@ from openai.types.chat import ChatCompletionMessageParam
 class LLMInterface(Protocol):
     async def complete(self, messages: List[ChatCompletionMessageParam]) -> str:
         ...
-from openai.types.chat import ChatCompletionMessageParam
+from openai.types.chat import ChatCompletionMessageParam, ChatCompletionMessage
 import os
 import logging
 from openai import AsyncOpenAI
 
 logger = logging.getLogger(__name__)
 
-def extract_content(message: Dict) -> str:
+def extract_content(message: Union[ChatCompletionMessageParam, ChatCompletionMessage]) -> str:
     """Extracts the content from a message, handling different content types."""
-    content = message.get("content", "")
+    if isinstance(message, ChatCompletionMessage):
+        content = message.content
+    else:
+        content = message.get("content", "")
     if isinstance(content, str):
         return content
     elif isinstance(content, Iterable):
-        return "".join(content)
+        return "".join([c["text"] if "text" in c else "" for c in content])
     return ""
     """Protocol for LLM API implementations."""
     async def complete(self, messages: List[ChatCompletionMessageParam]) -> str:

@@ -1,4 +1,4 @@
-from typing import Protocol, List, Dict, TypedDict
+from typing import Protocol, List, Dict, TypedDict, Union, Iterable
 from openai.types.chat import ChatCompletionMessageParam
 from openai.types.chat import ChatCompletionMessageParam
 import os
@@ -7,7 +7,14 @@ from openai import AsyncOpenAI
 
 logger = logging.getLogger(__name__)
 
-class LLMInterface(Protocol):
+def extract_content(message: Dict) -> str:
+    """Extracts the content from a message, handling different content types."""
+    content = message.get("content", "")
+    if isinstance(content, str):
+        return content
+    elif isinstance(content, Iterable):
+        return "".join(content)
+    return ""
     """Protocol for LLM API implementations."""
     async def complete(self, messages: List[ChatCompletionMessageParam]) -> str:
         ...
@@ -31,7 +38,8 @@ class AnthropicLLM(LLMInterface):
         logger.info(f"Sending request to {self.model}")
         logger.info(f"Number of messages in conversation: {len(messages)}")
         for msg in messages:
-            logger.debug(f"Message ({msg['role']}): {msg['content'][:10000]}...")
+            content = extract_content(msg)
+            logger.debug(f"Message ({msg['role']}): {content[:10000]}...")
         
         try:
             response = await self.client.chat.completions.create(
@@ -40,8 +48,8 @@ class AnthropicLLM(LLMInterface):
                 temperature=self.temperature,
                 max_tokens=self.max_tokens
             )
-            if response.choices and response.choices[0].message.content:
-                content = response.choices[0].message.content
+            if response.choices:
+                content = extract_content(response.choices[0].message)
                 logger.info(f"Received response ({len(content)} chars): {content[:5000]}...")
                 return content
             raise ValueError("No content in response")
@@ -66,7 +74,8 @@ class OpenAILLM(LLMInterface):
     async def complete(self, messages: List[ChatCompletionMessageParam]) -> str:
         logger.debug(f"Sending request to {self.model}")
         for msg in messages:
-            logger.debug(f"Message ({msg['role']}): {msg['content'][:10000]}...")
+            content = extract_content(msg)
+            logger.debug(f"Message ({msg['role']}): {content[:10000]}...")
             
         try:
             response = await self.client.chat.completions.create(
@@ -75,8 +84,8 @@ class OpenAILLM(LLMInterface):
                 temperature=self.temperature,
                 max_tokens=self.max_tokens
             )
-            if response.choices and response.choices[0].message.content:
-                content = response.choices[0].message.content
+            if response.choices:
+                content = extract_content(response.choices[0].message)
                 logger.debug(f"Response: {content[:10000]}...")
                 return content
             raise ValueError("No content in response")

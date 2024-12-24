@@ -27,7 +27,15 @@ class GameRunner:
             
             if not valid:
                 logger.warning(f"Invalid move by {player.name}: {explanation}")
-                continue
+                # Try again with the invalid move feedback
+                continue_trying = True
+                while continue_trying:
+                    move = await player.make_move(game_view, explanation)
+                    valid, explanation = self.game.validate_move(state, current_player, move)
+                    if valid:
+                        continue_trying = False
+                    else:
+                        logger.warning(f"Invalid move by {player.name}: {explanation}")
 
             # Print formatted turn information
             turn_number = len(history) + 1

@@ -14,16 +14,23 @@ class LLMPlayer:
         self.llm = llm
         self.conversation_history = []
 
-    async def make_move(self, game_view: GameView) -> Any:
+    async def make_move(self, game_view: GameView, invalid_move_explanation: str = None) -> Any:
         # Prepare the message for the LLM
         system_message = (
             f"Game state: {str(game_view.visible_state)}\n"
             "Respond with only a number representing how many objects to take."
         )
-        messages = [
-            {"role": "system", "content": system_message},
-            {"role": "user", "content": "What is your move? Respond with only a number."}
-        ]
+        
+        messages = [{"role": "system", "content": system_message}]
+        
+        if invalid_move_explanation:
+            # Include the previous failed move and explanation
+            if self.conversation_history:
+                messages.append({"role": "assistant", "content": self.conversation_history[-1]["content"]})
+            messages.append({"role": "user", "content": f"That move was invalid: {invalid_move_explanation}. Please try a different move."})
+        else:
+            messages.append({"role": "user", "content": "What is your move? Respond with only a number."})
+
         # Get the move from the LLM
         response = await self.llm.complete(messages)
         self.conversation_history.append({"role": "assistant", "content": response})

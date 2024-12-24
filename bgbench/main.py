@@ -4,7 +4,7 @@ import logging
 import random
 from dotenv import load_dotenv
 from bgbench.logging_config import setup_logging
-from bgbench.nim_game import NimGame
+from bgbench.games.nim_game import NimGame
 from bgbench.llm_integration import create_llm
 from bgbench.llm_player import LLMPlayer
 from bgbench.game_runner import GameRunner

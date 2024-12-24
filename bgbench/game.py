@@ -10,7 +10,7 @@ class Game(ABC):
         pass
     
     @abstractmethod
-    def get_move_format_instructions(self) -> str:
+    def get_move_format_instructions(self, state: Any) -> str:
         """Explain how moves should be formatted in responses."""
         pass
 

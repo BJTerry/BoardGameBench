@@ -4,6 +4,7 @@ from bgbench.game import Game
 from bgbench.game_view import GameView
 import random
 import string
+import copy
 
 @dataclass
 class Ship:
@@ -67,8 +68,8 @@ class BattleshipGame(Game):
             "First to sink all opponent's ships wins."
         )
     
-    def get_move_format_instructions(self) -> str:
-        if not self.setup_complete:
+    def get_move_format_instructions(self, state: BattleshipState) -> str:
+        if not state.setup_complete:
             return (
                 "Place your ships by specifying coordinate and direction for each, "
                 "e.g., 'A1 h' for horizontal at A1 or 'B2 v' for vertical at B2"
@@ -205,6 +206,7 @@ class BattleshipGame(Game):
         return positions
     
     def apply_move(self, state: BattleshipState, player_id: int, move: Tuple[Any, ...]) -> BattleshipState:
+        state = copy.deepcopy(state)
         if not state.setup_complete:
             x, y, is_horizontal = move
             ships_placed = len(state.boards[player_id].ships)

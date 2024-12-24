@@ -82,7 +82,7 @@ class BattleshipGame(Game):
             "First to sink all opponent's ships wins."
         )
     
-    def get_move_format_instructions(self) -> str:
+    def get_move_format_instructions_setup(self) -> str:
         return (
             "FORMAT: <letter><number> <direction> during setup\n"
             "- letter must be A-J (column)\n"
@@ -90,8 +90,11 @@ class BattleshipGame(Game):
             "- direction must be h (horizontal) or v (vertical)\n"
             "Examples:\n"
             "- 'A1 h' places horizontally starting at A1\n"
-            "- 'B2 v' places vertically starting at B2\n"
-            "\n"
+            "- 'B2 v' places vertically starting at B2"
+        )
+    
+    def get_move_format_instructions_gameplay(self) -> str:
+        return (
             "FORMAT: <letter><number> during gameplay\n"
             "- letter must be A-J (column)\n"
             "- number must be 1-10 (row)\n"
@@ -176,13 +179,19 @@ class BattleshipGame(Game):
                             if not any(s.name == ship[0] for s in state.boards[player_id].ships)]
             visible_state["ships_to_place"] = ships_to_place
         
+        move_instructions = (
+            self.get_move_format_instructions_setup()
+            if not state.setup_complete
+            else self.get_move_format_instructions_gameplay()
+        )
+        
         return GameView(
             visible_state=visible_state,
             valid_moves=self._get_valid_moves(state, player_id),
             is_terminal=self._is_game_over(state),
             winner=self._get_winner(state),
             history=history if history else [],
-            move_format_instructions=self.get_move_format_instructions(),
+            move_format_instructions=move_instructions,
             rules_explanation=self.get_rules_explanation()
         )
     

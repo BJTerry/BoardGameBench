@@ -184,7 +184,24 @@ class BattleshipGame(Game):
             else self.get_move_format_instructions_gameplay()
         )
         
+        rules_explanation = (
+            "We are playing Battleship on a 10x10 grid (A-J × 1-10). "
+            "First, place your ships by specifying start coordinate and direction (h/v). "
+            "Ships are: Carrier (5), Battleship (4), Cruiser (3), Submarine (3), Destroyer (2). "
+            "During play, call shots using coordinates (e.g., 'B5'). "
+            "On your boards:\n"
+            "- 'S' marks your ship locations\n"
+            "- 'H' marks hits (both on your ships and hits you've made)\n"
+            "- 'M' marks misses (both on your board and your missed shots)\n"
+            "You will see two boards:\n"
+            "1. Your board: Shows your ships and all enemy shots\n"
+            "2. Target board: Shows your hits and misses, but not enemy ship locations\n"
+            "The shot history shows all moves made and their results.\n"
+            "First to sink all opponent's ships wins."
+        )
+
         return GameView(
+            rules_explanation=rules_explanation,
             visible_state=visible_state,
             valid_moves=self._get_valid_moves(state, player_id),
             is_terminal=self._is_game_over(state),

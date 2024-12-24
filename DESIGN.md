@@ -14,7 +14,7 @@ The framework enables flexible game implementation and LLM integration while mai
 
 2. LLM Integration
    - Provider abstraction via LLMInterface
-   - OpenRouter integration for Anthropic
+   - OpenRouter integration for Anthropic and OpenAI
    - Basic conversation management
    - Simple move parsing
 
@@ -22,7 +22,7 @@ The framework enables flexible game implementation and LLM integration while mai
    - NimGame
    - BattleshipGame 
    - WarGame
-   - Each with specific state classes
+   - Each with specific state classes and consistent method implementations
 
 ## Key Design Decisions
 
@@ -46,7 +46,7 @@ Basic async interface:
 - complete() method for queries
 - Simple message format
 - Minimal error handling
-- No retry logic yet
+- Basic retry logic implemented
 
 ## Class Relationships
 
@@ -79,8 +79,8 @@ classDiagram
 
 1. Error Handling
    - Basic error checking only
-   - No retry mechanism
-   - Limited validation feedback
+   - Basic retry mechanism implemented
+   - Improved validation feedback
 
 2. Missing Features
    - Tournament management
@@ -108,7 +108,7 @@ classDiagram
 3. Future Features
    - Basic tournament support
    - Simple rating system
-   - Game replay capability
+   - Game replay capability in progress
 
 ## Implementation Guidelines
 

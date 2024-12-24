@@ -37,11 +37,13 @@ class GameRunner:
         self.game = game
         self.players = [player1, player2]
 
-    async def play_game(self) -> Tuple[int, List[Dict[str, Any]]]:
+    async def play_game(self) -> Tuple[LLMPlayer, List[Dict[str, Any]]]:
+        import random
         state = self.game.get_initial_state()
         history = []
-        current_player = 0
-
+        # Randomly choose starting player
+        current_player = random.randint(0, 1)
+        
         while True:
             game_view = self.game.get_player_view(state, current_player)
             if game_view.is_terminal:
@@ -58,7 +60,6 @@ class GameRunner:
                 print(f"Invalid move by {player.name}: {explanation}")
 
         final_view = self.game.get_player_view(state, current_player)
-        # Ensure we always return a valid winner (0 or 1)
-        winner = 0 if final_view.winner is None else final_view.winner
-        return winner, history
+        winner_idx = 0 if final_view.winner is None else final_view.winner
+        return self.players[winner_idx], history
 

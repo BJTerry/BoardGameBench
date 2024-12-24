@@ -145,25 +145,28 @@ class BattleshipGame(Game):
                     string.ascii_uppercase.index(col), row-1)]
     
     def parse_move(self, move_str: str) -> Optional[Tuple[Any, ...]]:
-        move_str = move_str.strip().upper()
-        if not move_str:
+        try:
+            move_str = str(move_str).strip().upper()
+            if not move_str:
+                return None
+                
+            if ' ' in move_str:  # Setup move
+                coord, direction = move_str.split()
+                if (len(coord) < 2 or coord[0] not in string.ascii_uppercase[:self.size] or
+                    not coord[1:].isdigit() or direction not in ['H', 'V']):
+                    return None
+                x = string.ascii_uppercase.index(coord[0])
+                y = int(coord[1:]) - 1
+                return (x, y, direction == 'H')
+            else:  # Shot move
+                if (len(move_str) < 2 or move_str[0] not in string.ascii_uppercase[:self.size] or
+                    not move_str[1:].isdigit()):
+                    return None
+                x = string.ascii_uppercase.index(move_str[0])
+                y = int(move_str[1:]) - 1
+                return (x, y)
+        except (ValueError, AttributeError, TypeError):
             return None
-            
-        if ' ' in move_str:  # Setup move
-            coord, direction = move_str.split()
-            if (len(coord) < 2 or coord[0] not in string.ascii_uppercase[:self.size] or
-                not coord[1:].isdigit() or direction not in ['H', 'V']):
-                return None
-            x = string.ascii_uppercase.index(coord[0])
-            y = int(coord[1:]) - 1
-            return (x, y, direction == 'H')
-        else:  # Shot move
-            if (len(move_str) < 2 or move_str[0] not in string.ascii_uppercase[:self.size] or
-                not move_str[1:].isdigit()):
-                return None
-            x = string.ascii_uppercase.index(move_str[0])
-            y = int(move_str[1:]) - 1
-            return (x, y)
     
     def validate_move(self, state: BattleshipState, player_id: int, move: Tuple[Any, ...]) -> Tuple[bool, str]:
         if state.current_player != player_id:

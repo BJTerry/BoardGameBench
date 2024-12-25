@@ -13,8 +13,6 @@ class Game(ABC, Generic[StateType, MoveType]):
     """
     
     @abstractmethod
-
-    @abstractmethod
     def get_initial_state(self) -> StateType:
         """Return the initial state of the game.
         

@@ -3,6 +3,7 @@ from typing import Any, Optional, List, Dict
 from dataclasses import dataclass, field
 from pydantic_ai import Agent
 from bgbench.game_view import GameView
+from bgbench.models import LLMInteraction
 
 logger = logging.getLogger("bgbench")
 
@@ -52,7 +53,6 @@ class LLMPlayer:
         
         # Log the interaction if we have a database session
         if self.db_session and self.game_id:
-            from bgbench.models import LLMInteraction
             # Get the actual system prompt text
             system_prompt_text = ("You are playing a game. Your goal is to win by making valid moves according to the rules. "
                                 "Always respond with ONLY your move in the exact format specified - no explanation or other text.")

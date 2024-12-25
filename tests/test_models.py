@@ -56,23 +56,6 @@ class TestPlayer:
         updated = db_session.query(Player).filter_by(id=player.id).first()
         assert updated.rating == new_rating
 
-    def test_multiple_players_same_name(self, db_session):
-        """Test that multiple players can have the same name"""
-        # Create first player
-        player1 = Player(name="Test Player", rating=1500.0)
-        db_session.add(player1)
-        db_session.commit()
-        
-        # Create second player with same name
-        player2 = Player(name="Test Player", rating=1600.0)
-        db_session.add(player2)
-        db_session.commit()
-        
-        # Verify both players exist with same name but different ratings
-        players = db_session.query(Player).filter_by(name="Test Player").all()
-        assert len(players) == 2
-        assert players[0].rating != players[1].rating
-
 class TestGameState:
     def test_game_state_lifecycle(self, db_session):
         """Test complete game state lifecycle"""

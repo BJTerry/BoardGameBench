@@ -29,12 +29,12 @@ class Arena:
             self.experiment = Experiment.resume_experiment(self.session, experiment_id)
             logger.info(f"Resumed experiment {self.experiment.name} (id: {experiment_id})")
             # Get existing players from the experiment
-            db_players = self.experiment.get_players(self.session)
-            if not db_players:
+            self.db_players = self.experiment.get_players(self.session)
+            if not self.db_players:
                 logger.warning(f"No players found in experiment {experiment_id}")
             else:
-                logger.info(f"Found {len(db_players)} players in experiment")
-                for db_player in db_players:
+                logger.info(f"Found {len(self.db_players)} players in experiment")
+                for db_player in self.db_players:
                     # Create LLMPlayer with same configuration
                     llm_player = LLMPlayer(db_player.name, create_llm(db_player.name))
                     # Create PlayerRating from database
@@ -53,20 +53,25 @@ class Arena:
         
     def add_player(self, player: LLMPlayer, initial_rating: float = 1500):
         """Add a player to the arena."""
-        # Check if player already exists in database
-        existing_player = self.session.query(DBPlayer).filter_by(name=player.name).first()
-        
-        if existing_player:
-            # Use existing player's rating
-            rating = PlayerRating(name=player.name, rating=existing_player.rating, games_played=len(existing_player.games))
-            logger.info(f"Found existing player {player.name} with rating {existing_player.rating}")
+        # For resumed experiments, only allow adding existing players
+        if hasattr(self, 'db_players'):
+            existing_player = next((p for p in self.db_players if p.name == player.name), None)
+            if not existing_player:
+                logger.warning(f"Cannot add new player {player.name} to resumed experiment")
+                return
+            rating = PlayerRating(name=player.name, rating=existing_player.rating, 
+                                games_played=len(existing_player.games))
         else:
-            # Create new player in database
-            db_player = DBPlayer(name=player.name, rating=initial_rating)
-            self.session.add(db_player)
-            self.session.commit()
-            rating = PlayerRating(name=player.name, rating=initial_rating, games_played=0)
-            logger.info(f"Created new player {player.name} with initial rating {initial_rating}")
+            # For new experiments, create new player in database
+            existing_player = self.session.query(DBPlayer).filter_by(name=player.name).first()
+            if existing_player:
+                rating = PlayerRating(name=player.name, rating=existing_player.rating, 
+                                    games_played=len(existing_player.games))
+            else:
+                db_player = DBPlayer(name=player.name, rating=initial_rating)
+                self.session.add(db_player)
+                self.session.commit()
+                rating = PlayerRating(name=player.name, rating=initial_rating, games_played=0)
         
         # Create ArenaPlayer and add to arena
         arena_player = ArenaPlayer(player, rating)
@@ -77,7 +82,8 @@ class Arena:
         Returns 1.0 for equal ratings, decreasing as ratings diverge."""
         prob = self.elo_system.probability_stronger(player_a.rating, player_b.rating)
         # Scale uncertainty based on probability difference from 0.5
-        return max(0.0, 1.0 - abs(0.5 - prob) * 2)
+        # Multiply by 2 to make uncertainty decrease faster with rating differences
+        return max(0.0, 1.0 - abs(0.5 - prob) * 4)
 
     def find_best_match(self) -> Optional[Tuple[ArenaPlayer, ArenaPlayer]]:
         if len(self.players) < 2:

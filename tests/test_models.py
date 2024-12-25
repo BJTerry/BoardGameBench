@@ -92,7 +92,7 @@ class TestGameState:
             pass
         
         # Try to update with non-serializable data
-        invalid_state = {"invalid": Unserializable()}  # Will fail because Unserializable doesn't implement to_dict
+        invalid_state = Unserializable()  # Will fail because Unserializable doesn't implement to_dict
         with pytest.raises(ValueError, match="State data must be JSON-serializable"):
             game_state.update_state(db_session, invalid_state)
 

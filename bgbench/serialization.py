@@ -14,6 +14,4 @@ def serialize_value(value: Any) -> Union[Dict[str, Any], List[Any], Any]:
         return {k: serialize_value(v) for k, v in value.items()}
     elif isinstance(value, (list, tuple)):
         return [serialize_value(item) for item in value]
-    elif hasattr(value, '__dict__'):
-        return serialize_value(value.__dict__)
     return value

@@ -2,6 +2,7 @@ import logging
 from typing import Optional, List
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, JSON, Float, select
 from sqlalchemy.orm import relationship, Session, Mapped, mapped_column, declarative_base
+from bgbench.serialization import serialize_value
 
 logger = logging.getLogger(__name__)
 Base = declarative_base()
@@ -61,7 +62,6 @@ class GameState(Base):
     def _serialize_state(self, state_data: dict) -> dict:
         """Convert state data to JSON-serializable format."""
         try:
-            from bgbench.serialization import serialize_value
             result = serialize_value(state_data)
             if not isinstance(result, dict):
                 raise ValueError("Serialized state must be a dictionary")

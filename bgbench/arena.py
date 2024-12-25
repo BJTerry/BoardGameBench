@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy.orm import Session
 from bgbench.models import Experiment, Player as DBPlayer, Game as DBGame
+from bgbench.llm_integration import create_llm
 from bgbench.game import Game
 from bgbench.llm_player import LLMPlayer
 from bgbench.game_runner import GameRunner

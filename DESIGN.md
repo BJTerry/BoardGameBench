@@ -75,6 +75,27 @@ classDiagram
     }
 ```
 
+## Testing Strategy
+
+Unit tests are crucial for maintaining the integrity of the framework. They ensure that individual components work as intended and help catch regressions early.
+
+### Designing Unit Tests
+
+- **Isolate Components**: Each test should focus on a single component or function, isolating it from others to ensure accurate results.
+- **Use Mocking**: Where necessary, use mocking to simulate interactions with external systems or complex dependencies.
+- **Test Edge Cases**: Include tests for edge cases and potential failure points to ensure robustness.
+
+### Maintaining Unit Tests
+
+- **Regular Updates**: Keep tests up-to-date with the latest code changes to ensure they remain relevant and effective.
+- **Review and Refactor**: Periodically review and refactor tests to improve readability and maintainability.
+- **Documentation**: Document the purpose and expected outcome of each test to aid understanding and future maintenance.
+
+### Integration with Development
+
+- **Continuous Testing**: Integrate unit tests into the development workflow to catch issues early and often.
+- **Feedback Loop**: Use test results to provide feedback to developers, helping to guide improvements and bug fixes.
+
 ## Current Limitations
 
 1. Error Handling

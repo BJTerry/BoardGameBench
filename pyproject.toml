@@ -11,6 +11,8 @@ python = "^3.11"
 python-dotenv = "^1.0.1"
 pydantic-ai = "^0.0.15"
 openai = "^1.58.1"
+sqlalchemy = "^2.0.36"
+alembic = "^1.14.0"
 
 
 [tool.poetry.group.dev.dependencies]

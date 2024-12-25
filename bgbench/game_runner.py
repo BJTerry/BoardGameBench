@@ -1,18 +1,45 @@
 import logging
 from typing import List, Dict, Any, Tuple
+from sqlalchemy.orm import Session
 from bgbench.game import Game
 from bgbench.llm_player import LLMPlayer
+from bgbench.models import GameState, LLMInteraction
 
 logger = logging.getLogger("bgbench")
 
 class GameRunner:
-    def __init__(self, game: Game, player1: LLMPlayer, player2: LLMPlayer):
+    def __init__(self, game: Game, player1: LLMPlayer, player2: LLMPlayer, db_session: Session, game_id: int):
         self.game = game
         self.players = [player1, player2]
+        self.session = db_session
+        self.game_id = game_id
+        self.turn_count = 0
+        self.start_time = None
+        
+        # Set database session and game_id for players
+        player1.session = db_session
+        player1.game_id = game_id
+        player2.session = db_session
+        player2.game_id = game_id
 
     async def play_game(self) -> Tuple[LLMPlayer, List[Dict[str, Any]]]:
+        from datetime import datetime
+        self.start_time = datetime.now()
         state = self.game.get_initial_state()
         history = []
+        
+        # Record initial game state
+        game_state = GameState(
+            game_id=self.game_id,
+            state_data={
+                "initial_state": state,
+                "start_time": self.start_time.isoformat(),
+                "game_type": self.game.__class__.__name__,
+                "player1": self.players[0].name,
+                "player2": self.players[1].name
+            }
+        )
+        game_state.record_state(self.session)
         
         while True:
             current_player = self.game.get_current_player(state)
@@ -22,6 +49,22 @@ class GameRunner:
                 break
                 
             player = self.players[current_player]
+            self.turn_count += 1
+            
+            # Log detailed game state before the move
+            game_state = GameState(
+                game_id=self.game_id,
+                state_data={
+                    "turn": self.turn_count,
+                    "current_player": player.name,
+                    "visible_state": game_view.visible_state,
+                    "history": history,
+                    "timestamp": datetime.now().isoformat()
+                }
+            )
+            game_state.record_state(self.session)
+            
+            # Get move from player
             move_str = await player.make_move(game_view)
             move = self.game.parse_move(move_str)
             if move is None:

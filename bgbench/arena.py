@@ -1,6 +1,8 @@
 import logging
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+from sqlalchemy.orm import Session
+from bgbench.models import Experiment, Player as DBPlayer, Game as DBGame
 from bgbench.game import Game
 from bgbench.llm_player import LLMPlayer
 from bgbench.game_runner import GameRunner
@@ -14,15 +16,43 @@ class ArenaPlayer:
     rating: PlayerRating
 
 class Arena:
-    def __init__(self, game: Game, confidence_threshold: float = 0.70):
+    def __init__(self, game: Game, db_session: Session, experiment_name: Optional[str] = None, 
+                 experiment_id: Optional[int] = None, confidence_threshold: float = 0.70):
         self.game = game
         self.players: List[ArenaPlayer] = []
         self.elo_system = EloSystem()
         self.confidence_threshold = confidence_threshold
+        self.session = db_session
+
+        if experiment_id is not None:
+            self.experiment = Experiment.resume_experiment(self.session, experiment_id)
+            logger.info(f"Resumed experiment {self.experiment.name} (id: {experiment_id})")
+        else:
+            name = experiment_name or f"{game.__class__.__name__}_evaluation"
+            self.experiment = Experiment().create_experiment(
+                self.session,
+                name=name,
+                description=f"Evaluation of LLMs playing {game.__class__.__name__}"
+            )
         
     def add_player(self, player: LLMPlayer, initial_rating: float = 1500):
-        rating = PlayerRating(name=player.name, rating=initial_rating, games_played=0)
-        self.players.append(ArenaPlayer(player, rating))
+        # Check if player already exists in database
+        existing_player = self.session.query(DBPlayer).filter_by(name=player.name).first()
+        
+        if existing_player:
+            db_player = existing_player
+            logger.info(f"Found existing player {player.name} with rating {existing_player.rating}")
+        else:
+            # Create new player in database
+            db_player = DBPlayer(name=player.name, rating=initial_rating)
+            self.session.add(db_player)
+            self.session.commit()
+            logger.info(f"Created new player {player.name} with initial rating {initial_rating}")
+        
+        # Create ArenaPlayer with PlayerRating
+        rating = PlayerRating(name=player.name, rating=db_player.rating, games_played=0)
+        arena_player = ArenaPlayer(player, rating)
+        self.players.append(arena_player)
 
     def calculate_match_uncertainty(self, player_a: ArenaPlayer, player_b: ArenaPlayer) -> float:
         prob = self.elo_system.probability_stronger(player_a.rating, player_b.rating)
@@ -63,16 +93,58 @@ class Arena:
                 break  # All pairs have reached confidence threshold
                 
             player_a, player_b = match
-            runner = GameRunner(self.game, player_a.llm_player, player_b.llm_player)
+            # Create game record first to get game_id
+            db_game = DBGame(
+                experiment_id=self.experiment.id,
+                player_id=None  # Will update this after we know the winner
+            )
+            self.session.add(db_game)
+            self.session.commit()
+
+            # Commit and get the integer ID value
+            self.session.refresh(db_game)
+            game_id = int(db_game.id)  # Convert Column to int
+
+            runner = GameRunner(
+                self.game, 
+                player_a.llm_player, 
+                player_b.llm_player, 
+                self.session,
+                game_id
+            )
             winner, _ = await runner.play_game()
             
-            # Update ratings
+            # Update ratings in memory and database
             new_rating_a, new_rating_b = self.elo_system.update_ratings(
                 player_a.rating, player_b.rating, 
                 winner.name == player_a.llm_player.name
             )
             player_a.rating = new_rating_a
             player_b.rating = new_rating_b
+            
+            try:
+                # Update database players
+                db_player_a = self.session.query(DBPlayer).filter_by(name=player_a.llm_player.name).first()
+                db_player_b = self.session.query(DBPlayer).filter_by(name=player_b.llm_player.name).first()
+                
+                if db_player_a is None or db_player_b is None:
+                    logger.error("Could not find players in database")
+                    self.session.rollback()
+                    continue
+                
+                db_player_a.update_rating(self.session, new_rating_a.rating)
+                db_player_b.update_rating(self.session, new_rating_b.rating)
+            except Exception as e:
+                logger.error(f"Error updating player ratings: {e}")
+                self.session.rollback()
+                continue
+            
+            # Update game record with winner
+            winner_db_player = db_player_a if winner.name == player_a.llm_player.name else db_player_b
+            db_game.player_id = winner_db_player.id
+            self.session.commit()
+            
+            logger.info(f"Game completed: {winner.name} won")
             
             # Log current standings and pairwise confidences
             self.log_standings()
@@ -105,3 +177,49 @@ class Arena:
             prob = self.elo_system.probability_stronger(player_a.rating, player_b.rating)
             logger.info(f"{player_a.llm_player.name} vs {player_b.llm_player.name}: "
                        f"{prob*100:.1f}% confident")
+
+    def get_experiment_results(self) -> Dict[str, Any]:
+        """Get summary of experiment results including games played and final ratings."""
+        games = self.session.query(DBGame).filter_by(experiment_id=self.experiment.id).all()
+        
+        results = {
+            "experiment_id": self.experiment.id,
+            "experiment_name": self.experiment.name,
+            "total_games": len(games),
+            "player_ratings": {p.llm_player.name: p.rating.rating for p in self.players},
+            "games": []
+        }
+        
+        for game in games:
+            if game.player is not None:  # Winner exists
+                results["games"].append({
+                    "game_id": game.id,
+                    "winner": game.player.name,
+                    "final_ratings": {
+                        p.name: p.rating for p in self.session.query(DBPlayer).all()
+                    }
+                })
+        
+        return results
+
+    def get_player_game_history(self, player_name: str) -> List[Dict[str, Any]]:
+        """Get game history for a specific player."""
+        db_player = self.session.query(DBPlayer).filter_by(name=player_name).first()
+        if not db_player:
+            return []
+            
+        games = self.session.query(DBGame).filter_by(
+            experiment_id=self.experiment.id
+        ).all()
+        
+        history = []
+        for game in games:
+            if game.state:  # Game has state data
+                game_data = {
+                    "game_id": game.id,
+                    "won": game.player_id == db_player.id if game.player_id else None,
+                    "state": game.state.state_data
+                }
+                history.append(game_data)
+                
+        return history

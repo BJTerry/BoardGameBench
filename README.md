@@ -71,6 +71,25 @@ class YourLLM(LLMInterface):
         # Implement API calls to your LLM provider
 ```
 
+## Testing
+
+Unit tests are an essential part of ensuring the reliability and correctness of the framework. They help verify that each component behaves as expected.
+
+### Running Tests
+
+To run the unit tests, use the following command:
+
+```bash
+poetry run python -m unittest discover tests
+```
+
+### Maintaining Tests
+
+- **Add Tests for New Features**: Whenever a new feature is added, corresponding unit tests should be created to verify its functionality.
+- **Update Tests for Changes**: If existing functionality is modified, update the relevant tests to reflect these changes.
+- **Test Coverage**: Aim for high test coverage to ensure all critical paths are tested.
+- **Continuous Integration**: Integrate tests into your CI/CD pipeline to automatically run them on each commit.
+
 ## Project Structure
 
 - `game.py` - Base game interface and implementations

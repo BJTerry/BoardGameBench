@@ -87,9 +87,14 @@ class TestGameState:
 
         game_state = GameState(game_id=game.id, state_data={})
         
+        # Create a class that can't be serialized to JSON
+        class Unserializable:
+            def __repr__(self):
+                return "<Unserializable object>"
+        
         with pytest.raises(ValueError):
             # Try to update with non-serializable data
-            game_state.update_state(db_session, {"invalid": object()})
+            game_state.update_state(db_session, {"invalid": Unserializable()})
 
 class TestLLMInteraction:
     def test_log_interaction(self, db_session):

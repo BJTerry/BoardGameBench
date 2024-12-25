@@ -14,13 +14,13 @@ def create_llm(model: str, temperature: float = 0.0, max_tokens: int = 1000) -> 
         max_tokens=max_tokens
     )
     
-    if model.startswith('claude'):
+    if model.startswith('openrouter'):
         # For Claude models, we use OpenRouter to access Anthropic
         openrouter_key = os.getenv('OPENROUTER_API_KEY')
         if not openrouter_key:
             raise ValueError("OPENROUTER_API_KEY environment variable not set")
             
-        model_name = f"anthropic/{model}"
+        model_name = model[len('openrouter/'):]
         agent = Agent(
             OpenAIModel(
                 model_name,
@@ -30,17 +30,19 @@ def create_llm(model: str, temperature: float = 0.0, max_tokens: int = 1000) -> 
             model_settings=model_settings
         )
         logger.info(f"Initialized OpenRouter Agent for Anthropic model {model} via OpenRouter")
-    else:
+    elif model.startswith("openai"):
         # For other models (GPT, etc), we use OpenAI provider
         openai_key = os.getenv("OPENAI_API_KEY", "")
         agent = Agent(
             OpenAIModel(
-                model,
+                model[len('openai/'):],
                 api_key=openai_key,
             ),
             model_settings=model_settings,
         )
         logger.info(f"Initialized OpenAI Agent with model {model}")
+    else:
+        raise ValueError(f"Invalid model provider for {model}")
     
     return agent
 

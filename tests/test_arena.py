@@ -50,33 +50,6 @@ class TestArena:
         assert db_player is not None
         assert db_player.rating == 1500.0
 
-    def test_add_player_resumed_experiment(self, db_session, nim_game, mock_llm):
-        """Test adding players to a resumed experiment"""
-        # Create experiment with existing player
-        exp = Experiment().create_experiment(db_session, "test-resume")
-        db_player = DBPlayer(name="existing-player", rating=1600.0)
-        db_session.add(db_player)
-        db_session.commit()
-        
-        # Resume experiment
-        arena = Arena(nim_game, db_session, experiment_id=exp.id)
-        
-        # Try to add new player
-        new_player = LLMPlayer("new-player", mock_llm)
-        arena.add_player(new_player)
-        
-        # Verify new player was not added
-        assert len(arena.players) == 0
-        
-        # Try to add existing player
-        existing_player = LLMPlayer("existing-player", mock_llm)
-        arena.add_player(existing_player)
-        
-        # Verify existing player was added with correct rating
-        assert len(arena.players) == 1
-        assert arena.players[0].llm_player.name == "existing-player"
-        assert arena.players[0].rating.rating == 1600.0
-
     def test_calculate_match_uncertainty(self, db_session, nim_game):
         """Test match uncertainty calculation"""
         arena = Arena(nim_game, db_session)

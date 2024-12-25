@@ -87,13 +87,12 @@ class TestGameState:
 
         game_state = GameState(game_id=game.id, state_data={})
         
-        # Create a class that can't be serialized to JSON
+        # Create a class that doesn't implement to_dict
         class Unserializable:
-            def __repr__(self):
-                return "<Unserializable object>"
+            pass
         
         # Try to update with non-serializable data
-        invalid_state = {"invalid": Unserializable()}
+        invalid_state = {"invalid": Unserializable()}  # Will fail because Unserializable doesn't implement to_dict
         with pytest.raises(ValueError, match="State data must be JSON-serializable"):
             game_state.update_state(db_session, invalid_state)
 

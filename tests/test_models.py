@@ -1,58 +1,139 @@
-import unittest
+import pytest
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.exc import IntegrityError
 from bgbench.models import Base, Experiment, Player, Game, GameState, LLMInteraction
-from config import DATABASE_URL
 
-class TestModels(unittest.TestCase):
-    def setUp(self):
-        # Set up an in-memory SQLite database for testing
-        self.engine = create_engine('sqlite:///:memory:')
-        Base.metadata.create_all(self.engine)
-        self.Session = sessionmaker(bind=self.engine)
-        self.session = self.Session()
+@pytest.fixture
+def db_session():
+    """Provide a database session for testing"""
+    engine = create_engine('sqlite:///:memory:')
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    yield session
+    session.close()
+    Base.metadata.drop_all(engine)
 
-    def tearDown(self):
-        self.session.close()
-        Base.metadata.drop_all(self.engine)
+class TestExperiment:
+    def test_create_experiment(self, db_session):
+        """Test creating a new experiment"""
+        experiment = Experiment().create_experiment(db_session, "Test Experiment", "Test Description")
+        assert experiment.id is not None
+        assert experiment.name == "Test Experiment"
+        assert experiment.description == "Test Description"
 
-    def test_create_experiment(self):
-        experiment = Experiment(name="Test Experiment")
-        self.session.add(experiment)
-        self.session.commit()
-        self.assertEqual(self.session.query(Experiment).count(), 1)
-
-    def test_update_player_rating(self):
-        player = Player(name="Test Player", rating=1500.0)
-        self.session.add(player)
-        self.session.commit()
-        player.update_rating(self.session, 1600.0)
-        self.assertEqual(player.rating, 1600.0)
-
-    def test_record_game_state(self):
-        game = Game(experiment_id=1, player_id=1)
-        self.session.add(game)
-        self.session.commit()
-        game_state = GameState(game_id=game.id, state_data={"score": 10})
-        game_state.record_state(self.session)
-        self.assertEqual(self.session.query(GameState).count(), 1)
-
-    def test_log_llm_interaction(self):
-        # Create required game record first
-        experiment = Experiment(name="Test Experiment")
-        self.session.add(experiment)
-        self.session.commit()
+    def test_resume_experiment(self, db_session):
+        """Test resuming an existing experiment"""
+        # Create experiment
+        experiment = Experiment().create_experiment(db_session, "Test Experiment")
+        exp_id = experiment.id
         
-        game = Game(experiment_id=experiment.id, player_id=None)
-        self.session.add(game)
-        self.session.commit()
+        # Resume experiment
+        resumed = Experiment.resume_experiment(db_session, exp_id)
+        assert resumed.id == exp_id
+        assert resumed.name == "Test Experiment"
 
-        # Now create and test LLM interaction
-        llm_interaction = LLMInteraction(game_id=game.id)
-        test_prompt = {"question": "What is 2+2?"}
-        test_response = "4"
-        llm_interaction.log_interaction(self.session, test_prompt, test_response)
-        self.assertEqual(self.session.query(LLMInteraction).count(), 1)
+    def test_experiment_not_found(self, db_session):
+        """Test handling non-existent experiment"""
+        with pytest.raises(Exception):
+            Experiment.resume_experiment(db_session, 999)
 
-if __name__ == '__main__':
-    unittest.main()
+class TestPlayer:
+    def test_update_player_rating(self, db_session):
+        """Test updating player rating"""
+        player = Player(name="Test Player", rating=1500.0)
+        db_session.add(player)
+        db_session.commit()
+        
+        old_rating = player.rating
+        new_rating = 1600.0
+        player.update_rating(db_session, new_rating)
+        
+        # Verify rating update
+        assert player.rating == new_rating
+        # Verify player still exists
+        updated = db_session.query(Player).filter_by(id=player.id).first()
+        assert updated.rating == new_rating
+
+    def test_player_unique_name(self, db_session):
+        """Test that player names must be unique"""
+        Player(name="Test Player", rating=1500.0).update_rating(db_session, 1500.0)
+        
+        with pytest.raises(IntegrityError):
+            Player(name="Test Player", rating=1500.0).update_rating(db_session, 1500.0)
+
+class TestGameState:
+    def test_game_state_lifecycle(self, db_session):
+        """Test complete game state lifecycle"""
+        # Create experiment and game
+        experiment = Experiment().create_experiment(db_session, "Test Experiment")
+        game = Game(experiment_id=experiment.id)
+        db_session.add(game)
+        db_session.commit()
+
+        # Initial state
+        initial_state = {"phase": "setup", "turn": 0}
+        game_state = GameState(game_id=game.id, state_data=initial_state)
+        game_state.record_state(db_session)
+
+        # Update state
+        new_state = {"phase": "play", "turn": 1}
+        game_state.update_state(db_session, new_state)
+
+        # Verify final state
+        saved_state = db_session.query(GameState).filter_by(game_id=game.id).first()
+        assert saved_state.state_data["phase"] == "play"
+        assert saved_state.state_data["turn"] == 1
+
+    def test_invalid_state_data(self, db_session):
+        """Test handling invalid state data"""
+        game = Game(experiment_id=1)
+        db_session.add(game)
+        db_session.commit()
+
+        game_state = GameState(game_id=game.id, state_data={})
+        
+        with pytest.raises(ValueError):
+            # Try to update with non-dict data
+            game_state.update_state(db_session, ["invalid"])
+
+class TestLLMInteraction:
+    def test_log_interaction(self, db_session):
+        """Test logging LLM interactions"""
+        # Setup
+        experiment = Experiment().create_experiment(db_session, "Test Experiment")
+        game = Game(experiment_id=experiment.id)
+        db_session.add(game)
+        db_session.commit()
+
+        # Log interaction
+        interaction = LLMInteraction(game_id=game.id)
+        prompt = {"role": "user", "content": "Make a move"}
+        response = "I choose to take 3 objects"
+        interaction.log_interaction(db_session, prompt, response)
+
+        # Verify
+        saved = db_session.query(LLMInteraction).filter_by(game_id=game.id).first()
+        assert saved.prompt == prompt
+        assert saved.response == response
+
+    def test_multiple_interactions(self, db_session):
+        """Test logging multiple interactions for same game"""
+        experiment = Experiment().create_experiment(db_session, "Test Experiment")
+        game = Game(experiment_id=experiment.id)
+        db_session.add(game)
+        db_session.commit()
+
+        # Log multiple interactions
+        for i in range(3):
+            interaction = LLMInteraction(game_id=game.id)
+            interaction.log_interaction(
+                db_session,
+                {"turn": i},
+                f"Response {i}"
+            )
+
+        # Verify all interactions saved
+        interactions = db_session.query(LLMInteraction).filter_by(game_id=game.id).all()
+        assert len(interactions) == 3

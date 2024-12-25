@@ -88,8 +88,8 @@ class TestGameState:
         game_state = GameState(game_id=game.id, state_data={})
         
         with pytest.raises(ValueError):
-            # Try to update with non-dict data
-            game_state.update_state(db_session, ["invalid"])
+            # Try to update with non-serializable data
+            game_state.update_state(db_session, {"invalid": object()})
 
 class TestLLMInteraction:
     def test_log_interaction(self, db_session):

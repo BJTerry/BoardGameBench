@@ -22,7 +22,7 @@ class Experiment(Base):
     __tablename__ = 'experiments'
     
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(String)
     games: Mapped[list["Game"]] = relationship("Game", back_populates="experiment")
 

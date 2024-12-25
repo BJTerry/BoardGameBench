@@ -58,10 +58,16 @@ class TestPlayer:
 
     def test_player_unique_name(self, db_session):
         """Test that player names must be unique"""
-        Player(name="Test Player", rating=1500.0).update_rating(db_session, 1500.0)
+        # Create first player
+        player1 = Player(name="Test Player", rating=1500.0)
+        db_session.add(player1)
+        db_session.commit()
         
+        # Try to create second player with same name
+        player2 = Player(name="Test Player", rating=1500.0)
+        db_session.add(player2)
         with pytest.raises(IntegrityError):
-            Player(name="Test Player", rating=1500.0).update_rating(db_session, 1500.0)
+            db_session.commit()
 
 class TestGameState:
     def test_game_state_lifecycle(self, db_session):

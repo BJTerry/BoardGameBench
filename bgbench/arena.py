@@ -17,8 +17,13 @@ class ArenaPlayer:
     rating: PlayerRating
 
 class Arena:
-    def __init__(self, game: Game, db_session: Session, experiment_name: Optional[str] = None, 
-                 experiment_id: Optional[int] = None, confidence_threshold: float = 0.70):
+    def __init__(self, game: Game, db_session: Session, experiment_name: Optional[str] = None,
+                 experiment_id: Optional[int] = None, confidence_threshold: float = 0.70,
+                 llm_factory=None):
+        """
+        Initialize Arena with optional llm_factory for testing.
+        llm_factory: Optional function that takes a name and returns an LLM instance
+        """
         self.game = game
         self.players: List[ArenaPlayer] = []
         self.elo_system = EloSystem()
@@ -36,7 +41,8 @@ class Arena:
                 logger.info(f"Found {len(self.db_players)} players in experiment")
                 for db_player in self.db_players:
                     # Create LLMPlayer with same configuration
-                    llm_player = LLMPlayer(db_player.name, create_llm(db_player.name))
+                    llm = llm_factory(db_player.name) if llm_factory else create_llm(db_player.name)
+                    llm_player = LLMPlayer(db_player.name, llm)
                     # Create PlayerRating from database
                     rating = PlayerRating(name=db_player.name, 
                                         rating=db_player.rating,

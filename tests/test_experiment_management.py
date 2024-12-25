@@ -4,7 +4,7 @@ from bgbench.arena import Arena
 from bgbench.games.nim_game import NimGame
 
 class TestExperimentManagement:
-    def test_get_experiment_results(self, db_session):
+    def test_get_experiment_results(self, db_session, mock_llm):
         """Test getting experiment results summary"""
         # Create experiment
         exp = Experiment().create_experiment(db_session, "test-results")
@@ -28,7 +28,9 @@ class TestExperimentManagement:
         db_session.commit()
         
         # Create arena and get results
-        arena = Arena(NimGame(12, 3), db_session, experiment_id=exp.id)
+        # Use mock LLM factory for testing
+        mock_llm_factory = lambda name: mock_llm
+        arena = Arena(NimGame(12, 3), db_session, experiment_id=exp.id, llm_factory=mock_llm_factory)
         results = arena.get_experiment_results()
         
         # Verify results structure

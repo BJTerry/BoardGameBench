@@ -1,71 +1,71 @@
 import logging
-from typing import List, Any, Protocol, Optional
-from openai.types.chat import ChatCompletionMessageParam
+from typing import Any, Optional, List, Dict
+from dataclasses import dataclass, field
+from pydantic_ai import Agent, RunContext
 from bgbench.game_view import GameView
 
 logger = logging.getLogger("bgbench")
 
-class LLMInterface(Protocol):
-    async def complete(self, messages: List[ChatCompletionMessageParam]) -> str:
-        ...
-
+@dataclass
 class LLMPlayer:
-    def __init__(self, name: str, llm: LLMInterface, db_session=None, game_id: Optional[int] = None):
-        self.name = name
-        self.llm = llm
-        self.conversation_history = []
-        self.session = db_session
-        self.game_id = game_id
+    name: str
+    llm: Agent
+    conversation_history: List[Dict[str, str]] = field(default_factory=list)
+    db_session: Optional[Any] = None
+    game_id: Optional[int] = None
 
     async def make_move(self, game_view: GameView, invalid_move_explanation: Optional[str] = None) -> Any:
-        # Construct the conversation sequence
-        messages: List[ChatCompletionMessageParam] = [
-            {
-                "role": "system",
-                "content": (
-                    "You are playing a game. Your goal is to win by making valid moves according to the rules. "
-                    "Always respond with ONLY your move in the exact format specified - no explanation or other text."
-                )
-            },
-            {
-                "role": "user",
-                "content": (
-                    f"Rules: {game_view.rules_explanation}\n\n"
-                    f"Move Format: {game_view.move_format_instructions}\n\n"
-                    f"Current Game State:\n{str(game_view.visible_state)}\n\n"
-                    "What is your move? Respond with ONLY your move in the exact format specified."
-                )
-            }
-        ]
+        """Generate a move using the LLM agent.
         
-        if invalid_move_explanation:
-            # Add the error context if this is a retry
-            if self.conversation_history:
-                messages.append({"role": "assistant", "content": self.conversation_history[-1]["content"]})
-            messages.append({
-                "role": "user", 
-                "content": (
-                    f"Invalid move: {invalid_move_explanation}\n"
-                    f"Current Game State:\n{str(game_view.visible_state)}\n\n"
-                    "Try again. Respond with ONLY your move in the exact format specified."
-                )
-            })
+        Args:
+            game_view: The current game state and rules
+            invalid_move_explanation: Optional explanation if previous move was invalid
+        """
+        
+        # Construct the prompt including system instructions
+        system_instructions = ("You are playing a game. Your goal is to win by making valid moves according to the rules. "
+                             "Always respond with ONLY your move in the exact format specified - no explanation or other text.")
+        
+        if not invalid_move_explanation:
+            prompt = (
+                f"{system_instructions}\n\n"
+                f"Rules: {game_view.rules_explanation}\n\n"
+                f"Move Format: {game_view.move_format_instructions}\n\n"
+                f"Current Game State:\n{str(game_view.visible_state)}\n\n"
+                "What is your move? Respond with ONLY your move in the exact format specified."
+            )
+        else:
+            # Add error context for retry
+            last_move = self.conversation_history[-1]["content"] if self.conversation_history else "unknown"
+            prompt = (
+                f"{system_instructions}\n\n"
+                f"Your last move was: {last_move}\n"
+                f"Invalid move: {invalid_move_explanation}\n"
+                f"Current Game State:\n{str(game_view.visible_state)}\n\n"
+                "Try again. Respond with ONLY your move in the exact format specified."
+            )
 
         # Get the move from the LLM
-        response = await self.llm.complete(messages)
-        response = response.strip()
+        result = await self.llm.run(prompt)
+        response = result.data.strip()
         self.conversation_history.append({"role": "assistant", "content": response})
         
         # Log the interaction if we have a database session
-        if self.session and self.game_id:
+        if self.db_session and self.game_id:
             from bgbench.models import LLMInteraction
+            # Get the actual system prompt text
+            system_prompt_text = ("You are playing a game. Your goal is to win by making valid moves according to the rules. "
+                                "Always respond with ONLY your move in the exact format specified - no explanation or other text.")
+            
+            prompt_dict = {
+                "system_prompt": system_prompt_text,
+                "user_prompt": prompt,
+            }
             llm_interaction = LLMInteraction(
                 game_id=self.game_id,
-                prompt={
-                    "messages": messages,
-                },
+                prompt=prompt_dict,
                 response=response
             )
-            llm_interaction.log_interaction(self.session, llm_interaction.prompt, response)
+            llm_interaction.log_interaction(self.db_session, prompt_dict, response)
         
         return response

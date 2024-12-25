@@ -1,8 +1,7 @@
 import logging
 from typing import Optional
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, JSON, Float, select
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship, Session, Mapped, mapped_column
+from sqlalchemy.orm import relationship, Session, Mapped, mapped_column, declarative_base
 
 logger = logging.getLogger(__name__)
 Base = declarative_base()
@@ -51,11 +50,21 @@ class Game(Base):
     player: Mapped["Player"] = relationship("Player", back_populates="games")
 
 class GameState(Base):
+    def _serialize_state(self, state_data: dict) -> dict:
+        """Convert state data to JSON-serializable format."""
+        from bgbench.serialization import serialize_value
+        result = serialize_value(state_data)
+        if not isinstance(result, dict):
+            raise ValueError("Serialized state must be a dictionary")
+        return result
+
     def update_state(self, session: Session, new_state_data: dict):
-        self.state_data = new_state_data
+        self.state_data = self._serialize_state(new_state_data)
         session.commit()
-        logger.debug(f"Updated game state for game {self.game_id}: {new_state_data}")
+        logger.debug(f"Updated game state for game {self.game_id}: {self.state_data}")
+
     def record_state(self, session: Session):
+        self.state_data = self._serialize_state(self.state_data)
         session.add(self)
         session.commit()
 

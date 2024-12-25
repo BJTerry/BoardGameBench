@@ -17,9 +17,9 @@ class GameRunner:
         self.start_time = None
         
         # Set database session and game_id for players
-        player1.session = db_session
+        player1.db_session = db_session
         player1.game_id = game_id
-        player2.session = db_session
+        player2.db_session = db_session
         player2.game_id = game_id
 
     async def play_game(self) -> Tuple[LLMPlayer, List[Dict[str, Any]]]:

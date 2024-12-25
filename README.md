@@ -77,18 +77,50 @@ Unit tests are an essential part of ensuring the reliability and correctness of 
 
 ### Running Tests
 
-To run the unit tests, use the following command:
+The project uses pytest for testing. To run the tests:
 
 ```bash
-poetry run python -m unittest discover tests
+# Run all tests
+poetry run pytest
+
+# Run specific test file
+poetry run pytest tests/test_war_game.py
+
+# Run tests with verbose output
+poetry run pytest -v
 ```
+
+### Test Infrastructure
+
+The testing infrastructure includes:
+
+- **pytest-asyncio**: For testing async code
+- **pytest-mock**: For mocking dependencies
+- **pydantic-ai TestModel**: For simulating LLM responses
+- **Fixtures**: Common test fixtures in `conftest.py`
+
+### Test Coverage
+
+Tests cover:
+- Game logic (move validation, state transitions)
+- LLM interactions (move generation, error handling)
+- Database operations (logging, state tracking)
+- Edge cases and error conditions
+
+### Writing Tests
+
+New tests should:
+- Use appropriate fixtures from `conftest.py`
+- Mock external dependencies
+- Test both success and failure cases
+- Follow existing patterns for similar components
 
 ### Maintaining Tests
 
-- **Add Tests for New Features**: Whenever a new feature is added, corresponding unit tests should be created to verify its functionality.
-- **Update Tests for Changes**: If existing functionality is modified, update the relevant tests to reflect these changes.
-- **Test Coverage**: Aim for high test coverage to ensure all critical paths are tested.
-- **Continuous Integration**: Integrate tests into your CI/CD pipeline to automatically run them on each commit.
+- **Add Tests for New Features**: Create corresponding unit tests for new functionality
+- **Update Existing Tests**: Modify tests when changing existing features
+- **Test Coverage**: Maintain high coverage of critical paths
+- **Continuous Integration**: Tests run automatically on each commit
 
 ## Project Structure
 

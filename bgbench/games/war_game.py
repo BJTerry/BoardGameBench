@@ -15,6 +15,13 @@ class Card:
         rank_str = ranks.get(self.rank, str(self.rank))
         return f"{rank_str}{suits[self.suit]}"
 
+    def to_dict(self) -> dict:
+        """Convert card to JSON-serializable dictionary."""
+        return {
+            "rank": self.rank,
+            "suit": self.suit
+        }
+
     def __eq__(self, other):
         if not isinstance(other, Card):
             return NotImplemented
@@ -33,6 +40,17 @@ class WarState:
     war_state: bool = False
     cards_needed: int = 1  # Increases to 4 during war (3 face down + 1 face up)
     face_down_count: int = 0  # Track face-down cards during war
+
+    def to_dict(self) -> dict:
+        """Convert state to JSON-serializable dictionary."""
+        return {
+            "player_hands": [[card.to_dict() for card in hand] for hand in self.player_hands],
+            "board": [card.to_dict() for card in self.board],
+            "current_player": self.current_player,
+            "war_state": self.war_state,
+            "cards_needed": self.cards_needed,
+            "face_down_count": self.face_down_count
+        }
 
 class WarGame(Game):
     def __init__(self):
@@ -91,11 +109,17 @@ class WarGame(Game):
             (not state.war_state or state.face_down_count >= 3)
         )
         
+        # Game is terminal if one player has all cards
+        is_terminal = len(state.player_hands[0]) == 0 or len(state.player_hands[1]) == 0
+        winner = None
+        if is_terminal:
+            winner = 1 if len(state.player_hands[0]) == 0 else 0
+        
         return GameView(
             visible_state=visible_state,
             valid_moves=["play"] if can_play else [],
-            is_terminal=not any(state.player_hands),
-            winner=0 if not state.player_hands[1] else 1 if not state.player_hands[0] else None,
+            is_terminal=is_terminal,
+            winner=winner,
             history=history if history else [],
             move_format_instructions=self.get_move_format_instructions(),
             rules_explanation=self.get_rules_explanation(),
@@ -121,6 +145,9 @@ class WarGame(Game):
         return True, ""
 
     def apply_move(self, state: WarState, player_id: int, move: str) -> WarState:
+        if not state.player_hands[player_id]:
+            return state
+
         # Handle war state
         if state.war_state:
             # Play face down cards first

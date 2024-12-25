@@ -16,6 +16,16 @@ class Ship:
     def __post_init__(self):
         self.hits = set()
     
+    def to_dict(self) -> dict:
+        """Convert ship to JSON-serializable dictionary."""
+        return {
+            "name": self.name,
+            "size": self.size,
+            "positions": list(self.positions),
+            "hits": list(self.hits),
+            "sunk_reported": self.sunk_reported
+        }
+    
     @property
     def is_sunk(self) -> bool:
         return len(self.hits) == len(self.positions)
@@ -25,6 +35,14 @@ class Board:
     ships: List[Ship]
     hits: Set[Tuple[int, int]]  # All hits on this board
     misses: Set[Tuple[int, int]]  # All misses on this board
+    
+    def to_dict(self) -> dict:
+        """Convert board to JSON-serializable dictionary."""
+        return {
+            "ships": [ship.to_dict() for ship in self.ships],
+            "hits": list(self.hits),
+            "misses": list(self.misses)
+        }
     
     def is_valid_shot(self, x: int, y: int) -> bool:
         # Can't shoot same spot twice (whether hit or miss)
@@ -51,6 +69,14 @@ class BattleshipState:
     boards: List[Board]  # One per player
     current_player: int
     setup_complete: bool = False
+    
+    def to_dict(self) -> dict:
+        """Convert state to JSON-serializable dictionary."""
+        return {
+            "boards": [board.to_dict() for board in self.boards],
+            "current_player": self.current_player,
+            "setup_complete": self.setup_complete
+        }
     
 SHIPS = [
     ("Carrier", 5),
@@ -314,5 +340,6 @@ class BattleshipGame(Game):
     def _get_winner(self, state: BattleshipState) -> Optional[int]:
         if not self._is_game_over(state):
             return None
-        return next(i for i, board in enumerate(state.boards)
-                   if not all(ship.is_sunk for ship in board.ships))
+        # Return the player who sunk all of their opponent's ships
+        # Player 0 wins if player 1's ships are all sunk, and vice versa
+        return 1 if all(ship.is_sunk for ship in state.boards[0].ships) else 0

@@ -8,10 +8,24 @@ class NimState:
     remaining: int
     current_player: int
 
+    def to_dict(self) -> dict:
+        return {
+            "remaining": self.remaining,
+            "current_player": self.current_player,
+        }
+
+
 @dataclass
 class NimMove:
     """Represents a move in Nim game."""
     count: int
+    
+    def to_dict(self) -> dict:
+        """Convert move to dictionary for serialization."""
+        return {"count": self.count}
+    
+    def __str__(self) -> str:
+        return str(self.count)
 
 class NimGame(Game[NimState, NimMove]):
     def get_rules_explanation(self) -> str:

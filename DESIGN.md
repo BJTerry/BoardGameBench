@@ -75,26 +75,95 @@ classDiagram
     }
 ```
 
-## Testing Strategy
+## Testing Infrastructure
 
-Unit tests are crucial for maintaining the integrity of the framework. They ensure that individual components work as intended and help catch regressions early.
+The framework uses a comprehensive testing strategy built on modern Python testing tools and practices.
 
-### Designing Unit Tests
+### Core Testing Components
 
-- **Isolate Components**: Each test should focus on a single component or function, isolating it from others to ensure accurate results.
-- **Use Mocking**: Where necessary, use mocking to simulate interactions with external systems or complex dependencies.
-- **Test Edge Cases**: Include tests for edge cases and potential failure points to ensure robustness.
+1. **Test Framework**
+   - pytest as the primary testing framework
+   - pytest-asyncio for testing async code
+   - pytest-mock for dependency mocking
+   - conftest.py providing common fixtures
 
-### Maintaining Unit Tests
+2. **LLM Testing**
+   - pydantic-ai TestModel for LLM simulation
+   - Captured message flows for verification
+   - Mocked database sessions
+   - System prompt consistency checks
 
-- **Regular Updates**: Keep tests up-to-date with the latest code changes to ensure they remain relevant and effective.
-- **Review and Refactor**: Periodically review and refactor tests to improve readability and maintainability.
-- **Documentation**: Document the purpose and expected outcome of each test to aid understanding and future maintenance.
+3. **Game Testing**
+   - Comprehensive game logic validation
+   - State transition verification
+   - Move validation testing
+   - Win condition checks
+   - Edge case handling
 
-### Integration with Development
+### Test Organization
 
-- **Continuous Testing**: Integrate unit tests into the development workflow to catch issues early and often.
-- **Feedback Loop**: Use test results to provide feedback to developers, helping to guide improvements and bug fixes.
+Tests are organized by component:
+
+1. **Game Logic Tests**
+   - NimGame (complete)
+   - BattleshipGame (complete)
+   - WarGame (complete)
+   - Move validation
+   - State transitions
+   - Win conditions
+
+2. **LLM Integration Tests**
+   - LLMPlayer interactions (complete)
+   - Move generation
+   - Error handling
+   - Database logging
+   - System prompt consistency
+
+3. **Infrastructure Tests**
+   - Database operations
+   - Configuration handling
+   - Error conditions
+   - Edge cases
+
+### Best Practices
+
+1. **Test Isolation**
+   - Each test focuses on one component
+   - Dependencies properly mocked
+   - Clean state between tests
+   - Async support where needed
+
+2. **Mocking Strategy**
+   - External APIs always mocked
+   - Database operations simulated
+   - File system interactions controlled
+   - Time-dependent operations managed
+
+3. **Coverage Goals**
+   - Critical paths fully covered
+   - Edge cases included
+   - Error conditions tested
+   - Integration points verified
+
+### Test Maintenance
+
+1. **Regular Updates**
+   - Tests updated with code changes
+   - Coverage monitored
+   - Documentation maintained
+   - Edge cases reviewed
+
+2. **Quality Assurance**
+   - Consistent naming conventions
+   - Clear test purposes
+   - Proper setup/teardown
+   - Meaningful assertions
+
+3. **CI Integration**
+   - Automated test runs
+   - Coverage reports
+   - Performance monitoring
+   - Regression detection
 
 ## Current Limitations
 

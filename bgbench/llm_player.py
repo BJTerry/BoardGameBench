@@ -1,5 +1,5 @@
 import logging
-from typing import List, Dict, Any, Protocol, Optional
+from typing import List, Any, Protocol, Optional
 from openai.types.chat import ChatCompletionMessageParam
 from bgbench.game_view import GameView
 

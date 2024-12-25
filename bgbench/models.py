@@ -60,11 +60,14 @@ class Game(Base):
 class GameState(Base):
     def _serialize_state(self, state_data: dict) -> dict:
         """Convert state data to JSON-serializable format."""
-        from bgbench.serialization import serialize_value
-        result = serialize_value(state_data)
-        if not isinstance(result, dict):
-            raise ValueError("Serialized state must be a dictionary")
-        return result
+        try:
+            from bgbench.serialization import serialize_value
+            result = serialize_value(state_data)
+            if not isinstance(result, dict):
+                raise ValueError("Serialized state must be a dictionary")
+            return result
+        except (TypeError, ValueError) as e:
+            raise ValueError(f"State data must be JSON-serializable: {str(e)}")
 
     def update_state(self, session: Session, new_state_data: dict):
         self.state_data = self._serialize_state(new_state_data)

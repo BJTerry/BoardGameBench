@@ -92,9 +92,10 @@ class TestGameState:
             def __repr__(self):
                 return "<Unserializable object>"
         
-        with pytest.raises(ValueError):
-            # Try to update with non-serializable data
-            game_state.update_state(db_session, {"invalid": Unserializable()})
+        # Try to update with non-serializable data
+        invalid_state = {"invalid": Unserializable()}
+        with pytest.raises(ValueError, match="State data must be JSON-serializable"):
+            game_state.update_state(db_session, invalid_state)
 
 class TestLLMInteraction:
     def test_log_interaction(self, db_session):

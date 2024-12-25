@@ -52,14 +52,25 @@ class Arena:
             )
         
     def add_player(self, player: LLMPlayer, initial_rating: float = 1500):
-        # For resumed experiments, only allow adding players that were in the original experiment
-        if hasattr(self, 'experiment') and self.experiment.id is not None:
-            db_players = self.experiment.get_players(self.session)
-            if any(db_player.name == player.name for db_player in db_players):
-                logger.warning(f"Player {player.name} already exists in experiment {self.experiment.id}")
-                return
-            logger.warning(f"Cannot add new player {player.name} to existing experiment {self.experiment.id}")
-            return
+        """Add a player to the arena."""
+        # Check if player already exists in database
+        existing_player = self.session.query(DBPlayer).filter_by(name=player.name).first()
+        
+        if existing_player:
+            # Use existing player's rating
+            rating = PlayerRating(name=player.name, rating=existing_player.rating, games_played=len(existing_player.games))
+            logger.info(f"Found existing player {player.name} with rating {existing_player.rating}")
+        else:
+            # Create new player in database
+            db_player = DBPlayer(name=player.name, rating=initial_rating)
+            self.session.add(db_player)
+            self.session.commit()
+            rating = PlayerRating(name=player.name, rating=initial_rating, games_played=0)
+            logger.info(f"Created new player {player.name} with initial rating {initial_rating}")
+        
+        # Create ArenaPlayer and add to arena
+        arena_player = ArenaPlayer(player, rating)
+        self.players.append(arena_player)
 
         # Check if player already exists in database
         existing_player = self.session.query(DBPlayer).filter_by(name=player.name).first()
@@ -80,9 +91,11 @@ class Arena:
         self.players.append(arena_player)
 
     def calculate_match_uncertainty(self, player_a: ArenaPlayer, player_b: ArenaPlayer) -> float:
+        """Calculate uncertainty for a match between two players.
+        Returns 1.0 for equal ratings, decreasing as ratings diverge."""
         prob = self.elo_system.probability_stronger(player_a.rating, player_b.rating)
-        # Uncertainty is highest when prob is close to 0.5
-        return 1.0 - abs(prob - 0.5) * 2
+        # Scale uncertainty based on probability difference from 0.5
+        return 1.0 - abs(0.5 - prob) * 2
 
     def find_best_match(self) -> Optional[Tuple[ArenaPlayer, ArenaPlayer]]:
         if len(self.players) < 2:
@@ -234,17 +247,17 @@ class Arena:
             return []
             
         games = self.session.query(DBGame).filter_by(
-            experiment_id=self.experiment.id
+            experiment_id=self.experiment.id,
+            player_id=db_player.id
         ).all()
         
         history = []
         for game in games:
-            if game.state:  # Game has state data
-                game_data = {
-                    "game_id": game.id,
-                    "won": game.player_id == db_player.id if game.player_id else None,
-                    "state": game.state.state_data
-                }
-                history.append(game_data)
+            game_data = {
+                "game_id": game.id,
+                "won": True,  # If player_id matches, they won
+                "state": game.state.state_data if game.state else {}
+            }
+            history.append(game_data)
                 
         return history

@@ -27,6 +27,21 @@ class Arena:
         if experiment_id is not None:
             self.experiment = Experiment.resume_experiment(self.session, experiment_id)
             logger.info(f"Resumed experiment {self.experiment.name} (id: {experiment_id})")
+            # Get existing players from the experiment
+            db_players = self.experiment.get_players(self.session)
+            if not db_players:
+                logger.warning(f"No players found in experiment {experiment_id}")
+            else:
+                logger.info(f"Found {len(db_players)} players in experiment")
+                for db_player in db_players:
+                    # Create LLMPlayer with same configuration
+                    llm_player = LLMPlayer(db_player.name, create_llm(db_player.name))
+                    # Create PlayerRating from database
+                    rating = PlayerRating(name=db_player.name, 
+                                        rating=db_player.rating,
+                                        games_played=len(db_player.games))
+                    # Add to arena players
+                    self.players.append(ArenaPlayer(llm_player, rating))
         else:
             name = experiment_name or f"{game.__class__.__name__}_evaluation"
             self.experiment = Experiment().create_experiment(
@@ -36,6 +51,15 @@ class Arena:
             )
         
     def add_player(self, player: LLMPlayer, initial_rating: float = 1500):
+        # For resumed experiments, only allow adding players that were in the original experiment
+        if hasattr(self, 'experiment') and self.experiment.id is not None:
+            db_players = self.experiment.get_players(self.session)
+            if any(db_player.name == player.name for db_player in db_players):
+                logger.warning(f"Player {player.name} already exists in experiment {self.experiment.id}")
+                return
+            logger.warning(f"Cannot add new player {player.name} to existing experiment {self.experiment.id}")
+            return
+
         # Check if player already exists in database
         existing_player = self.session.query(DBPlayer).filter_by(name=player.name).first()
         

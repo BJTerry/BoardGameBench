@@ -19,6 +19,14 @@ class Experiment(Base):
         stmt = select(Experiment).where(Experiment.id == experiment_id)
         return session.execute(stmt).scalar_one()
     
+    def get_players(self, session: Session) -> List['Player']:
+        """Get all unique players who participated in this experiment."""
+        # Get all games in this experiment
+        games = session.query(Game).filter_by(experiment_id=self.id).all()
+        # Get unique players from these games
+        player_ids = set(game.player_id for game in games if game.player_id is not None)
+        return session.query(Player).filter(Player.id.in_(player_ids)).all()
+    
     __tablename__ = 'experiments'
     
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

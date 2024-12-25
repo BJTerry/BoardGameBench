@@ -1,7 +1,7 @@
 import logging
 from typing import Any, Optional, List, Dict
 from dataclasses import dataclass, field
-from pydantic_ai import Agent, RunContext
+from pydantic_ai import Agent
 from bgbench.game_view import GameView
 
 logger = logging.getLogger("bgbench")

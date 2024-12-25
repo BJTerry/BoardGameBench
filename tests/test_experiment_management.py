@@ -1,4 +1,3 @@
-import pytest
 from bgbench.models import Experiment, Game, Player
 from bgbench.arena import Arena
 from bgbench.games.nim_game import NimGame

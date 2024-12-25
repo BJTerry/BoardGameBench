@@ -1,5 +1,4 @@
 import pytest
-import pytest
 from bgbench.games.battleship_game import BattleshipGame, BattleshipState, Ship, Board
 
 @pytest.fixture

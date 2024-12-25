@@ -1,5 +1,4 @@
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 from bgbench.models import Base
 from config import DATABASE_URL
 

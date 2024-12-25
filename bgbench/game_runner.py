@@ -3,7 +3,7 @@ from typing import List, Dict, Any, Tuple
 from sqlalchemy.orm import Session
 from bgbench.game import Game
 from bgbench.llm_player import LLMPlayer
-from bgbench.models import GameState, LLMInteraction
+from bgbench.models import GameState
 
 logger = logging.getLogger("bgbench")
 

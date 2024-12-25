@@ -1,7 +1,7 @@
 import pytest
-from sqlalchemy import create_engine, inspect
+from typing import cast
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.exc import IntegrityError
 from bgbench.models import Base, Experiment, Player, Game, GameState, LLMInteraction
 
 @pytest.fixture
@@ -46,7 +46,6 @@ class TestPlayer:
         db_session.add(player)
         db_session.commit()
         
-        old_rating = player.rating
         new_rating = 1600.0
         player.update_rating(db_session, new_rating)
         
@@ -91,10 +90,9 @@ class TestGameState:
         class Unserializable:
             pass
         
-        # Try to update with non-serializable data
-        invalid_state = Unserializable()  # Will fail because Unserializable doesn't implement to_dict
+        invalid_state = Unserializable()
         with pytest.raises(ValueError, match="State data must be JSON-serializable"):
-            game_state.update_state(db_session, invalid_state)
+            game_state.update_state(db_session, cast(dict, invalid_state))  # type: ignore
 
 class TestLLMInteraction:
     def test_log_interaction(self, db_session):

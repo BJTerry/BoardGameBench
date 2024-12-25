@@ -1,6 +1,6 @@
 import logging
 from typing import Optional, List
-from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, JSON, Float, select
+from sqlalchemy import Integer, String, ForeignKey, JSON, Float, select
 from sqlalchemy.orm import relationship, Session, Mapped, mapped_column, declarative_base
 from bgbench.serialization import serialize_value
 

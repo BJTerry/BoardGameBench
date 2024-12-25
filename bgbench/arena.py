@@ -79,11 +79,18 @@ class Arena:
 
     def calculate_match_uncertainty(self, player_a: ArenaPlayer, player_b: ArenaPlayer) -> float:
         """Calculate uncertainty for a match between two players.
-        Returns 1.0 for equal ratings, decreasing as ratings diverge."""
+        Returns 1.0 for equal ratings or few games, decreasing as ratings diverge and games increase."""
         prob = self.elo_system.probability_stronger(player_a.rating, player_b.rating)
+        
+        # Consider number of games played
+        min_games = min(player_a.rating.games_played, player_b.rating.games_played)
+        games_factor = min(1.0, min_games / 5)  # Requires at least 5 games for full effect
+        
         # Scale uncertainty based on probability difference from 0.5
-        # Multiply by 2 to make uncertainty decrease faster with rating differences
-        return max(0.0, 1.0 - abs(0.5 - prob) * 4)
+        rating_uncertainty = max(0.0, 1.0 - abs(0.5 - prob) * 4)
+        
+        # Combine factors - high uncertainty if either few games or similar ratings
+        return max(rating_uncertainty, 1.0 - games_factor)
 
     def find_best_match(self) -> Optional[Tuple[ArenaPlayer, ArenaPlayer]]:
         if len(self.players) < 2:

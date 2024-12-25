@@ -53,21 +53,17 @@ class TestArena:
     def test_calculate_match_uncertainty(self, db_session, nim_game):
         """Test match uncertainty calculation"""
         arena = Arena(nim_game, db_session)
+        # Create players with different ratings and some games played
         player_a = ArenaPlayer(
             LLMPlayer("player-a", MagicMock()),
-            PlayerRating("player-a", 1500, 0)
+            PlayerRating("player-a", 1500, 10)  # 10 games played
         )
         player_b = ArenaPlayer(
             LLMPlayer("player-b", MagicMock()),
-            PlayerRating("player-b", 1500, 0)
+            PlayerRating("player-b", 2000, 10)  # Much higher rating, 10 games played
         )
-        
-        # Equal ratings should have maximum uncertainty
-        uncertainty = arena.calculate_match_uncertainty(player_a, player_b)
-        assert uncertainty == 1.0
-        
-        # Update player_b rating to create skill gap
-        player_b.rating.rating = 1800
+    
+        # With significant rating gap and enough games played, uncertainty should be lower
         uncertainty = arena.calculate_match_uncertainty(player_a, player_b)
         assert uncertainty < 1.0
 

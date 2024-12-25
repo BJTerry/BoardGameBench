@@ -32,9 +32,13 @@ def create_llm(model: str, temperature: float = 0.0, max_tokens: int = 1000) -> 
         logger.info(f"Initialized OpenRouter Agent for Anthropic model {model} via OpenRouter")
     else:
         # For other models (GPT, etc), we use OpenAI provider
+        openai_key = os.getenv("OPENAI_API_KEY", "")
         agent = Agent(
-            OpenAIModel(model),
-            model_settings=model_settings
+            OpenAIModel(
+                model,
+                api_key=openai_key,
+            ),
+            model_settings=model_settings,
         )
         logger.info(f"Initialized OpenAI Agent with model {model}")
     

@@ -72,30 +72,12 @@ class Arena:
         arena_player = ArenaPlayer(player, rating)
         self.players.append(arena_player)
 
-        # Check if player already exists in database
-        existing_player = self.session.query(DBPlayer).filter_by(name=player.name).first()
-        
-        if existing_player:
-            db_player = existing_player
-            logger.info(f"Found existing player {player.name} with rating {existing_player.rating}")
-        else:
-            # Create new player in database
-            db_player = DBPlayer(name=player.name, rating=initial_rating)
-            self.session.add(db_player)
-            self.session.commit()
-            logger.info(f"Created new player {player.name} with initial rating {initial_rating}")
-        
-        # Create ArenaPlayer with PlayerRating
-        rating = PlayerRating(name=player.name, rating=db_player.rating, games_played=0)
-        arena_player = ArenaPlayer(player, rating)
-        self.players.append(arena_player)
-
     def calculate_match_uncertainty(self, player_a: ArenaPlayer, player_b: ArenaPlayer) -> float:
         """Calculate uncertainty for a match between two players.
         Returns 1.0 for equal ratings, decreasing as ratings diverge."""
         prob = self.elo_system.probability_stronger(player_a.rating, player_b.rating)
         # Scale uncertainty based on probability difference from 0.5
-        return 1.0 - abs(0.5 - prob) * 2
+        return max(0.0, 1.0 - abs(0.5 - prob) * 2)
 
     def find_best_match(self) -> Optional[Tuple[ArenaPlayer, ArenaPlayer]]:
         if len(self.players) < 2:
@@ -106,13 +88,12 @@ class Arena:
         
         for i, player_a in enumerate(self.players):
             for player_b in self.players[i+1:]:
-                prob = self.elo_system.probability_stronger(
-                    player_a.rating, player_b.rating)
-                if prob < self.confidence_threshold:
-                    uncertainty = self.calculate_match_uncertainty(player_a, player_b)
-                    if uncertainty > best_uncertainty:
-                        best_uncertainty = uncertainty
-                        best_pair = (player_a, player_b)
+                uncertainty = self.calculate_match_uncertainty(player_a, player_b)
+                prob = self.elo_system.probability_stronger(player_a.rating, player_b.rating)
+                # Only consider matches where we're not too confident about the outcome
+                if prob < self.confidence_threshold and uncertainty > best_uncertainty:
+                    best_uncertainty = uncertainty
+                    best_pair = (player_a, player_b)
         
         return best_pair
 

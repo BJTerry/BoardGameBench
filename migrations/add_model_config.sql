@@ -1,0 +1,1 @@
+ALTER TABLE players ADD COLUMN model_config JSON NOT NULL DEFAULT '{}';

@@ -1,6 +1,7 @@
 import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from bgbench.models import Experiment, Player as DBPlayer, Game as DBGame
 from bgbench.llm_integration import create_llm
@@ -33,15 +34,24 @@ class Arena:
         if experiment_id is not None:
             self.experiment = Experiment.resume_experiment(self.session, experiment_id)
             logger.info(f"Resumed experiment {self.experiment.name} (id: {experiment_id})")
-            # Get existing players from the experiment
-            self.db_players = self.experiment.get_players(self.session)
+            # Get players that have been added to this experiment
+            stmt = select(DBPlayer).join(DBGame, DBGame.player_id == DBPlayer.id).where(DBGame.experiment_id == experiment_id)
+            self.db_players = self.session.execute(stmt).scalars().all()
             if not self.db_players:
                 logger.warning(f"No players found in experiment {experiment_id}")
             else:
                 logger.info(f"Found {len(self.db_players)} players in experiment")
                 for db_player in self.db_players:
                     # Create LLMPlayer with same configuration
-                    llm = llm_factory(db_player.name) if llm_factory else create_llm(db_player.name)
+                    # Create LLM using stored configuration
+                    if llm_factory:
+                        llm = llm_factory(db_player.name)
+                    else:
+                        try:
+                            llm = create_llm(**db_player.model_config)
+                        except Exception as e:
+                            logger.error(f"Could not recreate LLM for player {db_player.name}: {e}")
+                            continue
                     llm_player = LLMPlayer(db_player.name, llm)
                     # Create PlayerRating from database
                     rating = PlayerRating(name=db_player.name, 
@@ -62,13 +72,36 @@ class Arena:
         # For resumed experiments, only allow adding existing players
         if hasattr(self, 'db_players'):
             existing_player = next((p for p in self.db_players if p.name == player.name), None)
+            # Create new player in database if they don't exist
+            model_settings = player.llm.model_settings or {"temperature": 0.0, "max_tokens": 1000}
+            model_config = {
+                "model": str(player.llm.model),
+                "temperature": model_settings.get("temperature", 0.0),
+                "max_tokens": model_settings.get("max_tokens", 1000)
+            }
+
             if not existing_player:
-                logger.warning(f"Cannot add new player {player.name} to resumed experiment")
-                return
+                existing_player = DBPlayer(name=player.name, rating=initial_rating, model_config=model_config)
+                self.session.add(existing_player)
+                self.session.commit()
+
+            rating = PlayerRating(
+                name=player.name, 
+                rating=existing_player.rating,
+                games_played=len(existing_player.games)
+            )
             rating = PlayerRating(name=player.name, rating=existing_player.rating, 
                                 games_played=len(existing_player.games))
         else:
-            db_player = DBPlayer(name=player.name, rating=initial_rating)
+            # Get model configuration from the LLM player's settings
+            # Get model settings with defaults if needed
+            model_settings = player.llm.model_settings or {"temperature": 0.0, "max_tokens": 1000}
+            model_config = {
+                "model": str(player.llm.model),
+                "temperature": model_settings.get("temperature", 0.0),
+                "max_tokens": model_settings.get("max_tokens", 1000)
+            }
+            db_player = DBPlayer(name=player.name, rating=initial_rating, model_config=model_config)
             self.session.add(db_player)
             self.session.commit()
             rating = PlayerRating(name=player.name, rating=initial_rating, games_played=0)

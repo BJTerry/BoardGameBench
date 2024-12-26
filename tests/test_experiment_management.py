@@ -10,8 +10,8 @@ class TestExperimentManagement:
         
         # Add players
         players = [
-            Player(name="player-a", rating=1500.0),
-            Player(name="player-b", rating=1600.0)
+            Player(name="player-a", rating=1500.0, model_config={"model": "test-model", "temperature": 0.0, "max_tokens": 1000}),
+            Player(name="player-b", rating=1600.0, model_config={"model": "test-model", "temperature": 0.0, "max_tokens": 1000})
         ]
         for player in players:
             db_session.add(player)
@@ -48,7 +48,7 @@ class TestExperimentManagement:
         """Test getting game history for a specific player"""
         # Create experiment and player
         exp = Experiment().create_experiment(db_session, "test-history")
-        player = Player(name="test-player", rating=1500.0)
+        player = Player(name="test-player", rating=1500.0, model_config={"model": "test-model"})
         db_session.add(player)
         db_session.commit()
         
@@ -77,7 +77,7 @@ class TestExperimentManagement:
         exp2 = Experiment().create_experiment(db_session, "exp-2")
         
         # Add player to first experiment
-        player = Player(name="shared-player", rating=1500.0)
+        player = Player(name="shared-player", rating=1500.0, model_config={"model": "test-model"})
         db_session.add(player)
         db_session.commit()
         

@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from config import DATABASE_URL
-from bgbench.models import Experiment, Game
+from bgbench.models import Experiment, Game, Player
 from bgbench.logging_config import setup_logging
 from bgbench.games import AVAILABLE_GAMES
 from bgbench.llm_integration import create_llm
@@ -30,22 +30,60 @@ async def main():
     
     setup_logging(debug=args.debug)
     
-    # Create multiple LLM players
-    players = [
-        LLMPlayer("llama-3.1-8b", create_llm("openrouter/meta-llama/llama-3.1-8b-instruct:free", temperature=0.0)),
-        LLMPlayer("claude-3-haiku", create_llm("openrouter/anthropic/claude-3-haiku", temperature=0.0)),
-        LLMPlayer("gpt-4o-mini", create_llm("openai/gpt-4o-mini", temperature=0.0)),
-        # LLMPlayer("claude-3.5-sonnet", create_llm("claude-3.5-sonnet", temperature=0.0)),
-        # LLMPlayer("gpt-4o", create_llm("gpt-4o", temperature=0.0)),
-    ]
-    
-    # Get the game class from our available games
-    game_class = AVAILABLE_GAMES[args.game]
     # Set up database session
     engine = create_engine(DATABASE_URL)
     Session = sessionmaker(bind=engine)
     db_session = Session()
 
+    # Create players with their full configurations
+    player_configs = [
+        {
+            "name": "llama-3.1-8b",
+            "model_config": {
+                "model": "openrouter/meta-llama/llama-3.1-8b-instruct:free",
+                "temperature": 0.0,
+                "max_tokens": 1000
+            }
+        },
+        {
+            "name": "claude-3-haiku",
+            "model_config": {
+                "model": "openrouter/anthropic/claude-3-haiku",
+                "temperature": 0.0,
+                "max_tokens": 1000
+            }
+        },
+        {
+            "name": "gpt-4o-mini",
+            "model_config": {
+                "model": "openai/gpt-4o-mini",
+                "temperature": 0.0,
+                "max_tokens": 1000
+            }
+        }
+    ]
+
+    players = []
+    for config in player_configs:
+        # Create or get existing player
+        db_player = (
+            db_session.query(Player)
+            .filter_by(name=config["name"])
+            .first()
+        )
+        if not db_player:
+            db_player = Player.create_player(
+                db_session,
+                config["name"],
+                config["model_config"]
+            )
+        
+        # Create LLM player
+        llm = create_llm(**config["model_config"])
+        players.append(LLMPlayer(db_player.name, llm))
+    
+    # Get the game class from our available games
+    game_class = AVAILABLE_GAMES[args.game]
     game = game_class()
     
     # Handle experiment management commands

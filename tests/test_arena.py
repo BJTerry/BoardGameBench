@@ -10,6 +10,20 @@ from bgbench.rating import PlayerRating
 def mock_llm():
     llm = MagicMock()
     llm.run = MagicMock()
+    # Mock the model configuration
+    model = MagicMock()
+    model.model_name = "test-model"
+    llm.model = model
+    
+    # Mock model settings to return actual values
+    model_settings = MagicMock()
+    model_settings.get.side_effect = lambda key, default=None: {
+        "temperature": 0.0,
+        "max_tokens": 1000,
+        "top_p": 1.0,
+        "timeout": 60.0
+    }.get(key, default)
+    llm.model_settings = model_settings
     return llm
 
 @pytest.fixture
@@ -27,7 +41,7 @@ class TestArena:
         """Test resuming an Arena from existing experiment"""
         # Create experiment and add some players
         exp = Experiment().create_experiment(db_session, "test-resume")
-        player = DBPlayer(name="test-player", rating=1500.0)
+        player = DBPlayer(name="test-player", rating=1500.0, model_config={"model": "test-model"})
         db_session.add(player)
         db_session.commit()
         

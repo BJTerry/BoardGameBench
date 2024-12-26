@@ -1,6 +1,7 @@
 import pytest
 from bgbench.llm_player import LLMPlayer
 from bgbench.game_view import GameView
+from bgbench.models import LLMInteraction
 
 @pytest.mark.asyncio
 async def test_llm_player_make_move_nim(test_llm):
@@ -94,8 +95,11 @@ async def test_llm_player_db_logging(test_llm, mocker):
     """Test database logging functionality of LLMPlayer"""
     # Mock database session
     mock_session = mocker.MagicMock()
+        
+    # Create a mock LLMInteraction class
     mock_interaction = mocker.MagicMock()
-    mocker.patch('bgbench.models.LLMInteraction', return_value=mock_interaction)
+    # Mock the class to return the mock instance
+    mocker.patch('bgbench.llm_player.LLMInteraction', return_value=mock_interaction)
     
     player = LLMPlayer("test_player", test_llm, db_session=mock_session, game_id=1)
     

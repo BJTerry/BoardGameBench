@@ -1,18 +1,37 @@
 import os
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 import logging
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.settings import ModelSettings
+from typing import TypedDict
+
+class OurModelSettings(TypedDict, total=True):
+    temperature: float
+    max_tokens: int
+    top_p: float
+    timeout: float
+
+def convert_to_agent_settings(settings: OurModelSettings) -> ModelSettings:
+    """Convert our settings to Agent's ModelSettings"""
+    return ModelSettings(
+        temperature=settings["temperature"],
+        max_tokens=settings["max_tokens"],
+        top_p=settings["top_p"],
+        timeout=settings["timeout"]
+    )
 
 logger = logging.getLogger(__name__)
 
-def create_llm(model: str, temperature: float = 0.0, max_tokens: int = 1000) -> Agent:
+def create_llm(model: str, temperature: float = 0.0, max_tokens: int = 1000, **kwargs) -> Agent:
     """Factory function to create appropriate Agent instance based on model name."""
-    model_settings = ModelSettings(
+    settings = OurModelSettings(
         temperature=temperature,
-        max_tokens=max_tokens
+        max_tokens=max_tokens,
+        top_p=1.0,  # Default value
+        timeout=60.0  # Default timeout in seconds
     )
+    model_settings = convert_to_agent_settings(settings)
     
     if model.startswith('openrouter'):
         # For Claude models, we use OpenRouter to access Anthropic
@@ -52,10 +71,12 @@ def create_test_llm(test_responses: List[str]) -> Agent:
     
     agent = Agent(
         TestModel(),
-        model_settings=ModelSettings(
+        model_settings=convert_to_agent_settings(OurModelSettings(
             temperature=0.0,
-            max_tokens=1000
-        )
+            max_tokens=1000,
+            top_p=1.0,
+            timeout=60.0
+        ))
     )
     return agent
 

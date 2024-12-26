@@ -42,7 +42,7 @@ class TestExperiment:
 class TestPlayer:
     def test_update_player_rating(self, db_session):
         """Test updating player rating"""
-        player = Player(name="Test Player", rating=1500.0)
+        player = Player(name="Test Player", rating=1500.0, model_config={"model": "test-model"})
         db_session.add(player)
         db_session.commit()
         

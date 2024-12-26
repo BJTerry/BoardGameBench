@@ -41,11 +41,21 @@ class Player(Base):
         self.rating = new_rating
         session.commit()
         logger.info(f"Updated player {self.name} rating: {old_rating} -> {new_rating}")
+
+    @classmethod
+    def create_player(cls, session: Session, name: str, model_config: dict) -> 'Player':
+        """Create a new player with model configuration."""
+        player = cls(name=name, model_config=model_config)
+        session.add(player)
+        session.commit()
+        return player
+
     __tablename__ = 'players'
     
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
     rating: Mapped[float] = mapped_column(Float, default=1500.0)
+    model_config: Mapped[dict] = mapped_column(JSON, nullable=False)
     games: Mapped[list["Game"]] = relationship("Game", back_populates="player")
 
 class Game(Base):

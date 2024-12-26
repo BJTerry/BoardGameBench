@@ -44,7 +44,7 @@ class Player(Base):
     __tablename__ = 'players'
     
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
     rating: Mapped[float] = mapped_column(Float, default=1500.0)
     games: Mapped[list["Game"]] = relationship("Game", back_populates="player")
 

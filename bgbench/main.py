@@ -32,6 +32,7 @@ async def main():
     
     # Create multiple LLM players
     players = [
+        LLMPlayer("llama-3.1-8b", create_llm("openrouter/meta-llama/llama-3.1-8b-instruct:free", temperature=0.0)),
         LLMPlayer("claude-3-haiku", create_llm("openrouter/anthropic/claude-3-haiku", temperature=0.0)),
         LLMPlayer("gpt-4o-mini", create_llm("openai/gpt-4o-mini", temperature=0.0)),
         # LLMPlayer("claude-3.5-sonnet", create_llm("claude-3.5-sonnet", temperature=0.0)),

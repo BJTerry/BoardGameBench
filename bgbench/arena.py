@@ -68,16 +68,10 @@ class Arena:
             rating = PlayerRating(name=player.name, rating=existing_player.rating, 
                                 games_played=len(existing_player.games))
         else:
-            # For new experiments, create new player in database
-            existing_player = self.session.query(DBPlayer).filter_by(name=player.name).first()
-            if existing_player:
-                rating = PlayerRating(name=player.name, rating=existing_player.rating, 
-                                    games_played=len(existing_player.games))
-            else:
-                db_player = DBPlayer(name=player.name, rating=initial_rating)
-                self.session.add(db_player)
-                self.session.commit()
-                rating = PlayerRating(name=player.name, rating=initial_rating, games_played=0)
+            db_player = DBPlayer(name=player.name, rating=initial_rating)
+            self.session.add(db_player)
+            self.session.commit()
+            rating = PlayerRating(name=player.name, rating=initial_rating, games_played=0)
         
         # Create ArenaPlayer and add to arena
         arena_player = ArenaPlayer(player, rating)

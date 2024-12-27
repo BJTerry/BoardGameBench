@@ -10,8 +10,9 @@ class PlayerRating:
     k_factor: float = 32.0  # K-factor determines how quickly ratings change
 
 class EloSystem:
-    def __init__(self, initial_rating: float = 1500):
+    def __init__(self, initial_rating: float = 1500, confidence_threshold: float = 0.70):
         self.initial_rating = initial_rating
+        self.confidence_threshold = confidence_threshold
     
     def expected_score(self, rating_a: float, rating_b: float) -> float:
         """Calculate expected score for player A against player B."""
@@ -62,25 +63,22 @@ class EloSystem:
         # Using normal distribution to calculate probability
         return 0.5 * (1 + math.erf(rating_diff / (uncertainty * math.sqrt(2))))
 
-class RatingAnalyzer:
-    def __init__(self, confidence_threshold: float = 0.95):
-        self.elo_system = EloSystem()
-        self.confidence_threshold = confidence_threshold
-    
-    def is_evaluation_complete(self, player_a: PlayerRating, player_b: PlayerRating) -> Tuple[bool, str]:
-        """
-        Determine if we have enough confidence in the relative strength of the players.
-        Returns (is_complete, explanation)
-        """
-        prob_a_stronger = self.elo_system.probability_stronger(player_a, player_b)
-        prob_b_stronger = 1 - prob_a_stronger
+    def calculate_match_uncertainty(self, player_a: PlayerRating, player_b: PlayerRating) -> float:
+        """Calculate uncertainty for a match between two players.
+        Returns 1.0 for equal ratings or few games, decreasing as ratings diverge and games increase."""
+        prob = self.probability_stronger(player_a, player_b)
         
-        if max(prob_a_stronger, prob_b_stronger) >= self.confidence_threshold:
-            stronger = player_a if prob_a_stronger > prob_b_stronger else player_b
-            confidence = max(prob_a_stronger, prob_b_stronger) * 100
-            return True, (f"We are {confidence:.1f}% confident that {stronger.name} "
-                         f"(rating: {stronger.rating:.0f}) is stronger")
+        # Consider number of games played
+        min_games = min(player_a.games_played, player_b.games_played)
+        games_factor = min(1.0, min_games / 5)  # Requires at least 5 games for full effect
         
-        return False, (f"Confidence not yet reached. Current ratings: "
-                      f"{player_a.name}: {player_a.rating:.0f}, "
-                      f"{player_b.name}: {player_b.rating:.0f}")
+        # Scale uncertainty based on probability difference from 0.5
+        rating_uncertainty = max(0.0, 1.0 - abs(0.5 - prob) * 4)
+        
+        # Combine factors - high uncertainty if either few games or similar ratings
+        return max(rating_uncertainty, 1.0 - games_factor)
+
+    def is_match_needed(self, player_a: PlayerRating, player_b: PlayerRating) -> bool:
+        """Determine if we need more games between these players."""
+        prob = self.probability_stronger(player_a, player_b)
+        return prob < self.confidence_threshold

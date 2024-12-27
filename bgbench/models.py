@@ -1,11 +1,18 @@
 import logging
 from typing import Optional, List
-from sqlalchemy import Integer, String, ForeignKey, JSON, Float, select
+from sqlalchemy import Integer, String, ForeignKey, JSON, Float, select, Table, Column
 from sqlalchemy.orm import relationship, Session, Mapped, mapped_column, declarative_base
 from bgbench.serialization import serialize_value
 
 logger = logging.getLogger(__name__)
 Base = declarative_base()
+
+experiment_players = Table(
+    'experiment_players',
+    Base.metadata,
+    Column('experiment_id', Integer, ForeignKey('experiments.id')),
+    Column('player_id', Integer, ForeignKey('players.id')),
+)
 
 class Experiment(Base):
     def create_experiment(self, session: Session, name: str, description: str = "") -> 'Experiment':
@@ -21,12 +28,18 @@ class Experiment(Base):
         return session.execute(stmt).scalar_one()
     
     def get_players(self, session: Session) -> List['Player']:
-        """Get all unique players who participated in this experiment."""
-        # Get all games in this experiment
+        """Get all players associated with this experiment."""
+        # Get players directly associated with the experiment
+        direct_players = self.players
+        
+        # Get players from games
         games = session.query(Game).filter_by(experiment_id=self.id).all()
-        # Get unique players from these games
-        player_ids = set(game.player_id for game in games if game.player_id is not None)
-        return session.query(Player).filter(Player.id.in_(player_ids)).all()
+        game_player_ids = set(game.player_id for game in games if game.player_id is not None)
+        game_players = session.query(Player).filter(Player.id.in_(game_player_ids)).all() if game_player_ids else []
+        
+        # Combine and deduplicate players
+        all_players = list(set(direct_players + game_players))
+        return all_players
     
     __tablename__ = 'experiments'
     
@@ -34,6 +47,11 @@ class Experiment(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(String)
     games: Mapped[list["Game"]] = relationship("Game", back_populates="experiment")
+    players: Mapped[list["Player"]] = relationship(
+        "Player",
+        secondary=experiment_players,
+        backref="experiments"
+    )
 
 class Player(Base):
     def update_rating(self, session: Session, new_rating: float):

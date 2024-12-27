@@ -34,13 +34,13 @@ class Arena:
         if experiment_id is not None:
             self.experiment = Experiment.resume_experiment(self.session, experiment_id)
             logger.info(f"Resumed experiment {self.experiment.name} (id: {experiment_id})")
-            # Get players that have been added to this experiment
-            stmt = select(DBPlayer).join(DBGame, DBGame.player_id == DBPlayer.id).where(DBGame.experiment_id == experiment_id)
-            self.db_players = self.session.execute(stmt).scalars().all()
+            # Get players directly from experiment relationship
+            self.db_players = self.experiment.players
             if not self.db_players:
                 logger.warning(f"No players found in experiment {experiment_id}")
             else:
                 logger.info(f"Found {len(self.db_players)} players in experiment")
+                self.players = []  # Clear existing players
                 for db_player in self.db_players:
                     # Create LLMPlayer with same configuration
                     # Create LLM using stored configuration
@@ -69,42 +69,48 @@ class Arena:
         
     def add_player(self, player: LLMPlayer, initial_rating: float = 1500):
         """Add a player to the arena."""
-        # For resumed experiments, only allow adding existing players
-        if hasattr(self, 'db_players'):
-            existing_player = next((p for p in self.db_players if p.name == player.name), None)
-            # Create new player in database if they don't exist
-            model_settings = player.llm.model_settings or {"temperature": 0.0, "max_tokens": 1000}
-            model_config = {
-                "model": str(player.llm.model),
-                "temperature": model_settings.get("temperature", 0.0),
-                "max_tokens": model_settings.get("max_tokens", 1000)
-            }
-
-            if not existing_player:
-                existing_player = DBPlayer(name=player.name, rating=initial_rating, model_config=model_config)
-                self.session.add(existing_player)
-                self.session.commit()
-
-            rating = PlayerRating(
-                name=player.name, 
-                rating=existing_player.rating,
-                games_played=len(existing_player.games)
+        # If we're resuming an experiment, don't add new players
+        if hasattr(self, 'experiment') and self.experiment.id is not None and hasattr(self, 'db_players'):
+            # Check if this player is already in the experiment
+            existing_player = next(
+                (p for p in self.players if p.llm_player.name == player.name), 
+                None
             )
-            rating = PlayerRating(name=player.name, rating=existing_player.rating, 
-                                games_played=len(existing_player.games))
-        else:
-            # Get model configuration from the LLM player's settings
-            # Get model settings with defaults if needed
-            model_settings = player.llm.model_settings or {"temperature": 0.0, "max_tokens": 1000}
-            model_config = {
-                "model": str(player.llm.model),
-                "temperature": model_settings.get("temperature", 0.0),
-                "max_tokens": model_settings.get("max_tokens", 1000)
-            }
+            if existing_player:
+                logger.debug(f"Player {player.name} already exists in resumed experiment")
+                return
+            else:
+                logger.warning(f"Ignoring new player {player.name} in resumed experiment")
+                return
+
+        # Get model settings with defaults if needed
+        model_settings = player.llm.model_settings or {"temperature": 0.0, "max_tokens": 1000}
+        model_config = {
+            "model": str(player.llm.model),
+            "temperature": model_settings.get("temperature", 0.0),
+            "max_tokens": model_settings.get("max_tokens", 1000)
+        }
+
+        # Get or create player in database
+        db_player = (
+            self.session.query(DBPlayer)
+            .filter_by(name=player.name)
+            .first()
+        )
+        
+        if not db_player:
             db_player = DBPlayer(name=player.name, rating=initial_rating, model_config=model_config)
             self.session.add(db_player)
-            self.session.commit()
-            rating = PlayerRating(name=player.name, rating=initial_rating, games_played=0)
+        
+        # Associate player with experiment if not already
+        if db_player not in self.experiment.players:
+            self.experiment.players.append(db_player)
+        
+        self.session.commit()
+        
+        # Create ArenaPlayer and add to arena
+        rating = PlayerRating(name=player.name, rating=db_player.rating, 
+                            games_played=len(db_player.games))
         
         # Create ArenaPlayer and add to arena
         arena_player = ArenaPlayer(player, rating)
@@ -247,11 +253,15 @@ class Arena:
         """Get summary of experiment results including games played and final ratings."""
         games = self.session.query(DBGame).filter_by(experiment_id=self.experiment.id).all()
         
+        # Get all players associated with this experiment
+        db_players = self.experiment.get_players(self.session)
+        player_ratings = {p.name: p.rating for p in db_players}
+        
         results = {
             "experiment_id": self.experiment.id,
             "experiment_name": self.experiment.name,
             "total_games": len(games),
-            "player_ratings": {p.llm_player.name: p.rating.rating for p in self.players},
+            "player_ratings": player_ratings,
             "games": []
         }
         
@@ -260,9 +270,7 @@ class Arena:
                 results["games"].append({
                     "game_id": game.id,
                     "winner": game.player.name,
-                    "final_ratings": {
-                        p.name: p.rating for p in self.session.query(DBPlayer).all()
-                    }
+                    "final_ratings": {p.name: p.rating for p in db_players}
                 })
         
         return results

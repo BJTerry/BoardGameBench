@@ -78,7 +78,7 @@ class TestArena:
         )
     
         # With significant rating gap and enough games played, uncertainty should be lower
-        uncertainty = arena.calculate_match_uncertainty(player_a, player_b)
+        uncertainty = arena.elo_system.calculate_match_uncertainty(player_a.rating, player_b.rating)
         assert uncertainty < 1.0
 
     def test_find_best_match(self, db_session, nim_game, mock_llm):

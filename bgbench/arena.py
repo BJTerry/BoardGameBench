@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import random
 from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy.orm import Session
-from bgbench.models import Experiment, Player as DBPlayer, GameMatch as DBGame
+from bgbench.models import Experiment, Player as DBPlayer, GameMatch
 from bgbench.llm_integration import create_llm
 from bgbench.game import Game
 from bgbench.llm_player import LLMPlayer
@@ -72,9 +72,9 @@ class Arena():
             
             llm_player = LLMPlayer(db_player.name, llm)
             # Count games where player was involved
-            games_played = self.session.query(DBGame).filter(
-                (DBGame.player1_id == db_player.id) | 
-                (DBGame.player2_id == db_player.id)
+            games_played = self.session.query(GameMatch).filter(
+                (GameMatch.player1_id == db_player.id) | 
+                (GameMatch.player2_id == db_player.id)
             ).count()
             
             rating = PlayerRating(
@@ -147,12 +147,12 @@ class Arena():
         sorted_players = sorted(self.players, key=lambda p: p.rating.rating, reverse=True)
         for player in sorted_players:
             # Count concessions by this player
-            concessions = self.session.query(DBGame).filter(
-                (DBGame.experiment_id == self.experiment.id) &
-                (DBGame.conceded == True) &
-                (DBGame.winner_id != player.player_model.id) &
-                ((DBGame.player1_id == player.player_model.id) | 
-                 (DBGame.player2_id == player.player_model.id))
+            concessions = self.session.query(GameMatch).filter(
+                (GameMatch.experiment_id == self.experiment.id) &
+                (GameMatch.conceded == True) &
+                (GameMatch.winner_id != player.player_model.id) &
+                ((GameMatch.player1_id == player.player_model.id) | 
+                 (GameMatch.player2_id == player.player_model.id))
             ).count()
             
             logger.info(f"{player.llm_player.name}: {player.rating.rating:.0f} "
@@ -171,7 +171,7 @@ class Arena():
             db_player_b = player_b.player_model            
 
             # Create game record first to get game_id
-            db_game: DBGame = DBGame(
+            db_game: GameMatch = GameMatch(
                 experiment_id=self.experiment.id,
                 winner_id=None,  # Will update this after we know the winner
                 player1_id=db_player_a.id,
@@ -253,7 +253,7 @@ class Arena():
 
     def get_experiment_results(self) -> Dict[str, Any]:
         """Get summary of experiment results including games played and final ratings."""
-        games = self.session.query(DBGame).filter_by(experiment_id=self.experiment.id).all()
+        games = self.session.query(GameMatch).filter_by(experiment_id=self.experiment.id).all()
         
         # Get all players associated with this experiment
         db_players = self.experiment.get_players(self.session)
@@ -262,12 +262,12 @@ class Arena():
         # Calculate concessions per player
         player_concessions = {}
         for player in db_players:
-            concessions = self.session.query(DBGame).filter(
-                (DBGame.experiment_id == self.experiment.id) &
-                (DBGame.conceded == True) &
-                (DBGame.winner_id != player.id) &
-                ((DBGame.player1_id == player.id) | 
-                 (DBGame.player2_id == player.id))
+            concessions = self.session.query(GameMatch).filter(
+                (GameMatch.experiment_id == self.experiment.id) &
+                (GameMatch.conceded == True) &
+                (GameMatch.winner_id != player.id) &
+                ((GameMatch.player1_id == player.id) | 
+                 (GameMatch.player2_id == player.id))
             ).count()
             player_concessions[player.name] = concessions
 
@@ -298,9 +298,9 @@ class Arena():
         if not db_player:
             return []
             
-        games = self.session.query(DBGame).filter(
-            DBGame.experiment_id == self.experiment.id,
-            DBGame.winner_id == db_player.id
+        games = self.session.query(GameMatch).filter(
+            GameMatch.experiment_id == self.experiment.id,
+            GameMatch.winner_id == db_player.id
         ).all()
         
         history = []

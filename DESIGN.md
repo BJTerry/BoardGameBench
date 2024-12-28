@@ -13,8 +13,7 @@ The framework enables flexible game implementation and LLM integration while mai
    - Player views through GameView
 
 2. LLM Integration
-   - Provider abstraction via LLMInterface
-   - OpenRouter integration for Anthropic and OpenAI
+   - Integration with OpenRouter and OpenAI
    - Basic conversation management
    - Simple move parsing
 
@@ -48,37 +47,6 @@ Basic async interface:
 - Minimal error handling
 - Basic retry logic implemented
 
-## Class Relationships
-
-```mermaid
-classDiagram
-    Game <|-- NimGame
-    Game <|-- BattleshipGame
-    Game <|-- WarGame
-    LLMInterface <|-- AnthropicLLM
-    LLMPlayer o-- LLMInterface
-
-    class Game {
-        +get_rules_explanation()
-        +get_move_format_instructions()
-        +get_player_view()
-        +validate_move()
-        +apply_move()
-    }
-
-    class LLMInterface {
-        +complete()
-    }
-
-    class LLMPlayer {
-        +get_move()
-    }
-```
-
-## Testing Infrastructure
-
-The framework uses a comprehensive testing strategy built on modern Python testing tools and practices.
-
 ### Core Testing Components
 
 1. **Test Framework**
@@ -89,9 +57,9 @@ The framework uses a comprehensive testing strategy built on modern Python testi
 
 2. **LLM Testing**
    - pydantic-ai TestModel for LLM simulation
-   - Performance metrics tracking
-   - Database interaction logging
-   - Conversation history verification
+   - Captured message flows for verification
+   - Mocked database sessions
+   - System prompt consistency checks
 
 3. **Game Testing**
    - Comprehensive game logic validation
@@ -105,15 +73,15 @@ The framework uses a comprehensive testing strategy built on modern Python testi
 Tests are organized by component:
 
 1. **Game Logic Tests**
-   - NimGame (complete)
-   - BattleshipGame (complete)
-   - WarGame (complete)
+   - NimGame
+   - BattleshipGame
+   - WarGame
    - Move validation
    - State transitions
    - Win conditions
 
 2. **LLM Integration Tests**
-   - LLMPlayer interactions (complete)
+   - LLMPlayer interactions
    - Move generation
    - Error handling
    - Database logging
@@ -145,26 +113,6 @@ Tests are organized by component:
    - Error conditions tested
    - Integration points verified
 
-### Test Maintenance
-
-1. **Regular Updates**
-   - Tests updated with code changes
-   - Coverage monitored
-   - Documentation maintained
-   - Edge cases reviewed
-
-2. **Quality Assurance**
-   - Consistent naming conventions
-   - Clear test purposes
-   - Proper setup/teardown
-   - Meaningful assertions
-
-3. **CI Integration**
-   - Automated test runs
-   - Coverage reports
-   - Performance monitoring
-   - Regression detection
-
 ## Current Status
 
 1. Core Features Implemented
@@ -184,77 +132,14 @@ Tests are organized by component:
    - Win matrix generation
    - Concession handling
 
-3. Remaining Limitations
-   - Tournament management not implemented
-   - Game analysis tools incomplete
-   - Performance optimization needed
-   - GameView usage varies between games
-
 ## Next Steps
 
 1. Standardization
-   - Consistent GameView usage
-   - Uniform move validation
    - Standard error handling
 
 2. Core Improvements
    - Add retry logic to LLMs
-   - Improve error messages
-   - Better move validation
+   - LLM prompt styles
 
 3. Future Features
-   - Basic tournament support
-   - Simple rating system
    - Game replay capability in progress
-
-## Implementation Guidelines
-
-### Game Implementation
-
-```python
-class YourGame(Game):
-    def validate_move(self, state, player_id, move):
-        # Validate move legality
-        pass
-        
-    def get_move_format_instructions(self):
-        # Return move format help
-        pass
-        
-    def get_player_view(self, state, player_id):
-        # Return GameView for player
-        pass
-```
-
-### Testing Focus
-
-1. Game Logic
-   - Move validation
-   - State transitions
-   - Win conditions
-
-2. LLM Integration
-   - Basic API handling
-   - Response parsing
-   - Simple error cases
-
-## Configuration
-
-1. LLM Settings
-   - API keys
-   - Model selection
-   - Basic parameters
-
-2. Game Parameters
-   - Initial states
-   - Basic rules
-
-## Monitoring
-
-1. Game Progress
-   - Move history
-   - Basic state logging
-
-2. LLM Performance
-   - Response times
-   - Error tracking

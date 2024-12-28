@@ -1,14 +1,13 @@
 import argparse
 import logging
+from typing import Any, Dict
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from config import DATABASE_URL
-from bgbench.models import Experiment, Game, Player
+from bgbench.models import Experiment, Game
 from bgbench.logging_config import setup_logging
 from bgbench.games import AVAILABLE_GAMES
-from bgbench.llm_integration import create_llm
-from bgbench.llm_player import LLMPlayer
 from bgbench.arena import Arena
 
 logger = logging.getLogger("bgbench")
@@ -35,16 +34,24 @@ async def main():
     Session = sessionmaker(bind=engine)
     db_session = Session()
 
-    # Create players with their full configurations
+    # Configure players
     player_configs = [
         {
-            "name": "llama-3.1-8b",
+            "name": "command-r7b-12-2024",
             "model_config": {
-                "model": "openrouter/meta-llama/llama-3.1-8b-instruct:free",
+                "model": "openrouter/cohere/command-r7b-12-2024",
                 "temperature": 0.0,
                 "max_tokens": 1000
             }
         },
+        # {
+        #     "name": "llama-3.1-8b",
+        #     "model_config": {
+        #         "model": "openrouter/meta-llama/llama-3.1-8b-instruct",
+        #         "temperature": 0.0,
+        #         "max_tokens": 1000
+        #     }
+        # },
         {
             "name": "claude-3-haiku",
             "model_config": {
@@ -63,25 +70,6 @@ async def main():
         }
     ]
 
-    players = []
-    for config in player_configs:
-        # Create or get existing player
-        db_player = (
-            db_session.query(Player)
-            .filter_by(name=config["name"])
-            .first()
-        )
-        if not db_player:
-            db_player = Player.create_player(
-                db_session,
-                config["name"],
-                config["model_config"]
-            )
-        
-        # Create LLM player
-        llm = create_llm(**config["model_config"])
-        players.append(LLMPlayer(db_player.name, llm))
-    
     # Get the game class from our available games
     game_class = AVAILABLE_GAMES[args.game]
     game = game_class()
@@ -97,22 +85,11 @@ async def main():
         return
 
     if args.resume:
-        experiment = Experiment.resume_experiment(db_session, args.resume)
-        if not experiment:
-            logger.error(f"No experiment found with ID {args.resume}")
-            return
-        logger.info(f"Resuming experiment: {experiment.name}")
         arena = Arena(game, db_session, experiment_id=args.resume)
-        for player in players:
-            arena.add_player(player)
-    elif args.name:
-        arena = Arena(game, db_session, experiment_name=args.name)
-        for player in players:
-            arena.add_player(player)
     else:
-        arena = Arena(game, db_session)
-        for player in players:
-            arena.add_player(player)
+        arena = Arena(game, db_session, 
+                     player_configs=player_configs,
+                     experiment_name=args.name)
 
     if args.export:
         experiment = Experiment.resume_experiment(db_session, args.export)
@@ -120,24 +97,25 @@ async def main():
             logger.error(f"No experiment found with ID {args.export}")
             return
             
-        results = arena.get_experiment_results()
-        logger.info("\nExperiment Results:")
-        logger.info(f"Name: {results['experiment_name']}")
-        logger.info(f"Total Games: {results['total_games']}")
-        logger.info("\nFinal Ratings:")
-        for name, rating in sorted(results['player_ratings'].items(), key=lambda x: x[1], reverse=True):
-            logger.info(f"{name}: {rating:.0f}")
-        
-        logger.info("\nGame History:")
-        for game in results['games']:
-            logger.info(f"Game {game['game_id']}: Winner - {game['winner']}")
+        print_results(arena.get_experiment_results())
         return
 
     # Run the experiment and print final standings
-    final_ratings = await arena.evaluate_all()
-    logger.info("\nFinal Ratings:")
-    for name, rating in sorted(final_ratings.items(), key=lambda x: x[1], reverse=True):
-        logger.info(f"{name}: {rating:.0f}")
+    await arena.evaluate_all()
+    print_results(arena.get_experiment_results())
+
+def print_results(results: Dict[str, Any]):
+    logger.info("\nExperiment Results:")
+    logger.info(f"Name: {results['experiment_name']}")
+    logger.info(f"Total Games: {results['total_games']}")
+    logger.info("\nFinal Results:")
+    for name, rating in sorted(results['player_ratings'].items(), key=lambda x: x[1], reverse=True):
+        concessions = results['player_concessions'][name]
+        logger.info(f"{name}: {rating:.0f} ({concessions} concessions)")
+    
+    logger.info("\nGame History:")
+    for game in results['games']:
+        logger.info(f"Game {game['game_id']}: Winner - {game['winner']}")
 
 if __name__ == "__main__":
     import asyncio

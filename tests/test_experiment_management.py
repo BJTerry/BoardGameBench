@@ -1,7 +1,6 @@
 from bgbench.models import Experiment, Game, Player
 from bgbench.arena import Arena
 from bgbench.games.nim_game import NimGame
-from bgbench.llm_player import LLMPlayer
 
 class TestExperimentManagement:
     def test_get_experiment_results(self, db_session, test_llm):
@@ -11,17 +10,17 @@ class TestExperimentManagement:
         
         # Add players
         players = [
-            Player(name="player-a", rating=1500.0, model_config={"model": "test-model", "temperature": 0.0, "max_tokens": 1000}),
-            Player(name="player-b", rating=1600.0, model_config={"model": "test-model", "temperature": 0.0, "max_tokens": 1000})
+            Player(name="player-a", rating=1500.0, model_config={"model": "test-model", "temperature": 0.0, "max_tokens": 1000}, experiment_id=exp.id),
+            Player(name="player-b", rating=1600.0, model_config={"model": "test-model", "temperature": 0.0, "max_tokens": 1000}, experiment_id=exp.id)
         ]
         for player in players:
             db_session.add(player)
         db_session.commit()
         
-        # Add some games
+        # Add some games with winners
         games = [
-            Game(experiment_id=exp.id, player_id=players[0].id),
-            Game(experiment_id=exp.id, player_id=players[1].id)
+            Game(experiment_id=exp.id, player1_id=players[0].id, player2_id=players[1].id, winner_id=players[0].id),
+            Game(experiment_id=exp.id, player1_id=players[1].id, player2_id=players[0].id, winner_id=players[1].id)
         ]
         for game in games:
             db_session.add(game)
@@ -49,12 +48,17 @@ class TestExperimentManagement:
         """Test getting game history for a specific player"""
         # Create experiment and player
         exp = Experiment().create_experiment(db_session, "test-history")
-        player = Player(name="test-player", rating=1500.0, model_config={"model": "test-model"})
+        player = Player(name="test-player", rating=1500.0, model_config={"model": "test-model"}, experiment_id=exp.id)
         db_session.add(player)
         db_session.commit()
         
+        # Create second player for the game
+        player2 = Player(name="test-player-2", rating=1500.0, model_config={"model": "test-model"}, experiment_id=exp.id)
+        db_session.add(player2)
+        db_session.commit()
+        
         # Add games with states
-        game = Game(experiment_id=exp.id, player_id=player.id)
+        game = Game(experiment_id=exp.id, player1_id=player.id, player2_id=player2.id, winner_id=player.id)
         db_session.add(game)
         db_session.commit()
         
@@ -62,7 +66,7 @@ class TestExperimentManagement:
         arena = Arena(NimGame(12, 3), db_session, experiment_id=exp.id)
         
         # Get player history
-        history = arena.get_player_game_history("test-player")
+        history = arena.get_player_game_history(player.id)
         
         # Verify history structure
         assert isinstance(history, list)
@@ -81,12 +85,14 @@ class TestExperimentManagement:
             Player(
                 name="test-player-1",
                 rating=1500.0,
-                model_config={"model": "test-model", "temperature": 0.0, "max_tokens": 1000}
+                model_config={"model": "test-model", "temperature": 0.0, "max_tokens": 1000},
+                experiment_id=exp.id
             ),
             Player(
                 name="test-player-2",
                 rating=1600.0,
-                model_config={"model": "test-model", "temperature": 0.0, "max_tokens": 1000}
+                model_config={"model": "test-model", "temperature": 0.0, "max_tokens": 1000},
+                experiment_id=exp.id
             )
         ]
         for player in players:
@@ -96,8 +102,8 @@ class TestExperimentManagement:
         
         # Create some games
         games = [
-            Game(experiment_id=exp.id, player_id=players[0].id),
-            Game(experiment_id=exp.id, player_id=players[1].id)
+            Game(experiment_id=exp.id, player1_id=players[0].id, player2_id=players[1].id),
+            Game(experiment_id=exp.id, player1_id=players[1].id, player2_id=players[0].id)
         ]
         for game in games:
             db_session.add(game)
@@ -131,7 +137,8 @@ class TestExperimentManagement:
         initial_player = Player(
             name="initial-player",
             rating=1500.0,
-            model_config={"model": "test-model", "temperature": 0.0, "max_tokens": 1000}
+            model_config={"model": "test-model", "temperature": 0.0, "max_tokens": 1000},
+            experiment_id=exp.id
         )
         db_session.add(initial_player)
         exp.players.append(initial_player)
@@ -141,27 +148,59 @@ class TestExperimentManagement:
         mock_llm_factory = lambda name: test_llm
         arena = Arena(NimGame(12, 3), db_session, experiment_id=exp.id, llm_factory=mock_llm_factory)
         
-        # Try to add new player
-        new_player = LLMPlayer("new-player", test_llm)
-        arena.add_player(new_player)
+        # Try to create new arena with additional player config
+        new_player_config = {
+            "name": "new-player",
+            "model_config": {"model": "test-model", "temperature": 0.0, "max_tokens": 1000}
+        }
         
-        # Verify new player was not added
+        # This should not add the new player since we're using an existing experiment
+        arena = Arena(NimGame(12, 3), db_session, 
+                     player_configs=[new_player_config],
+                     experiment_id=exp.id,
+                     llm_factory=mock_llm_factory)
+        
+        # Verify only original player exists
         assert len(arena.players) == 1
         assert arena.players[0].llm_player.name == "initial-player"
 
     def test_new_experiment_player_addition(self, db_session, test_llm):
         """Test adding players to a new experiment"""
-        # Create new arena with fresh experiment
-        arena = Arena(NimGame(12, 3), db_session, experiment_name="new-players-test")
+        # Create new arena with fresh experiment and player configs
+        player_configs = [
+            {
+                "name": "test-player-1",
+                "model_config": {"model": "test-model", "temperature": 0.0, "max_tokens": 1000}
+            }
+        ]
+        # Create mock LLM factory that returns our test LLM
+        mock_llm_factory = lambda name: test_llm
         
-        # Add players
-        players = [
-            LLMPlayer("new-player-1", test_llm),
-            LLMPlayer("new-player-2", test_llm)
+        arena = Arena(NimGame(12, 3), db_session, 
+                     player_configs=player_configs,
+                     experiment_name="new-players-test",
+                     llm_factory=mock_llm_factory)
+        
+        # Create arena with player configs
+        player_configs = [
+            {
+                "name": "new-player-1",
+                "model_config": {"model": "test-model", "temperature": 0.0, "max_tokens": 1000}
+            },
+            {
+                "name": "new-player-2",
+                "model_config": {"model": "test-model", "temperature": 0.0, "max_tokens": 1000}
+            }
         ]
         
-        for player in players:
-            arena.add_player(player)
+        # Create mock LLM factory that returns our test LLM
+        mock_llm_factory = lambda name: test_llm
+        
+        # Create arena with player configs
+        arena = Arena(NimGame(12, 3), db_session, 
+                     player_configs=player_configs,
+                     experiment_name="new-players-test",
+                     llm_factory=mock_llm_factory)
         
         # Verify players were added
         assert len(arena.players) == 2
@@ -183,21 +222,28 @@ class TestExperimentManagement:
         exp2 = Experiment().create_experiment(db_session, "exp-2")
         
         # Add player to first experiment
-        player = Player(name="shared-player", rating=1500.0, model_config={"model": "test-model"})
+        player = Player(name="shared-player", rating=1500.0, model_config={"model": "test-model"}, experiment_id=exp1.id)
         db_session.add(player)
         db_session.commit()
         
-        game1 = Game(experiment_id=exp1.id, player_id=player.id)
+        # Create second player for games
+        player2 = Player(name="player-2", rating=1500.0, model_config={"model": "test-model"}, experiment_id=exp1.id)
+        db_session.add(player2)
+        db_session.commit()
+        
+        game1 = Game(experiment_id=exp1.id, player1_id=player.id, player2_id=player2.id)
         db_session.add(game1)
         db_session.commit()
         
-        # Verify player appears in first experiment
-        arena1 = Arena(NimGame(12, 3), db_session, experiment_id=exp1.id)
+        # Verify players appear in first experiment
+        Arena(NimGame(12, 3), db_session, experiment_id=exp1.id)
         exp1_players = exp1.get_players(db_session)
-        assert len(exp1_players) == 1
-        assert exp1_players[0].name == "shared-player"
+        assert len(exp1_players) == 2  # Both players are in exp1
+        player_names = {p.name for p in exp1_players}
+        assert "shared-player" in player_names
+        assert "player-2" in player_names
         
         # Verify player doesn't appear in second experiment
-        arena2 = Arena(NimGame(12, 3), db_session, experiment_id=exp2.id)
+        Arena(NimGame(12, 3), db_session, experiment_id=exp2.id)
         exp2_players = exp2.get_players(db_session)
         assert len(exp2_players) == 0

@@ -1,12 +1,20 @@
 import pytest
 from bgbench.llm_player import LLMPlayer
 from bgbench.game_view import GameView
-from bgbench.models import LLMInteraction
+from bgbench.models import LLMInteraction, Experiment, Player, Game
 
 @pytest.mark.asyncio
-async def test_llm_player_make_move_nim(test_llm):
+async def test_llm_player_make_move_nim(test_llm, db_session):
     """Test LLMPlayer with a Nim game scenario"""
-    player = LLMPlayer("test_player", test_llm)
+    # Create experiment and game
+    experiment = Experiment().create_experiment(db_session, "Test Experiment")
+    player = Player(name="test_player", model_config={"model": "test"}, experiment_id=experiment.id)
+    db_session.add(player)
+    game = Game(experiment_id=experiment.id, player1_id=1, player2_id=2)
+    db_session.add(game)
+    db_session.commit()
+
+    llm_player = LLMPlayer("test_player", test_llm, db_session=db_session, game_id=game.id)
     
     # Create a realistic Nim game view
     state = {"remaining": 10}
@@ -24,15 +32,23 @@ async def test_llm_player_make_move_nim(test_llm):
     # Set expected response
     test_llm.model.custom_result_text = "2"
     
-    move = await player.make_move(game_view)
+    move = await llm_player.make_move(game_view)
     assert move == "2"
-    assert len(player.conversation_history) == 1
-    assert "2" in player.conversation_history[0]["content"]
+    assert len(llm_player.conversation_history) == 1
+    assert "2" in llm_player.conversation_history[0]["content"]
 
 @pytest.mark.asyncio
-async def test_llm_player_make_move_war(test_llm):
+async def test_llm_player_make_move_war(test_llm, db_session):
     """Test LLMPlayer with a War game scenario"""
-    player = LLMPlayer("test_player", test_llm)
+    # Create experiment and game
+    experiment = Experiment().create_experiment(db_session, "Test Experiment")
+    player = Player(name="test_player", model_config={"model": "test"}, experiment_id=experiment.id)
+    db_session.add(player)
+    game = Game(experiment_id=experiment.id, player1_id=1, player2_id=2)
+    db_session.add(game)
+    db_session.commit()
+
+    llm_player = LLMPlayer("test_player", test_llm, db_session=db_session, game_id=game.id)
     
     # Create a realistic War game view
     state = {
@@ -57,13 +73,21 @@ async def test_llm_player_make_move_war(test_llm):
     
     test_llm.model.custom_result_text = "play"
     
-    move = await player.make_move(game_view)
+    move = await llm_player.make_move(game_view)
     assert move == "play"
 
 @pytest.mark.asyncio
-async def test_llm_player_invalid_move_retry_with_context(test_llm):
+async def test_llm_player_invalid_move_retry_with_context(test_llm, db_session):
     """Test LLMPlayer's handling of invalid moves with context"""
-    player = LLMPlayer("test_player", test_llm)
+    # Create experiment and game
+    experiment = Experiment().create_experiment(db_session, "Test Experiment")
+    player = Player(name="test_player", model_config={"model": "test"}, experiment_id=experiment.id)
+    db_session.add(player)
+    game = Game(experiment_id=experiment.id, player1_id=1, player2_id=2)
+    db_session.add(game)
+    db_session.commit()
+
+    llm_player = LLMPlayer("test_player", test_llm, db_session=db_session, game_id=game.id)
     
     game_view = GameView(
         visible_state={"remaining": 5},
@@ -78,17 +102,17 @@ async def test_llm_player_invalid_move_retry_with_context(test_llm):
     
     # First move - invalid
     test_llm.model.custom_result_text = "4"
-    first_move = await player.make_move(game_view)
+    first_move = await llm_player.make_move(game_view)
     
     # Retry with error context
     test_llm.model.custom_result_text = "2"
-    retry_move = await player.make_move(
+    retry_move = await llm_player.make_move(
         game_view,
         invalid_move_explanation="Cannot take 4 objects, maximum is 3"
     )
     
     assert retry_move == "2"
-    assert len(player.conversation_history) == 2
+    assert len(llm_player.conversation_history) == 2
 
 @pytest.mark.asyncio
 async def test_llm_player_db_logging(test_llm, mocker):
@@ -101,7 +125,7 @@ async def test_llm_player_db_logging(test_llm, mocker):
     # Mock the class to return the mock instance
     mocker.patch('bgbench.llm_player.LLMInteraction', return_value=mock_interaction)
     
-    player = LLMPlayer("test_player", test_llm, db_session=mock_session, game_id=1)
+    llm_player = LLMPlayer("test_player", test_llm, db_session=mock_session, game_id=1)
     
     game_view = GameView(
         visible_state={"remaining": 5},
@@ -115,7 +139,7 @@ async def test_llm_player_db_logging(test_llm, mocker):
     )
     
     test_llm.model.custom_result_text = "2"
-    await player.make_move(game_view)
+    await llm_player.make_move(game_view)
     
     # Verify logging occurred
     mock_interaction.log_interaction.assert_called_once()
@@ -125,9 +149,17 @@ async def test_llm_player_db_logging(test_llm, mocker):
     assert args[2] == "2"  # response
 
 @pytest.mark.asyncio
-async def test_llm_player_system_prompt_consistency(test_llm, capture_messages):
+async def test_llm_player_system_prompt_consistency(test_llm, capture_messages, db_session):
     """Test that system prompts are consistently included"""
-    player = LLMPlayer("test_player", test_llm)
+    # Create experiment and game
+    experiment = Experiment().create_experiment(db_session, "Test Experiment")
+    player = Player(name="test_player", model_config={"model": "test"}, experiment_id=experiment.id)
+    db_session.add(player)
+    game = Game(experiment_id=experiment.id, player1_id=1, player2_id=2)
+    db_session.add(game)
+    db_session.commit()
+
+    llm_player = LLMPlayer("test_player", test_llm, db_session=db_session, game_id=game.id)
     
     game_view = GameView(
         visible_state={"remaining": 5},
@@ -141,7 +173,7 @@ async def test_llm_player_system_prompt_consistency(test_llm, capture_messages):
     )
     
     test_llm.model.custom_result_text = "2"
-    await player.make_move(game_view)
+    await llm_player.make_move(game_view)
     
     # Verify system prompt is present and correct
     system_prompts = [

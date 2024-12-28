@@ -8,7 +8,7 @@ def setup_logging(debug=False):
     logs_dir.mkdir(exist_ok=True)
     
     # Set the root logger to WARNING to suppress verbose logs from dependencies
-    logging.getLogger().setLevel(logging.WARNING)
+    logging.getLogger().setLevel(logging.WARN)
     
     # Set up our application logger
     bgbench_logger = logging.getLogger("bgbench")

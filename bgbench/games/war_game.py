@@ -181,6 +181,7 @@ class WarGame(Game):
                     state.cards_needed = 4  # 3 face down + 1 face up
                     state.face_down_count = 0
             else:  # Resolving war
+                # Compare the last two face-up cards
                 if card1.rank != card2.rank:
                     winner = 0 if card1.rank > card2.rank else 1
                     state.player_hands[winner].extend(state.board)
@@ -189,6 +190,8 @@ class WarGame(Game):
                     state.cards_needed = 1
                     state.face_down_count = 0
                 else:  # Another war!
+                    state.war_state = True
+                    state.cards_needed = 4
                     state.face_down_count = 0  # Reset for next war round
         
         # Shuffle collected cards when adding to hand

@@ -1,7 +1,9 @@
 import logging
-from typing import List, Dict, Any, Tuple
+from datetime import datetime
+from typing import List, Dict, Any, Tuple, Optional
 from sqlalchemy.orm import Session
 from bgbench.game import Game
+from bgbench.game_view import GameView
 from bgbench.llm_player import LLMPlayer
 from bgbench.models import GameState
 
@@ -22,8 +24,15 @@ class GameRunner:
         player2.db_session = db_session
         player2.game_id = game_id
 
-    async def play_game(self) -> Tuple[LLMPlayer, List[Dict[str, Any]]]:
-        from datetime import datetime
+    async def play_game(self) -> Tuple[Optional[LLMPlayer], List[Dict[str, Any]], Optional[str]]:
+        """Play a game between two LLM players.
+        
+        Returns:
+            Tuple of:
+            - Winner (None for draw)
+            - Game history
+            - Concession reason (if game was conceded)
+        """
         self.start_time = datetime.now()
         state = self.game.get_initial_state()
         history = []
@@ -42,8 +51,8 @@ class GameRunner:
         game_state.record_state(self.session)
         
         while True:
-            current_player = self.game.get_current_player(state)
-            game_view = self.game.get_player_view(state, current_player, history)
+            current_player: int = self.game.get_current_player(state)
+            game_view: GameView = self.game.get_player_view(state, current_player, history)
             
             if game_view.is_terminal:
                 break
@@ -64,7 +73,6 @@ class GameRunner:
             )
             game_state.record_state(self.session)
             
-            # Get move from player
             move_str = await player.make_move(game_view)
             move = self.game.parse_move(move_str)
             if move is None:
@@ -83,7 +91,9 @@ class GameRunner:
                 
                 if move is None:
                     logger.warning(f"{player.name} exceeded {MAX_RETRIES} invalid move format attempts and concedes the game")
-                    return self.players[1 - current_player], history
+                    concession_reason = f"Exceeded {MAX_RETRIES} invalid move format attempts"
+                    winner = self.players[1 - current_player]
+                    return winner, history, concession_reason
 
             valid, explanation = self.game.validate_move(state, current_player, move)
             
@@ -111,7 +121,9 @@ class GameRunner:
                 if not valid:
                     logger.warning(f"{player.name} exceeded {MAX_RETRIES} invalid move attempts and concedes the game")
                     # Return the other player as winner
-                    return self.players[1 - current_player], history
+                    concession_reason = f"Exceeded {MAX_RETRIES} invalid move attempts"
+                    winner = self.players[1 - current_player]
+                    return winner, history, concession_reason
 
             # Print formatted turn information
             turn_number = len(history) + 1
@@ -131,4 +143,6 @@ class GameRunner:
 
         final_view = self.game.get_player_view(state, current_player)
         winner_idx = 0 if final_view.winner is None else final_view.winner
-        return self.players[winner_idx], history
+        winner = None if winner_idx is None else self.players[winner_idx]
+        
+        return winner, history, None  # No concession reason for normal game completion

@@ -89,9 +89,9 @@ The framework uses a comprehensive testing strategy built on modern Python testi
 
 2. **LLM Testing**
    - pydantic-ai TestModel for LLM simulation
-   - Captured message flows for verification
-   - Mocked database sessions
-   - System prompt consistency checks
+   - Performance metrics tracking
+   - Database interaction logging
+   - Conversation history verification
 
 3. **Game Testing**
    - Comprehensive game logic validation

@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 from bgbench.arena import Arena, ArenaPlayer
 from bgbench.games.nim_game import NimGame
 from bgbench.llm_player import LLMPlayer
-from bgbench.models import Experiment, Player as DBPlayer, Game
+from bgbench.models import Experiment, Player as DBPlayer, GameMatch
 from bgbench.rating import PlayerRating
 
 @pytest.fixture
@@ -247,7 +247,7 @@ class TestArena:
 
         # Add test games to database
         for game_data in games_data:
-            game = Game(
+            game = GameMatch(
                 experiment_id=arena.experiment.id,
                 **game_data
             )
@@ -292,7 +292,7 @@ class TestArena:
         player_b = db_session.query(DBPlayer).filter_by(name="player-b").first()
 
         # Create a game where player_a concedes to player_b
-        game = Game(
+        game = GameMatch(
             experiment_id=arena.experiment.id,
             winner_id=player_b.id,
             player1_id=player_a.id,

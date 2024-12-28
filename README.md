@@ -23,27 +23,15 @@ This framework allows you to:
 
 1. Install dependencies:
 ```bash
-pip install aiohttp
+poetry install
 ```
 
 2. Configure your LLM providers:
-```python
-claude_config = LLMConfig(
-    provider=LLMProvider.ANTHROPIC,
-    api_key="your_anthropic_key",
-    model="claude-3-opus-20240229"
-)
-```
+- Copy .env.example to .env and set your keys
 
 3. Run a sample game:
-```python
-async def main():
-    game = NimGame(12, 3)  # 12 objects, max take 3
-    claude = LLMPlayer("Claude", AnthropicLLM(claude_config))
-    gpt4 = LLMPlayer("GPT-4", OpenAILLM(gpt4_config))
-    
-    runner = GameRunner(game, claude, gpt4)
-    winner, history = await runner.play_game()
+```bash
+poetry run -m bgbench.main --game nim
 ```
 
 ## Implementing New Games
@@ -61,20 +49,6 @@ class YourGame(Game):
     # Implement other required methods...
 ```
 
-## Adding New LLM Providers
-
-To add a new LLM provider, implement the `LLMInterface`:
-
-```python
-class YourLLM(LLMInterface):
-    async def complete(self, messages: List[Dict[str, str]]) -> str:
-        # Implement API calls to your LLM provider
-```
-
-## Testing
-
-Unit tests are an essential part of ensuring the reliability and correctness of the framework. They help verify that each component behaves as expected.
-
 ### Running Tests
 
 The project uses pytest for testing. To run the tests:
@@ -85,9 +59,6 @@ poetry run pytest
 
 # Run specific test file
 poetry run pytest tests/test_war_game.py
-
-# Run tests with verbose output
-poetry run pytest -v
 ```
 
 ### Test Infrastructure
@@ -122,17 +93,10 @@ New tests should:
 - **Test Coverage**: Maintain high coverage of critical paths
 - **Continuous Integration**: Tests run automatically on each commit
 
-## Project Structure
-
-- `game.py` - Base game interface and implementations
-- `llm.py` - LLM provider interfaces and implementations
-- `elo.py` - Elo rating system
-- `runner.py` - Game execution logic
-
 ## Contributing
 
 See DESIGN.md for architectural details and contribution guidelines.
 
 ## License
 
-MIT License
+Copyright BJ Terry, All Rights Reserved

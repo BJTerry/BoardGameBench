@@ -27,7 +27,7 @@ class Experiment(Base):
         direct_players = self.players
         
         # Get players from games (both player1 and player2)
-        games = session.query(Game).filter_by(experiment_id=self.id).all()
+        games = session.query(GameMatch).filter_by(experiment_id=self.id).all()
         game_player_ids = set()
         for game in games:
             if game.player1_id is not None:
@@ -44,7 +44,7 @@ class Experiment(Base):
 
     def get_game_summary(self, session: Session) -> Dict[str, Any]:
         """Get summary statistics for games in this experiment."""
-        games = session.query(Game).filter_by(experiment_id=self.id).all()
+        games = session.query(GameMatch).filter_by(experiment_id=self.id).all()
         total_games = len(games)
         completed_games = len([g for g in games if g.winner_id is not None and not g.conceded])
         ongoing_games = len([g for g in games if g.winner_id is None])
@@ -60,7 +60,7 @@ class Experiment(Base):
 
     def get_win_matrix(self, session: Session) -> Dict[str, Dict[str, int]]:
         """Generate a matrix of wins between players."""
-        games = session.query(Game).filter_by(experiment_id=self.id).all()
+        games = session.query(GameMatch).filter_by(experiment_id=self.id).all()
         players = self.get_players(session)
         
         # Initialize win matrix
@@ -82,7 +82,7 @@ class Experiment(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(String)
-    games: Mapped[list["Game"]] = relationship("Game", back_populates="experiment")
+    games: Mapped[list["GameMatch"]] = relationship("GameMatch", back_populates="experiment")
     players: Mapped[list["Player"]] = relationship("Player", back_populates="experiment")
 
 class Player(Base):
@@ -95,8 +95,8 @@ class Player(Base):
     def get_statistics(self, session: Session) -> Dict[str, Any]:
         """Get comprehensive statistics for this player."""
         # Get all games where this player participated
-        games_as_p1 = session.query(Game).filter_by(player1_id=self.id).all()
-        games_as_p2 = session.query(Game).filter_by(player2_id=self.id).all()
+        games_as_p1 = session.query(GameMatch).filter_by(player1_id=self.id).all()
+        games_as_p2 = session.query(GameMatch).filter_by(player2_id=self.id).all()
         
         total_games = len(games_as_p1) + len(games_as_p2)
         if total_games == 0:
@@ -144,11 +144,11 @@ class Player(Base):
     model_config: Mapped[dict] = mapped_column(JSON, nullable=False)
     experiment_id: Mapped[int] = mapped_column(Integer, ForeignKey('experiments.id'))
     experiment: Mapped["Experiment"] = relationship("Experiment", back_populates="players")
-    games_as_player1: Mapped[list["Game"]] = relationship("Game", back_populates="player1", foreign_keys="[Game.player1_id]")
-    games_as_player2: Mapped[list["Game"]] = relationship("Game", back_populates="player2", foreign_keys="[Game.player2_id]")
-    games_won: Mapped[list["Game"]] = relationship("Game", back_populates="winner", foreign_keys="[Game.winner_id]")
+    games_as_player1: Mapped[list["GameMatch"]] = relationship("GameMatch", back_populates="player1", foreign_keys="[GameMatch.player1_id]")
+    games_as_player2: Mapped[list["GameMatch"]] = relationship("GameMatch", back_populates="player2", foreign_keys="[GameMatch.player2_id]")
+    games_won: Mapped[list["GameMatch"]] = relationship("GameMatch", back_populates="winner", foreign_keys="[GameMatch.winner_id]")
 
-class Game(Base):
+class GameMatch(Base):
     __tablename__ = 'games'
     
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -190,9 +190,9 @@ class GameState(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     game_id: Mapped[int] = mapped_column(Integer, ForeignKey('games.id'))
     state_data: Mapped[dict] = mapped_column(JSON, nullable=False)
-    game: Mapped["Game"] = relationship("Game", back_populates="state")
+    game: Mapped["GameMatch"] = relationship("GameMatch", back_populates="state")
 
-@event.listens_for(Game, 'before_insert')
+@event.listens_for(GameMatch, 'before_insert')
 def validate_players(mapper, connection, target):
     if target.player1_id == target.player2_id:
         raise ValueError("player1_id and player2_id must be different")

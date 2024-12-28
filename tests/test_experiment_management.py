@@ -1,4 +1,4 @@
-from bgbench.models import Experiment, Game, Player
+from bgbench.models import Experiment, GameMatch, Player
 from bgbench.arena import Arena
 from bgbench.games.nim_game import NimGame
 
@@ -19,8 +19,8 @@ class TestExperimentManagement:
         
         # Add some games with winners
         games = [
-            Game(experiment_id=exp.id, player1_id=players[0].id, player2_id=players[1].id, winner_id=players[0].id),
-            Game(experiment_id=exp.id, player1_id=players[1].id, player2_id=players[0].id, winner_id=players[1].id)
+            GameMatch(experiment_id=exp.id, player1_id=players[0].id, player2_id=players[1].id, winner_id=players[0].id),
+            GameMatch(experiment_id=exp.id, player1_id=players[1].id, player2_id=players[0].id, winner_id=players[1].id)
         ]
         for game in games:
             db_session.add(game)
@@ -58,7 +58,7 @@ class TestExperimentManagement:
         db_session.commit()
         
         # Add games with states
-        game = Game(experiment_id=exp.id, player1_id=player.id, player2_id=player2.id, winner_id=player.id)
+        game = GameMatch(experiment_id=exp.id, player1_id=player.id, player2_id=player2.id, winner_id=player.id)
         db_session.add(game)
         db_session.commit()
         
@@ -102,8 +102,8 @@ class TestExperimentManagement:
         
         # Create some games
         games = [
-            Game(experiment_id=exp.id, player1_id=players[0].id, player2_id=players[1].id),
-            Game(experiment_id=exp.id, player1_id=players[1].id, player2_id=players[0].id)
+            GameMatch(experiment_id=exp.id, player1_id=players[0].id, player2_id=players[1].id),
+            GameMatch(experiment_id=exp.id, player1_id=players[1].id, player2_id=players[0].id)
         ]
         for game in games:
             db_session.add(game)
@@ -231,7 +231,7 @@ class TestExperimentManagement:
         db_session.add(player2)
         db_session.commit()
         
-        game1 = Game(experiment_id=exp1.id, player1_id=player.id, player2_id=player2.id)
+        game1 = GameMatch(experiment_id=exp1.id, player1_id=player.id, player2_id=player2.id)
         db_session.add(game1)
         db_session.commit()
         

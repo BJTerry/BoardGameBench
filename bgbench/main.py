@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from config import DATABASE_URL
-from bgbench.models import Experiment, Game
+from bgbench.models import Experiment, GameMatch
 from bgbench.logging_config import setup_logging
 from bgbench.games import AVAILABLE_GAMES
 from bgbench.arena import Arena
@@ -80,7 +80,7 @@ async def main():
         logger.info("\nExisting Experiments:")
         for exp in experiments:
             logger.info(f"ID: {exp.id}, Name: {exp.name}, Description: {exp.description}")
-            games = db_session.query(Game).filter_by(experiment_id=exp.id).count()
+            games = db_session.query(GameMatch).filter_by(experiment_id=exp.id).count()
             logger.info(f"Games played: {games}")
         return
 

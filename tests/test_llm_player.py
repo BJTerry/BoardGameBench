@@ -1,7 +1,7 @@
 import pytest
 from bgbench.llm_player import LLMPlayer
 from bgbench.game_view import GameView
-from bgbench.models import LLMInteraction, Experiment, Player, Game
+from bgbench.models import LLMInteraction, Experiment, Player, GameMatch
 
 @pytest.mark.asyncio
 async def test_llm_player_make_move_nim(test_llm, db_session):
@@ -10,7 +10,7 @@ async def test_llm_player_make_move_nim(test_llm, db_session):
     experiment = Experiment().create_experiment(db_session, "Test Experiment")
     player = Player(name="test_player", model_config={"model": "test"}, experiment_id=experiment.id)
     db_session.add(player)
-    game = Game(experiment_id=experiment.id, player1_id=1, player2_id=2)
+    game = GameMatch(experiment_id=experiment.id, player1_id=1, player2_id=2)
     db_session.add(game)
     db_session.commit()
 
@@ -44,7 +44,7 @@ async def test_llm_player_make_move_war(test_llm, db_session):
     experiment = Experiment().create_experiment(db_session, "Test Experiment")
     player = Player(name="test_player", model_config={"model": "test"}, experiment_id=experiment.id)
     db_session.add(player)
-    game = Game(experiment_id=experiment.id, player1_id=1, player2_id=2)
+    game = GameMatch(experiment_id=experiment.id, player1_id=1, player2_id=2)
     db_session.add(game)
     db_session.commit()
 
@@ -83,7 +83,7 @@ async def test_llm_player_invalid_move_retry_with_context(test_llm, db_session):
     experiment = Experiment().create_experiment(db_session, "Test Experiment")
     player = Player(name="test_player", model_config={"model": "test"}, experiment_id=experiment.id)
     db_session.add(player)
-    game = Game(experiment_id=experiment.id, player1_id=1, player2_id=2)
+    game = GameMatch(experiment_id=experiment.id, player1_id=1, player2_id=2)
     db_session.add(game)
     db_session.commit()
 
@@ -155,7 +155,7 @@ async def test_llm_player_system_prompt_consistency(test_llm, capture_messages, 
     experiment = Experiment().create_experiment(db_session, "Test Experiment")
     player = Player(name="test_player", model_config={"model": "test"}, experiment_id=experiment.id)
     db_session.add(player)
-    game = Game(experiment_id=experiment.id, player1_id=1, player2_id=2)
+    game = GameMatch(experiment_id=experiment.id, player1_id=1, player2_id=2)
     db_session.add(game)
     db_session.commit()
 

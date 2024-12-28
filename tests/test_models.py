@@ -2,7 +2,7 @@ import pytest
 from typing import cast
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from bgbench.models import Base, Experiment, Player, Game, GameState, LLMInteraction
+from bgbench.models import Base, Experiment, Player, GameMatch, GameState, LLMInteraction
 
 @pytest.fixture
 def db_session():
@@ -73,7 +73,7 @@ class TestGameState:
         db_session.flush()  # Get IDs without committing
         
         # Create game with required player relationships
-        game = Game(
+        game = GameMatch(
             experiment_id=experiment.id,
             player1_id=player1.id,
             player2_id=player2.id
@@ -104,7 +104,7 @@ class TestGameState:
         db_session.add_all([player1, player2])
         db_session.flush()
         
-        game = Game(
+        game = GameMatch(
             experiment_id=experiment.id,
             player1_id=player1.id,
             player2_id=player2.id
@@ -132,7 +132,7 @@ class TestGame:
 
         # Test creating game with missing player2
         with pytest.raises(Exception):  # Should fail due to NOT NULL constraint
-            game = Game(
+            game = GameMatch(
                 experiment_id=experiment.id,
                 player1_id=player1.id,
                 player2_id=None
@@ -151,7 +151,7 @@ class TestGame:
         
         # Test creating game with same player for both positions
         with pytest.raises(ValueError):
-            game = Game(
+            game = GameMatch(
                 experiment_id=experiment.id,
                 player1_id=player1.id,
                 player2_id=player1.id
@@ -179,7 +179,7 @@ class TestGame:
         db_session.flush()
 
         # Create game in experiment 1
-        game1 = Game(
+        game1 = GameMatch(
             experiment_id=exp1.id,
             player1_id=player1.id,
             player2_id=player2.id
@@ -188,8 +188,8 @@ class TestGame:
         db_session.commit()
 
         # Verify game retrieval by experiment
-        exp1_games = db_session.query(Game).filter_by(experiment_id=exp1.id).all()
-        exp2_games = db_session.query(Game).filter_by(experiment_id=exp2.id).all()
+        exp1_games = db_session.query(GameMatch).filter_by(experiment_id=exp1.id).all()
+        exp2_games = db_session.query(GameMatch).filter_by(experiment_id=exp2.id).all()
         assert len(exp1_games) == 1
         assert len(exp2_games) == 0
 
@@ -227,12 +227,12 @@ class TestPlayerExperiment:
         db_session.flush()
 
         # Create some games
-        game1 = Game(
+        game1 = GameMatch(
             experiment_id=experiment.id,
             player1_id=players[0].id,
             player2_id=players[1].id
         )
-        game2 = Game(
+        game2 = GameMatch(
             experiment_id=experiment.id,
             player1_id=players[1].id,
             player2_id=players[2].id
@@ -256,7 +256,7 @@ class TestLLMInteraction:
         db_session.add_all([player1, player2])
         db_session.flush()
         
-        game = Game(
+        game = GameMatch(
             experiment_id=experiment.id,
             player1_id=player1.id,
             player2_id=player2.id
@@ -289,7 +289,7 @@ class TestLLMInteraction:
         db_session.add_all([player1, player2])
         db_session.flush()
         
-        game = Game(
+        game = GameMatch(
             experiment_id=experiment.id,
             player1_id=player1.id,
             player2_id=player2.id
@@ -321,7 +321,7 @@ class TestGameOutcomes:
         db_session.add_all([player1, player2])
         db_session.flush()
         
-        game = Game(
+        game = GameMatch(
             experiment_id=experiment.id,
             player1_id=player1.id,
             player2_id=player2.id
@@ -334,7 +334,7 @@ class TestGameOutcomes:
         db_session.commit()
 
         # Verify winner
-        saved_game = db_session.query(Game).filter_by(id=game.id).first()
+        saved_game = db_session.query(GameMatch).filter_by(id=game.id).first()
         assert saved_game.winner_id == player1.id
         assert saved_game.winner.name == "Player 1"
         assert not saved_game.conceded
@@ -347,7 +347,7 @@ class TestGameOutcomes:
         db_session.add_all([player1, player2])
         db_session.flush()
         
-        game = Game(
+        game = GameMatch(
             experiment_id=experiment.id,
             player1_id=player1.id,
             player2_id=player2.id
@@ -362,7 +362,7 @@ class TestGameOutcomes:
         db_session.commit()
 
         # Verify concession
-        saved_game = db_session.query(Game).filter_by(id=game.id).first()
+        saved_game = db_session.query(GameMatch).filter_by(id=game.id).first()
         assert saved_game.conceded
         assert saved_game.concession_reason == "Invalid moves exceeded"
         assert saved_game.winner_id == player2.id
@@ -386,11 +386,11 @@ class TestGameOutcomes:
         # Create mix of completed, ongoing, and conceded games
         games = [
             # Completed game
-            Game(experiment_id=experiment.id, player1_id=player1.id, player2_id=player2.id, winner_id=player1.id),
+            GameMatch(experiment_id=experiment.id, player1_id=player1.id, player2_id=player2.id, winner_id=player1.id),
             # Ongoing game
-            Game(experiment_id=experiment.id, player1_id=player2.id, player2_id=player1.id),
+            GameMatch(experiment_id=experiment.id, player1_id=player2.id, player2_id=player1.id),
             # Conceded game
-            Game(experiment_id=experiment.id, player1_id=player1.id, player2_id=player2.id, 
+            GameMatch(experiment_id=experiment.id, player1_id=player1.id, player2_id=player2.id, 
                 winner_id=player2.id, conceded=True, concession_reason="Time limit")
         ]
         db_session.add_all(games)
@@ -417,14 +417,14 @@ class TestGameOutcomes:
         # Create games with various outcomes
         games = [
             # Player 1 wins
-            Game(experiment_id=experiment.id, player1_id=player1.id, player2_id=player2.id, winner_id=player1.id),
+            GameMatch(experiment_id=experiment.id, player1_id=player1.id, player2_id=player2.id, winner_id=player1.id),
             # Player 2 wins
-            Game(experiment_id=experiment.id, player1_id=player1.id, player2_id=player2.id, winner_id=player2.id),
+            GameMatch(experiment_id=experiment.id, player1_id=player1.id, player2_id=player2.id, winner_id=player2.id),
             # Player 2 wins by concession
-            Game(experiment_id=experiment.id, player1_id=player1.id, player2_id=player2.id, 
+            GameMatch(experiment_id=experiment.id, player1_id=player1.id, player2_id=player2.id, 
                 winner_id=player2.id, conceded=True, concession_reason="Invalid moves"),
             # Ongoing game
-            Game(experiment_id=experiment.id, player1_id=player2.id, player2_id=player1.id)
+            GameMatch(experiment_id=experiment.id, player1_id=player2.id, player2_id=player1.id)
         ]
         db_session.add_all(games)
         db_session.commit()
@@ -462,11 +462,11 @@ class TestGameOutcomes:
         # Create games with various outcomes between players
         games = [
             # Player 0 vs Player 1 (Player 0 wins)
-            Game(experiment_id=experiment.id, player1_id=players[0].id, player2_id=players[1].id, winner_id=players[0].id),
+            GameMatch(experiment_id=experiment.id, player1_id=players[0].id, player2_id=players[1].id, winner_id=players[0].id),
             # Player 1 vs Player 2 (Player 2 wins)
-            Game(experiment_id=experiment.id, player1_id=players[1].id, player2_id=players[2].id, winner_id=players[2].id),
+            GameMatch(experiment_id=experiment.id, player1_id=players[1].id, player2_id=players[2].id, winner_id=players[2].id),
             # Player 2 vs Player 0 (Player 2 wins)
-            Game(experiment_id=experiment.id, player1_id=players[2].id, player2_id=players[0].id, winner_id=players[2].id)
+            GameMatch(experiment_id=experiment.id, player1_id=players[2].id, player2_id=players[0].id, winner_id=players[2].id)
         ]
         db_session.add_all(games)
         db_session.commit()
@@ -482,7 +482,7 @@ class TestGameOutcomes:
         assert win_matrix["Player 2"]["Player 1"] == 1
         
         # Create completed game
-        completed_game = Game(
+        completed_game = GameMatch(
             experiment_id=experiment.id,
             player1_id=players[0].id,
             player2_id=players[1].id,
@@ -490,14 +490,14 @@ class TestGameOutcomes:
         )
         
         # Create ongoing game
-        ongoing_game = Game(
+        ongoing_game = GameMatch(
             experiment_id=experiment.id,
             player1_id=players[0].id,
             player2_id=players[1].id
         )
         
         # Create conceded game
-        conceded_game = Game(
+        conceded_game = GameMatch(
             experiment_id=experiment.id,
             player1_id=players[0].id,
             player2_id=players[1].id,
@@ -510,16 +510,16 @@ class TestGameOutcomes:
         db_session.commit()
 
         # Query completed games (either won or conceded) from the new batch only
-        completed = db_session.query(Game).filter(
-            Game.winner_id.isnot(None),
-            Game.id.in_([completed_game.id, conceded_game.id])
+        completed = db_session.query(GameMatch).filter(
+            GameMatch.winner_id.isnot(None),
+            GameMatch.id.in_([completed_game.id, conceded_game.id])
         ).all()
         assert len(completed) == 2  # Only counting the new completed and conceded games
         
         # Query ongoing games (no winner yet)
-        ongoing = db_session.query(Game).filter(Game.winner_id.is_(None)).all()
+        ongoing = db_session.query(GameMatch).filter(GameMatch.winner_id.is_(None)).all()
         assert len(ongoing) == 1
         
         # Query conceded games
-        conceded = db_session.query(Game).filter(Game.conceded.is_(True)).all()
+        conceded = db_session.query(GameMatch).filter(GameMatch.conceded.is_(True)).all()
         assert len(conceded) == 1

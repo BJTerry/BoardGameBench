@@ -314,7 +314,12 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
                             if hand is not None:
                                 active_hands.append(hand)
                         highest_value = max(hand.value for hand in active_hands)
-                        winners = [p for p in active_players if state.hands[p] is not None and state.hands[p].value == highest_value]
+                        # Get winners with proper type guard
+                        winners = []
+                        for p in active_players:
+                            hand = state.hands[p]
+                            if hand is not None and hand.value == highest_value:
+                                winners.append(p)
                         for winner in winners:
                             state.scores[winner] += 1
                         # Start new round while preserving scores

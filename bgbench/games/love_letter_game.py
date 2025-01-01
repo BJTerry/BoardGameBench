@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import List, Dict, Any, Optional, Tuple, Set, Union, cast
 from bgbench.game import Game
@@ -28,7 +28,7 @@ class LoveLetterState:
     face_up_cards: List[Card]  # Cards revealed at start (2-player game)
     scores: List[int]  # Tokens of affection per player
     drawn_card: Optional[Card] = None  # Card drawn at start of turn
-    priest_views: List[Tuple[int, int, Card]] = []  # List of (viewer, target, card) from Priest reveals
+    priest_views: List[Tuple[int, int, Card]] = field(default_factory=list)  # List of (viewer, target, card) from Priest reveals
     
     def to_dict(self) -> dict:
         return {

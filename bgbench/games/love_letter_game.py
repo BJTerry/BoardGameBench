@@ -28,7 +28,6 @@ class LoveLetterState:
     face_up_cards: List[Card]  # Cards revealed at start (2-player game)
     scores: List[int]  # Tokens of affection per player
     drawn_card: Optional[Card] = None  # Card drawn at start of turn
-    deck_size: int = 0  # Current size of the deck
     
     def to_dict(self) -> dict:
         return {
@@ -304,7 +303,6 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
             if state.hands[state.current_player] is not None:
                 if state.deck:
                     state.drawn_card = state.deck.pop()
-                    state.deck_size = len(state.deck)  # Update deck size after drawing
                 else:
                     # If deck is empty, highest card wins the round
                     active_players = [i for i, hand in enumerate(state.hands) if hand is not None]
@@ -337,7 +335,7 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
             "opponent_discards": self._format_visible_cards(state.discards[1-player_id]),
             "face_up_cards": self._format_visible_cards(state.face_up_cards),
             "protected_players": list(state.protected_players),
-            "deck_size": len(state.deck),
+            "deck_size": len(state.deck),  # Calculate directly from deck length
             "scores": state.scores
         }
 
@@ -465,8 +463,7 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
             removed_card=removed_card,
             face_up_cards=face_up_cards,
             scores=[0, 0],
-            drawn_card=None,
-            deck_size=len(deck)
+            drawn_card=None
         )
 
     def get_current_player(self, state: LoveLetterState) -> int:

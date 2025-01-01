@@ -111,12 +111,9 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
                 return False, "Guard requires target player and named card"
             if move.named_card == Card.GUARD:
                 return False, "Guard cannot name Guard"
-        elif move.card in [Card.PRIEST, Card.BARON, Card.KING]:
+        elif move.card in [Card.PRIEST, Card.BARON, Card.KING, Card.PRINCE]:
             if move.target_player is None:
                 return False, "This card requires a target player"
-        elif move.card == Card.PRINCE:
-            if move.target_player is None:
-                return False, "Prince requires a target player"
 
         return True, ""
         
@@ -147,7 +144,7 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
                     return None
                     
             return LoveLetterMove(card, target_player, named_card)
-        except:
+        except (ValueError, IndexError):
             return None
 
     def apply_move(self, state: LoveLetterState, player_id: int, move: LoveLetterMove) -> LoveLetterState:

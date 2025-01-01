@@ -290,8 +290,9 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
                 state.scores[winner] += 1
             # Set up new round if game not over
             if max(state.scores) < self.target_score:
+                previous_scores = state.scores.copy()
                 state = self.get_initial_state()
-                state.scores = state.scores  # Preserve scores
+                state.scores = previous_scores  # Preserve scores
         else:
             # Move to next player who's still in
             next_player = (player_id + 1) % len(state.hands)

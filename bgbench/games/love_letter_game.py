@@ -28,19 +28,19 @@ class LoveLetterState:
     face_up_cards: List[Card]  # Cards revealed at start (2-player game)
     scores: List[int]  # Tokens of affection per player
     drawn_card: Optional[Card] = None  # Card drawn at start of turn
-    priest_views: List[Tuple[int, int, Card]] = None  # List of (viewer, target, card) from Priest reveals
+    priest_views: List[Tuple[int, int, Card]] = []  # List of (viewer, target, card) from Priest reveals
     
     def to_dict(self) -> dict:
         return {
             "deck": [c.value for c in self.deck],
-            "hands": [c.value if c else None for c in self.hands],
+            "hands": [c.value if c is not None else None for c in self.hands],
             "discards": [[c.value for c in player_discards] for player_discards in self.discards],
             "current_player": self.current_player,
             "protected_players": list(self.protected_players),
-            "removed_card": self.removed_card.value if self.removed_card else None,
+            "removed_card": self.removed_card.value if self.removed_card is not None else None,
             "face_up_cards": [c.value for c in self.face_up_cards],
             "scores": self.scores,
-            "drawn_card": self.drawn_card.value if self.drawn_card else None
+            "drawn_card": self.drawn_card.value if self.drawn_card is not None else None
         }
 
 @dataclass
@@ -192,9 +192,9 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
         elif played_card == Card.PRIEST:
             if move.target_player is not None and state.hands[move.target_player] is not None:
                 # Record what card was seen
-                if state.priest_views is None:
-                    state.priest_views = []
-                state.priest_views.append((player_id, move.target_player, state.hands[move.target_player]))
+                target_card = state.hands[move.target_player]
+                if target_card is not None:  # Extra safety check
+                    state.priest_views.append((player_id, move.target_player, target_card))
 
         elif played_card == Card.BARON:
             if move.target_player is not None:

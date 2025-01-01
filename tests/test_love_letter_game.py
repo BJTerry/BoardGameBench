@@ -148,6 +148,22 @@ def test_player_view(game, initial_state):
     assert isinstance(view.valid_moves, list)
     assert len(view.valid_moves) > 0
 
+def test_card_count_verification(game, initial_state):
+    # Test that verification passes for initial state
+    game._verify_card_counts(initial_state)
+    
+    # Test that verification fails when cards are missing
+    state = copy.deepcopy(initial_state)
+    state.deck.pop()  # Remove a card without putting it anywhere else
+    with pytest.raises(ValueError, match="Card count mismatch"):
+        game._verify_card_counts(state)
+    
+    # Test that verification fails when cards are duplicated
+    state = copy.deepcopy(initial_state)
+    state.deck.append(state.deck[0])  # Duplicate a card
+    with pytest.raises(ValueError, match="Card count mismatch"):
+        game._verify_card_counts(state)
+
 def test_game_end_conditions(game, initial_state):
     # Test Princess discard
     state = initial_state

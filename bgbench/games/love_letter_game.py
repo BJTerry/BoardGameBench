@@ -72,6 +72,8 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
             [Card.COUNTESS] +       # 1 Countess
             [Card.PRINCESS]         # 1 Princess
         )
+        # Store initial deck composition for verification
+        self.initial_deck_counts = {card: self.deck.count(card) for card in Card}
         self.target_score = 7  # First to 7 tokens wins in 2-player game
 
     def validate_move(self, state: LoveLetterState, player_id: int, move: LoveLetterMove) -> Tuple[bool, str]:
@@ -489,7 +491,58 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
         """Return the ID of the player whose turn it is."""
         return state.current_player
 
+    def _verify_card_counts(self, state: LoveLetterState) -> None:
+        """Verify that all cards are accounted for compared to initial deck."""
+        current_counts = {card: 0 for card in Card}
+        
+        # Count cards in deck
+        for card in state.deck:
+            current_counts[card] += 1
+            
+        # Count cards in hands
+        for hand in state.hands:
+            if hand is not None:
+                current_counts[hand] += 1
+                
+        # Count cards in discards
+        for discard_pile in state.discards:
+            for card in discard_pile:
+                current_counts[card] += 1
+                
+        # Count face up cards
+        for card in state.face_up_cards:
+            current_counts[card] += 1
+            
+        # Count removed card
+        if state.removed_card is not None:
+            current_counts[state.removed_card] += 1
+            
+        # Count drawn card
+        if state.drawn_card is not None:
+            current_counts[state.drawn_card] += 1
+            
+        # Verify counts match initial deck
+        if current_counts != self.initial_deck_counts:
+            missing = []
+            extra = []
+            for card in Card:
+                diff = current_counts[card] - self.initial_deck_counts[card]
+                if diff < 0:
+                    missing.append(f"{card.name}({-diff})")
+                elif diff > 0:
+                    extra.append(f"{card.name}({diff})")
+            
+            error_msg = "Card count mismatch!\n"
+            if missing:
+                error_msg += f"Missing cards: {', '.join(missing)}\n"
+            if extra:
+                error_msg += f"Extra cards: {', '.join(extra)}\n"
+            raise ValueError(error_msg)
+
     def get_next_state(self, state: LoveLetterState, move: LoveLetterMove) -> LoveLetterState:
         """Return the next state after applying the move."""
         # This is just a wrapper around apply_move since we already have that implementation
-        return self.apply_move(state, self.get_current_player(state), move)
+        new_state = self.apply_move(state, self.get_current_player(state), move)
+        # Verify card counts after move
+        self._verify_card_counts(new_state)
+        return new_state

@@ -345,6 +345,7 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
         """Return what this player can see of the current state."""
         # Format visible information
         visible_state = {
+            "you_are": f"Player {player_id}",
             "your_hand": self._format_visible_cards([state.hands[player_id]] if state.hands[player_id] is not None else []),
             "drawn_card": self._format_visible_cards([state.drawn_card] if state.drawn_card is not None else []),
             "your_discards": self._format_visible_cards(cast(List[Union[Card, None]], state.discards[player_id])),
@@ -446,7 +447,6 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
 
     def get_move_format_instructions(self) -> str:
         return (
-            "You are the current player. Your opponent is the other player.\n\n"
             "Format: CARD [TARGET_PLAYER] [NAMED_CARD]\n"
             "- CARD: number 1-8 representing the card to play\n"
             "- TARGET_PLAYER: (optional) player number to target (0 or 1)\n"

@@ -303,6 +303,8 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
             if state.hands[state.current_player] is not None:
                 if state.deck:
                     state.drawn_card = state.deck.pop()
+                    # Update deck size after drawing
+                    state.deck_size = len(state.deck)
                 else:
                     # If deck is empty, highest card wins the round
                     active_players = [i for i, hand in enumerate(state.hands) if hand is not None]

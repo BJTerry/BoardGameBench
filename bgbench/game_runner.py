@@ -114,6 +114,8 @@ class GameRunner:
                 logger.info(f"\nTurn {turn_number}")
                 logger.info(f"Current Player: {player.name}")
                 logger.info("Game State:")
+                logger.info(f"{state}")
+                logger.info("Visible State:")
                 logger.info(f"{game_view.visible_state}")
                 logger.info(f"Move: {move}\n")
                     

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional, Tuple
 from bgbench.game import Game
-from bgbench.game_view import GameView
+from bgbench.game_view import GameView, PromptStyle
 import random
 
 @dataclass
@@ -93,7 +93,8 @@ class WarGame(Game):
         )
 
     def get_player_view(self, state: WarState, player_id: int, 
-                       history: Optional[List[Dict[str, Any]]] = None) -> GameView:
+                       history: Optional[List[Dict[str, Any]]] = None,
+                       prompt_style: PromptStyle = PromptStyle.HEADER) -> GameView:
         visible_state = {
             "your_cards": len(state.player_hands[player_id]),
             "opponent_cards": len(state.player_hands[1 - player_id]),

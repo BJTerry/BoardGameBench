@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Any, Tuple, List, Optional, Dict, TypeVar, Generic
-from bgbench.game_view import GameView
+from bgbench.game_view import GameView, PromptStyle
 
 StateType = TypeVar('StateType')
 MoveType = TypeVar('MoveType')
@@ -11,6 +11,9 @@ class Game(ABC, Generic[StateType, MoveType]):
     This class defines the interface that all games must implement.
     It uses generics to provide type safety for state and move types.
     """
+    
+    def __init__(self):
+        pass
     
     @abstractmethod
     def get_initial_state(self) -> StateType:
@@ -23,7 +26,8 @@ class Game(ABC, Generic[StateType, MoveType]):
     
     @abstractmethod
     def get_player_view(self, state: StateType, player_id: int, 
-                       history: Optional[List[Dict[str, Any]]] = None) -> GameView:
+                       history: Optional[List[Dict[str, Any]]] = None,
+                       prompt_style: PromptStyle = PromptStyle.HEADER) -> GameView:
         """Return what this player can see of the current state.
         
         Args:

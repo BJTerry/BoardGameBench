@@ -62,7 +62,14 @@ def create_llm(model: str, temperature: float = 0.0, max_tokens: int = 1000, **k
         logger.info(f"Initialized OpenAI Agent with model {model}")
     else:
         raise ValueError(f"Invalid model provider for {model}")
-    
+
+    @agent.system_prompt
+    def system_prompt():
+        return (
+            "You are playing a game. Your goal is to win by making valid moves according to the rules. "
+            "Always respond with ONLY your move in the exact format specified - no explanation or other text."
+        )
+
     return agent
 
 def create_test_llm(test_responses: List[str]) -> Agent:

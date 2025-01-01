@@ -7,6 +7,7 @@ from bgbench.models import Experiment, Player as DBPlayer, GameMatch
 from bgbench.llm_integration import create_llm
 from bgbench.game import Game
 from bgbench.llm_player import LLMPlayer
+from bgbench.game_view import PromptStyle
 from bgbench.game_runner import GameRunner
 from bgbench.rating import PlayerRating, EloSystem
 
@@ -101,7 +102,11 @@ class Arena():
             else:
                 llm = create_llm(**config["model_config"])
             
-            llm_player = LLMPlayer(config["name"], llm)
+            llm_player = LLMPlayer(
+                config["name"], 
+                llm,
+                prompt_style=PromptStyle[config.get("prompt_style", "header").upper()]
+            )
             
             # Create database player
             db_player = DBPlayer().create_player(

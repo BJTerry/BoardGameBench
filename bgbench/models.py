@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Optional, List, Dict, Any
 from sqlalchemy import Integer, String, ForeignKey, JSON, Float, select, event
@@ -198,12 +199,12 @@ def validate_players(mapper, connection, target):
         raise ValueError("player1_id and player2_id must be different")
 
 class LLMInteraction(Base):
-    def log_interaction(self, session: Session, prompt: dict, response: str, 
+    def log_interaction(self, session: Session, prompt: List[Dict[str, Any]], response: str, 
                        start_time: float, end_time: float, 
                        prompt_tokens: Optional[int] = None,
                        completion_tokens: Optional[int] = None,
                        total_tokens: Optional[int] = None):
-        self.prompt = prompt
+        self.prompt = json.loads(json.dumps(prompt))  # Ensure proper JSON serialization
         self.response = response
         self.start_time = start_time
         self.end_time = end_time
@@ -224,7 +225,7 @@ class LLMInteraction(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     game_id: Mapped[int] = mapped_column(Integer, ForeignKey('games.id'))
     player_id: Mapped[int] = mapped_column(Integer, ForeignKey('players.id'))
-    prompt: Mapped[dict] = mapped_column(JSON, nullable=False)
+    prompt: Mapped[List[dict]] = mapped_column(JSON, nullable=False)
     response: Mapped[str] = mapped_column(String, nullable=False)
     start_time: Mapped[float] = mapped_column(Float, nullable=False)  # Unix timestamp
     end_time: Mapped[float] = mapped_column(Float, nullable=False)  # Unix timestamp

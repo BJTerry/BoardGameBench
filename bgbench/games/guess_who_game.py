@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional, Tuple
 from bgbench.game import Game
-from bgbench.game_view import GameView
+from bgbench.game_view import GameView, PromptStyle
 import random
 import copy
 
@@ -105,26 +105,30 @@ class GuessWhoGame(Game):
     def get_move_format_instructions(self) -> str:
         """Return instructions for how to format moves."""
         return (
-            "FORMAT: '<trait> <value>' or 'NOT <trait> <value>'\n"
+            "'<trait> <value>' or 'NOT <trait> <value>'\n"
             "Valid traits and values:\n" + 
             "\n".join(f"- {trait}: {', '.join(values)}" 
                      for trait, values in self.TRAITS.items()) +
             "\nExamples:\n"
             "- 'hair_color black'\n"
-            "- 'NOT eye_color blue'"
+            "- 'NOT eye_color blue'\n"
+            "Remember to respond with ONLY your move in the exact format specified."
         )
 
     def get_player_view(self, state: GuessWhoState, player_id: int,
-                       history: Optional[List[Dict[str, Any]]] = None) -> GameView:
+                       history: Optional[List[Dict[str, Any]]] = None,
+                       prompt_style: PromptStyle = PromptStyle.HEADER) -> GameView:
         """Return the game state from a player's perspective."""
         
-        # Show all characters and which ones are still possible
+        # Structure the visible state based on the prompt style
         visible_state = {
             "all_characters": [char.to_dict() for char in state.characters],
             "possible_characters": [char.to_dict() for char in state.possible_characters[player_id]],
-            "remaining_count": len(state.possible_characters[player_id])
+            "remaining_count": len(state.possible_characters[player_id]),
+            "traits": self.TRAITS  # Include trait definitions for reference
         }
 
+        # Create the GameView with the specified prompt style
         return GameView(
             rules_explanation=self.get_rules_explanation(),
             visible_state=visible_state,
@@ -132,7 +136,8 @@ class GuessWhoGame(Game):
             is_terminal=self._is_game_over(state),
             winner=self._get_winner(state),
             history=history if history else [],
-            move_format_instructions=self.get_move_format_instructions()
+            move_format_instructions=self.get_move_format_instructions(),
+            prompt_style=prompt_style
         )
 
     def _get_valid_moves(self) -> List[str]:

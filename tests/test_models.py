@@ -266,7 +266,7 @@ class TestLLMInteraction:
 
         # Log interaction
         interaction = LLMInteraction(game_id=game.id, player_id=player1.id)
-        prompt = {"role": "user", "content": "Make a move"}
+        prompt = [{"role": "user", "content": "Make a move"}]
         response = "I choose to take 3 objects"
         interaction.log_interaction(
             db_session,
@@ -302,7 +302,7 @@ class TestLLMInteraction:
             interaction = LLMInteraction(game_id=game.id, player_id=player1.id)
             interaction.log_interaction(
                 db_session,
-                {"turn": i},
+                [{"turn": i}],
                 f"Response {i}",
                 start_time=1234567890.0 + i,  # Different timestamp for each interaction
                 end_time=1234567891.0 + i

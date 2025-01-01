@@ -37,37 +37,32 @@ async def main():
     # Configure players
     player_configs = [
         {
-            "name": "command-r7b-12-2024",
-            "model_config": {
-                "model": "openrouter/cohere/command-r7b-12-2024",
-                "temperature": 0.0,
-                "max_tokens": 1000
-            }
-        },
-        # {
-        #     "name": "llama-3.1-8b",
-        #     "model_config": {
-        #         "model": "openrouter/meta-llama/llama-3.1-8b-instruct",
-        #         "temperature": 0.0,
-        #         "max_tokens": 1000
-        #     }
-        # },
-        {
-            "name": "claude-3-haiku",
+            "name": "claude-3-haiku (json)",
             "model_config": {
                 "model": "openrouter/anthropic/claude-3-haiku",
                 "temperature": 0.0,
                 "max_tokens": 1000
-            }
+            },
+            "prompt_style": "json"
         },
         {
-            "name": "gpt-4o-mini",
+            "name": "claude-3-haiku (xml)",
             "model_config": {
-                "model": "openai/gpt-4o-mini",
+                "model": "openrouter/anthropic/claude-3-haiku",
                 "temperature": 0.0,
                 "max_tokens": 1000
-            }
-        }
+            },
+            "prompt_style": "xml"
+        },
+        {
+            "name": "claude-3-haiku (header)",
+            "model_config": {
+                "model": "openrouter/anthropic/claude-3-haiku",
+                "temperature": 0.0,
+                "max_tokens": 1000
+            },
+            "prompt_style": "header"
+        },
     ]
 
     # Get the game class from our available games

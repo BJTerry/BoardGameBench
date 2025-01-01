@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional, Tuple, Set
 from bgbench.game import Game
-from bgbench.game_view import GameView
+from bgbench.game_view import GameView, PromptStyle
 import string
 import copy
 
@@ -103,7 +103,7 @@ class BattleshipGame(Game):
     
     def get_move_format_instructions_setup(self) -> str:
         return (
-            "FORMAT: <letter><number> <direction>\n"
+            "[letter][number] [direction]\n"
             "- letter must be A-J (column)\n"
             "- number must be 1-10 (row)\n"
             "- direction must be h (horizontal) or v (vertical)\n"
@@ -115,7 +115,7 @@ class BattleshipGame(Game):
     
     def get_move_format_instructions_gameplay(self) -> str:
         return (
-            "FORMAT: <letter><number> during gameplay\n"
+            "[letter][number] during gameplay\n"
             "- letter must be A-J (column)\n"
             "- number must be 1-10 (row)\n"
             "- do not add any explanatory text before or after your move, just the move\n"
@@ -144,7 +144,8 @@ class BattleshipGame(Game):
         return result
     
     def get_player_view(self, state: BattleshipState, player_id: int, 
-                       history: Optional[List[Dict[str, Any]]] = None) -> GameView:
+                       history: Optional[List[Dict[str, Any]]] = None,
+                       prompt_style: PromptStyle = PromptStyle.HEADER) -> GameView:
         opponent_id = 1 - player_id
         
         # Format shot history
@@ -219,7 +220,8 @@ class BattleshipGame(Game):
             is_terminal=self._is_game_over(state),
             winner=self._get_winner(state),
             history=history if history else [],
-            move_format_instructions=move_instructions
+            move_format_instructions=move_instructions,
+            prompt_style=prompt_style
         )
     
     def _get_valid_moves(self, state: BattleshipState, player_id: int) -> List[str]:

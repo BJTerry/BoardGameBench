@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import List, Optional, Tuple, Dict, Any
 from bgbench.game import Game
-from bgbench.game_view import GameView
+from bgbench.game_view import GameView, PromptStyle
 
 @dataclass
 class NimState:
@@ -48,7 +48,19 @@ class NimGame(Game[NimState, NimMove]):
         )
     
     def get_player_view(self, state: NimState, player_id: int, 
-                       history: Optional[List[Dict[str, Any]]] = None) -> GameView:
+                       history: Optional[List[Dict[str, Any]]] = None,
+                       prompt_style: Optional[PromptStyle] = None) -> GameView:
+        """Get the player's view of the game state.
+        
+        Args:
+            state: Current game state
+            player_id: ID of the player viewing the state
+            history: Optional list of previous moves and their results
+            prompt_style: Optional PromptStyle to use for formatting
+            
+        Returns:
+            GameView object containing all information visible to this player
+        """
         valid_moves = list(range(1, min(self.max_take, state.remaining) + 1))
         return GameView(
             move_format_instructions=self.get_move_format_instructions(),
@@ -56,7 +68,8 @@ class NimGame(Game[NimState, NimMove]):
             visible_state={"remaining": state.remaining},
             valid_moves=valid_moves,
             is_terminal=state.remaining == 0,
-            winner=state.current_player if state.remaining == 0 else None
+            winner=state.current_player if state.remaining == 0 else None,
+            prompt_style=prompt_style or PromptStyle.HEADER
         )
     
     def parse_move(self, move_str: str) -> Optional[NimMove]:

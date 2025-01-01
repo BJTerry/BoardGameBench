@@ -50,9 +50,13 @@ def test_player_view(war_game, simple_state):
     view = war_game.get_player_view(simple_state, 0)
     
     assert isinstance(view, GameView)
-    assert view.visible_state["your_cards"] == 2
-    assert view.visible_state["opponent_cards"] == 2
-    assert view.visible_state["board"] == []
+    if isinstance(view.visible_state, dict):
+        assert view.visible_state.get("your_cards") == 2
+        assert view.visible_state.get("opponent_cards") == 2
+        assert view.visible_state.get("board") == []
+    else:
+        # Handle string case - this test expects a dict so fail if we get a string
+        assert False, "Expected visible_state to be a dictionary"
     assert "play" in view.valid_moves
 
 def test_normal_play(war_game, simple_state):

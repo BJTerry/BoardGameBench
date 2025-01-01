@@ -52,7 +52,12 @@ class GameRunner:
         
         while True:
             current_player: int = self.game.get_current_player(state)
-            game_view: GameView = self.game.get_player_view(state, current_player, history)
+            game_view: GameView = self.game.get_player_view(
+                state, 
+                current_player, 
+                history,
+                prompt_style=self.players[current_player].prompt_style
+            )
             
             if game_view.is_terminal:
                 break
@@ -73,73 +78,53 @@ class GameRunner:
             )
             game_state.record_state(self.session)
             
-            move_str = await player.make_move(game_view)
-            move = self.game.parse_move(move_str)
-            if move is None:
-                logger.warning(f"Invalid move format by {player.name}: {move_str}")
-                retry_count = 1
-                MAX_RETRIES = 5
-                
-                while retry_count < MAX_RETRIES:
-                    logger.warning(f"Retry attempt {retry_count} of {MAX_RETRIES}")
-                    move_str = await player.make_move(game_view, "Invalid move format. Please follow the format instructions exactly.")
-                    move = self.game.parse_move(move_str)
-                    if move is not None:
-                        break
-                    retry_count += 1
-                    logger.warning(f"Invalid move format by {player.name}: {move_str}")
-                
-                if move is None:
+            invalid_moves: List[Dict[str, str]] = []
+            retry_count = 0
+            MAX_RETRIES = 5
+            while True:
+                if retry_count == MAX_RETRIES:
                     logger.warning(f"{player.name} exceeded {MAX_RETRIES} invalid move format attempts and concedes the game")
                     concession_reason = f"Exceeded {MAX_RETRIES} invalid move format attempts"
                     winner = self.players[1 - current_player]
                     return winner, history, concession_reason
 
-            valid, explanation = self.game.validate_move(state, current_player, move)
-            
-            if not valid:
-                logger.warning(f"Invalid move by {player.name}: {explanation}")
-                # Try again with the invalid move feedback, max 5 attempts
-                retry_count = 1
-                MAX_RETRIES = 5
-                
-                while retry_count < MAX_RETRIES:
-                    logger.warning(f"Retry attempt {retry_count} of {MAX_RETRIES}")
-                    move_str = await player.make_move(game_view, explanation)
-                    move = self.game.parse_move(move_str)
-                    if move is None:
-                        logger.warning(f"Invalid move format by {player.name}: {move_str}")
-                        retry_count += 1
-                        continue
-                        
-                    valid, explanation = self.game.validate_move(state, current_player, move)
-                    if valid:
-                        break
+                move_str = await player.make_move(game_view, invalid_moves)
+                move = self.game.parse_move(move_str)
+                if move is None:
+                    logger.warning(f"Invalid move format by {player.name}: {move_str}")
+                    invalid_moves.append({
+                        "move": move_str,
+                        "explanation": "Invalid move format. Please follow the format instructions exactly.",
+                    })
                     retry_count += 1
-                    logger.warning(f"Invalid move by {player.name}: {explanation}")
-                
-                if not valid:
-                    logger.warning(f"{player.name} exceeded {MAX_RETRIES} invalid move attempts and concedes the game")
-                    # Return the other player as winner
-                    concession_reason = f"Exceeded {MAX_RETRIES} invalid move attempts"
-                    winner = self.players[1 - current_player]
-                    return winner, history, concession_reason
+                    continue
+                valid, explanation = self.game.validate_move(state, current_player, move)
 
-            # Print formatted turn information
-            turn_number = len(history) + 1
-            logger.info(f"\nTurn {turn_number}")
-            logger.info(f"Current Player: {player.name}")
-            logger.info("Game State:")
-            logger.info(f"{game_view.visible_state}")
-            logger.info(f"Move: {move}\n")
-                
-            state = self.game.get_next_state(state, move)
-            history.append({
-                "player": current_player, 
-                "move": move, 
-                "state_before": game_view.visible_state,
-                "turn": turn_number
-            })
+                if not valid:
+                    logger.warning(f"Invalid move by {player.name}: {explanation}")
+                    invalid_moves.append({
+                        "move": move_str,
+                        "explanation": explanation,
+                    })
+                    retry_count += 1
+                    continue
+
+                # Print formatted turn information
+                turn_number = len(history) + 1
+                logger.info(f"\nTurn {turn_number}")
+                logger.info(f"Current Player: {player.name}")
+                logger.info("Game State:")
+                logger.info(f"{game_view.visible_state}")
+                logger.info(f"Move: {move}\n")
+                    
+                state = self.game.get_next_state(state, move)
+                history.append({
+                    "player": current_player, 
+                    "move": move, 
+                    "state_before": game_view.visible_state,
+                    "turn": turn_number
+                })
+                break
 
         final_view = self.game.get_player_view(state, current_player)
         winner_idx = 0 if final_view.winner is None else final_view.winner

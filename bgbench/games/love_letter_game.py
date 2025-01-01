@@ -446,7 +446,7 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
 
     def get_move_format_instructions(self) -> str:
         return (
-            "You are Player 0. Your opponent is Player 1.\n\n"
+            "You are the current player. Your opponent is the other player.\n\n"
             "Format: CARD [TARGET_PLAYER] [NAMED_CARD]\n"
             "- CARD: number 1-8 representing the card to play\n"
             "- TARGET_PLAYER: (optional) player number to target (0 or 1)\n"

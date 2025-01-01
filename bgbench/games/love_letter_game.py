@@ -156,6 +156,10 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
         # Clear Handmaid protection from previous round
         state.protected_players.clear()
 
+        # Draw a card for the current player if they don't have one
+        if state.drawn_card is None and state.deck:
+            state.drawn_card = state.deck.pop()
+
         # Get the card being played and discard it
         played_card = move.card
 

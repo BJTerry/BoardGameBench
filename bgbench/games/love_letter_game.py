@@ -300,8 +300,23 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
             state.current_player = next_player
 
             # Draw card for next player's turn if they are still in the game
-            if state.hands[state.current_player] is not None and state.deck:
-                state.drawn_card = state.deck.pop()
+            if state.hands[state.current_player] is not None:
+                if state.deck:
+                    state.drawn_card = state.deck.pop()
+                else:
+                    # If deck is empty, highest card wins the round
+                    active_players = [i for i, hand in enumerate(state.hands) if hand is not None]
+                    if len(active_players) > 1:
+                        # Find player with highest card
+                        highest_value = max(state.hands[p].value for p in active_players if state.hands[p] is not None)
+                        winners = [p for p in active_players if state.hands[p] is not None and state.hands[p].value == highest_value]
+                        for winner in winners:
+                            state.scores[winner] += 1
+                        # Start new round while preserving scores
+                        new_state = self.get_initial_state()
+                        new_state.scores = state.scores.copy()
+                        return new_state
+                    state.drawn_card = None
             else:
                 # Skip drawing if the next player is eliminated
                 state.drawn_card = None

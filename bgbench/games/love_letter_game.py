@@ -93,30 +93,63 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
             move.card != Card.COUNTESS):
             return False, "Must play Countess when holding King or Prince"
 
+        # Check if all other players are protected by Handmaid
+        other_players = [p for p in range(len(state.hands)) if p != player_id and state.hands[p] is not None]
+        all_others_protected = all(p in state.protected_players for p in other_players)
+
         # Validate target player if required
         if move.target_player is not None:
             # Check target is valid player number
             if move.target_player not in [0, 1]:
                 return False, "Invalid target player"
-            # Can't target self with most cards (except Prince and Priest which allow/require self-targeting)
-            if move.target_player == player_id and move.card not in [Card.PRINCE, Card.PRIEST]:
-                return False, "Cannot target yourself"
-            # Can't target protected player
-            if move.target_player in state.protected_players:
-                return False, "Target player is protected by Handmaid"
             # Can't target player who is out
             if state.hands[move.target_player] is None:
                 return False, "Target player is out of the round"
+            # Handle protected players based on card type
+            if move.target_player in state.protected_players:
+                return False, "Target player is protected by Handmaid"
 
         # Card-specific validation
         if move.card == Card.GUARD:
-            if move.target_player is None or move.named_card is None:
-                return False, "Guard requires target player and named card"
-            if move.named_card == Card.GUARD:
-                return False, "Guard cannot name Guard"
-        elif move.card in [Card.PRIEST, Card.BARON, Card.KING, Card.PRINCE]:
+            if all_others_protected:
+                if move.target_player is not None:
+                    return False, "Guard does nothing when all others are protected"
+            else:
+                if move.target_player is None or move.named_card is None:
+                    return False, "Guard requires target player and named card"
+                if move.target_player == player_id:
+                    return False, "Cannot target yourself with Guard"
+                if move.named_card == Card.GUARD:
+                    return False, "Guard cannot name Guard"
+        elif move.card == Card.PRIEST:
             if move.target_player is None:
-                return False, "This card requires a target player"
+                return False, "Priest requires a target player"
+            # Priest can target self if all others are protected
+            if move.target_player != player_id and all_others_protected:
+                return False, "Must target yourself with Priest when all others are protected"
+        elif move.card == Card.BARON:
+            if all_others_protected:
+                if move.target_player is not None:
+                    return False, "Baron does nothing when all others are protected"
+            else:
+                if move.target_player is None:
+                    return False, "Baron requires a target player"
+                if move.target_player == player_id:
+                    return False, "Cannot target yourself with Baron"
+        elif move.card == Card.PRINCE:
+            if move.target_player is None:
+                return False, "Prince requires a target player"
+            if all_others_protected and move.target_player != player_id:
+                return False, "Must target yourself with Prince when all others are protected"
+        elif move.card == Card.KING:
+            if all_others_protected:
+                if move.target_player is not None:
+                    return False, "King does nothing when all others are protected"
+            else:
+                if move.target_player is None:
+                    return False, "King requires a target player"
+                if move.target_player == player_id:
+                    return False, "Cannot target yourself with King"
 
         return True, ""
         

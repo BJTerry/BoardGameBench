@@ -28,6 +28,7 @@ class LoveLetterState:
     face_up_cards: List[Card]  # Cards revealed at start (2-player game)
     scores: List[int]  # Tokens of affection per player
     drawn_card: Optional[Card] = None  # Card drawn at start of turn
+    priest_views: List[Tuple[int, int, Card]] = None  # List of (viewer, target, card) from Priest reveals
     
     def to_dict(self) -> dict:
         return {
@@ -189,8 +190,11 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
                         winner = next((i for i, hand in enumerate(state.hands) if hand is not None), None)
 
         elif played_card == Card.PRIEST:
-            # Effect handled in player view - no state change needed
-            pass
+            if move.target_player is not None and state.hands[move.target_player] is not None:
+                # Record what card was seen
+                if state.priest_views is None:
+                    state.priest_views = []
+                state.priest_views.append((player_id, move.target_player, state.hands[move.target_player]))
 
         elif played_card == Card.BARON:
             if move.target_player is not None:
@@ -330,7 +334,12 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
             "opponent_discards": self._format_visible_cards(state.discards[1-player_id]),
             "face_up_cards": self._format_visible_cards(state.face_up_cards),
             "protected_players": list(state.protected_players),
-            "scores": state.scores
+            "scores": state.scores,
+            "priest_reveals": [
+                f"Player {viewer} saw Player {target}'s {card.name}({card.value})"
+                for viewer, target, card in (state.priest_views or [])
+                if viewer == player_id  # Only show reveals this player made
+            ]
         }
 
         # Format move history
@@ -457,7 +466,8 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
             removed_card=removed_card,
             face_up_cards=face_up_cards,
             scores=[0, 0],
-            drawn_card=None
+            drawn_card=None,
+            priest_views=[]
         )
 
     def get_current_player(self, state: LoveLetterState) -> int:

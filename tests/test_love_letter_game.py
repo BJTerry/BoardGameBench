@@ -63,6 +63,29 @@ def test_countess_rule(game, initial_state):
     # Should be allowed to play Countess
     assert game.validate_move(state, 0, LoveLetterMove(Card.COUNTESS))[0]
 
+def test_priest_reveals(game, initial_state):
+    # Test that Priest reveals are recorded and visible
+    state = initial_state
+    state.hands[0] = Card.PRIEST
+    state.hands[1] = Card.KING
+    state.drawn_card = Card.GUARD
+    
+    # Player 0 uses Priest to look at Player 1's hand
+    new_state = game.apply_move(state, 0, LoveLetterMove(Card.PRIEST, 1))
+    
+    # Check that the reveal was recorded
+    assert len(new_state.priest_views) == 1
+    viewer, target, card = new_state.priest_views[0]
+    assert viewer == 0
+    assert target == 1
+    assert card == Card.KING
+    
+    # Check that the reveal appears in Player 0's view but not Player 1's
+    view0 = game.get_player_view(new_state, 0)
+    view1 = game.get_player_view(new_state, 1)
+    assert any("Player 0 saw Player 1's KING" in reveal for reveal in view0.visible_state["priest_reveals"])
+    assert len(view1.visible_state["priest_reveals"]) == 0
+
 def test_handmaid_protection(game, initial_state):
     state = initial_state
     state.hands[0] = Card.GUARD

@@ -1,3 +1,4 @@
+import copy
 import pytest
 from bgbench.games.love_letter_game import LoveLetterGame, LoveLetterState, Card, LoveLetterMove
 from bgbench.game_view import PromptStyle

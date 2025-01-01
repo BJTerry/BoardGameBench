@@ -338,7 +338,7 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
             "priest_reveals": [
                 f"Player {viewer} saw Player {target}'s {card.name}({card.value})"
                 for viewer, target, card in (state.priest_views or [])
-                if viewer == player_id  # Only show reveals this player made
+                # Show all reveals to all players since it's public information
             ]
         }
 

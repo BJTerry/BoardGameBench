@@ -80,11 +80,11 @@ def test_priest_reveals(game, initial_state):
     assert target == 1
     assert card == Card.KING
     
-    # Check that the reveal appears in Player 0's view but not Player 1's
+    # Check that the reveal appears in both players' views
     view0 = game.get_player_view(new_state, 0)
     view1 = game.get_player_view(new_state, 1)
     assert any("Player 0 saw Player 1's KING" in reveal for reveal in view0.visible_state["priest_reveals"])
-    assert len(view1.visible_state["priest_reveals"]) == 0
+    assert any("Player 0 saw Player 1's KING" in reveal for reveal in view1.visible_state["priest_reveals"])
 
 def test_handmaid_protection(game, initial_state):
     state = initial_state

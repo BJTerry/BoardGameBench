@@ -98,8 +98,8 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
             # Check target is valid player number
             if move.target_player not in [0, 1]:
                 return False, "Invalid target player"
-            # Can't target self with most cards
-            if move.target_player == player_id and move.card != Card.PRINCE:
+            # Can't target self with most cards (except Prince and Priest)
+            if move.target_player == player_id and move.card not in [Card.PRINCE, Card.PRIEST]:
                 return False, "Cannot target yourself"
             # Can't target protected player
             if move.target_player in state.protected_players:

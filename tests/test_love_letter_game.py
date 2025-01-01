@@ -51,7 +51,9 @@ def test_validate_move(game, initial_state):
     # Card not in hand
     assert not game.validate_move(state, 0, LoveLetterMove(Card.PRINCESS, 1))[0]
     # Invalid target
-    assert not game.validate_move(state, 0, LoveLetterMove(Card.GUARD, 0, Card.PRIEST))[0]
+    # Test self-targeting rules
+    assert not game.validate_move(state, 0, LoveLetterMove(Card.GUARD, 0, Card.PRIEST))[0]  # Guard can't self-target
+    assert game.validate_move(state, 0, LoveLetterMove(Card.PRIEST, 0))[0]  # Priest can self-target
 
 def test_countess_rule(game, initial_state):
     # Test Countess must be played when holding King/Prince

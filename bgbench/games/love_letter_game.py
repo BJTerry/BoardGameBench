@@ -187,12 +187,6 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
                     active_players = sum(1 for hand in state.hands if hand is not None)
                     if active_players <= 1:
                         winner = next((i for i, hand in enumerate(state.hands) if hand is not None), None)
-                        if winner is not None:
-                            state.scores[winner] += 1
-                            # Start new round while preserving scores
-                            new_state = self.get_initial_state()
-                            new_state.scores = state.scores.copy()
-                            return new_state
 
         elif played_card == Card.PRIEST:
             # Effect handled in player view - no state change needed

@@ -111,10 +111,7 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
 
         # Card-specific validation
         if move.card == Card.GUARD:
-            if all_others_protected:
-                if move.target_player is not None:
-                    return False, "Guard does nothing when all others are protected"
-            else:
+            if not all_others_protected:
                 if move.target_player is None or move.named_card is None:
                     return False, "Guard requires target player and named card"
                 if move.target_player == player_id:
@@ -122,16 +119,12 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
                 if move.named_card == Card.GUARD:
                     return False, "Guard cannot name Guard"
         elif move.card == Card.PRIEST:
-            if move.target_player is None:
+            if not all_others_protected and move.target_player is None:
                 return False, "Priest requires a target player"
-            # Priest can target self if all others are protected
             if move.target_player != player_id and all_others_protected:
                 return False, "Must target yourself with Priest when all others are protected"
         elif move.card == Card.BARON:
-            if all_others_protected:
-                if move.target_player is not None:
-                    return False, "Baron does nothing when all others are protected"
-            else:
+            if not all_others_protected:
                 if move.target_player is None:
                     return False, "Baron requires a target player"
                 if move.target_player == player_id:
@@ -142,10 +135,7 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
             if all_others_protected and move.target_player != player_id:
                 return False, "Must target yourself with Prince when all others are protected"
         elif move.card == Card.KING:
-            if all_others_protected:
-                if move.target_player is not None:
-                    return False, "King does nothing when all others are protected"
-            else:
+            if not all_others_protected:
                 if move.target_player is None:
                     return False, "King requires a target player"
                 if move.target_player == player_id:

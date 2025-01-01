@@ -307,7 +307,9 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
                     active_players = [i for i, hand in enumerate(state.hands) if hand is not None]
                     if len(active_players) > 1:
                         # Find player with highest card
-                        highest_value = max(state.hands[p].value for p in active_players if state.hands[p] is not None)
+                        # Get all non-None hands first, then find max value
+                        active_hands = [state.hands[p] for p in active_players if state.hands[p] is not None]
+                        highest_value = max(hand.value for hand in active_hands)
                         winners = [p for p in active_players if state.hands[p] is not None and state.hands[p].value == highest_value]
                         for winner in winners:
                             state.scores[winner] += 1

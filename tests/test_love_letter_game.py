@@ -121,6 +121,7 @@ def test_player_view(game, initial_state):
     assert "GUARD(1)" in view.visible_state["your_hand"]
     assert "PRIEST(2)" in view.visible_state["drawn_card"]
     assert "BARON(3)" in view.visible_state["opponent_discards"]
+    assert "deck_size" not in view.visible_state  # Verify deck_size is not included
     assert isinstance(view.valid_moves, list)
     assert len(view.valid_moves) > 0
 

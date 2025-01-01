@@ -335,7 +335,6 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
             "opponent_discards": self._format_visible_cards(state.discards[1-player_id]),
             "face_up_cards": self._format_visible_cards(state.face_up_cards),
             "protected_players": list(state.protected_players),
-            "deck_size": len(state.deck),  # Calculate directly from deck length
             "scores": state.scores
         }
 

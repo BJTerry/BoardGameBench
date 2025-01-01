@@ -328,8 +328,8 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
         """Return what this player can see of the current state."""
         # Format visible information
         visible_state = {
-            "your_hand": self._format_visible_cards(cast(List[Union[Card, None]], [state.hands[player_id]] if state.hands[player_id] is not None else [])),
-            "drawn_card": self._format_visible_cards(cast(List[Union[Card, None]], [state.drawn_card] if state.drawn_card else [])),
+            "your_hand": self._format_visible_cards([state.hands[player_id]] if state.hands[player_id] is not None else []),
+            "drawn_card": self._format_visible_cards([state.drawn_card] if state.drawn_card is not None else []),
             "your_discards": self._format_visible_cards(cast(List[Union[Card, None]], state.discards[player_id])),
             "opponent_discards": self._format_visible_cards(state.discards[1-player_id]),
             "face_up_cards": self._format_visible_cards(state.face_up_cards),

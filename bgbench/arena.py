@@ -65,8 +65,11 @@ class Arena():
         
         for db_player in self.experiment.players:
             if llm_factory:
-                llm_player = LLMPlayer(db_player.name, db_player.model_config)
-                llm_player._llm = llm_factory(db_player.name)
+                llm_player = LLMPlayer(
+                    db_player.name,
+                    db_player.model_config,
+                    _llm=llm_factory(db_player.name),
+                )
             else:
                 try:
                     llm_player = LLMPlayer(db_player.name, db_player.model_config)
@@ -104,9 +107,9 @@ class Arena():
                     config["name"],
                     config["model_config"],
                     prompt_style=PromptStyle[config.get("prompt_style", "header").upper()],
-                    response_style=ResponseStyle[config.get("response_style", "direct").upper()]
+                    response_style=ResponseStyle[config.get("response_style", "direct").upper()],
+                    _llm=llm_factory(config["name"])
                 )
-                llm_player._llm = llm_factory(config["name"])
             else:
                 llm_player = LLMPlayer(
                     config["name"],

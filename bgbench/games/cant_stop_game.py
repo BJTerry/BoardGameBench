@@ -233,7 +233,7 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
         
         elif move.action == "stop":
             # Convert temporary positions to permanent ones
-            for col, pos in new_state.temp_positions.items():
+            for col, pos in state.temp_positions.items():
                 if col in new_state.columns:
                     new_state.columns[col].player_positions[player_id] = pos
                     # Check if column is claimed
@@ -242,7 +242,7 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
                         new_state.columns[col].claimed_by = player_id
             
             # Reset for next player
-            new_state = self._reset_for_next_player(state, 1 - player_id)
+            new_state = self._reset_for_next_player(new_state, 1 - player_id)
         
         elif move.action == "roll":
             # Roll new dice
@@ -251,7 +251,7 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
             # Check if the player busted
             if not self._has_valid_move(new_state):
                 # Current player busts - lose all progress and switch players
-                new_state = self._reset_for_next_player(state, 1 - state.current_player)
+                new_state = self._reset_for_next_player(new_state, 1 - new_state.current_player)
             else:
                 new_state.awaiting_selection = True
         

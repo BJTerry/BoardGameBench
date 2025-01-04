@@ -179,36 +179,36 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
         
         if state.awaiting_selection:
             # Process dice selection
-                dice = new_state.current_dice
-                sum1 = dice[move.selections[0]] + dice[move.selections[1]]
-                remaining = [dice[i] for i in range(4) if i not in move.selections]
-                sum2 = remaining[0] + remaining[1]
-                
-                # Determine which sum to use
-                if (sum1 in new_state.columns and 
-                    not new_state.columns[sum1].is_claimed and
-                    (sum1 in new_state.active_columns or 
-                     len(new_state.active_columns) < 3)):
-                    current_pos = new_state.temp_positions.get(sum1, 0)
-                    new_state.temp_positions[sum1] = min(
-                        current_pos + 1,
-                        new_state.columns[sum1].max_height
-                    )
-                    new_state.active_columns.add(sum1)
-                
-                if (sum2 in new_state.columns and 
-                    not new_state.columns[sum2].is_claimed and
-                    (sum2 in new_state.active_columns or 
-                     len(new_state.active_columns) < 3)):
-                    current_pos = new_state.temp_positions.get(sum2, 0)
-                    new_state.temp_positions[sum2] = min(
-                        current_pos + 1,
-                        new_state.columns[sum2].max_height
-                    )
-                    new_state.active_columns.add(sum2)
-                
-                # Switch to stop/roll decision
-                new_state.awaiting_selection = False
+            dice = new_state.current_dice
+            sum1 = dice[move.selections[0]] + dice[move.selections[1]]
+            remaining = [dice[i] for i in range(4) if i not in move.selections]
+            sum2 = remaining[0] + remaining[1]
+            
+            # Determine which sum to use
+            if (sum1 in new_state.columns and 
+                not new_state.columns[sum1].is_claimed and
+                (sum1 in new_state.active_columns or 
+                    len(new_state.active_columns) < 3)):
+                current_pos = new_state.temp_positions.get(sum1, 0)
+                new_state.temp_positions[sum1] = min(
+                    current_pos + 1,
+                    new_state.columns[sum1].max_height
+                )
+                new_state.active_columns.add(sum1)
+            
+            if (sum2 in new_state.columns and 
+                not new_state.columns[sum2].is_claimed and
+                (sum2 in new_state.active_columns or 
+                    len(new_state.active_columns) < 3)):
+                current_pos = new_state.temp_positions.get(sum2, 0)
+                new_state.temp_positions[sum2] = min(
+                    current_pos + 1,
+                    new_state.columns[sum2].max_height
+                )
+                new_state.active_columns.add(sum2)
+            
+            # Switch to stop/roll decision
+            new_state.awaiting_selection = False
         
         elif move.action == "stop":
             # Convert temporary positions to permanent ones

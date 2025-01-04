@@ -251,6 +251,8 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
             # Check if the player busted
             if not self._has_valid_move(new_state):
                 # Current player busts - lose all progress and switch players
+                new_state.temp_positions.clear()
+                new_state.active_columns.clear()
                 new_state = self._reset_for_next_player(new_state, 1 - new_state.current_player)
             else:
                 new_state.awaiting_selection = True

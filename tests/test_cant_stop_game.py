@@ -24,53 +24,61 @@ def test_initial_state(initial_state):
 
 def test_parse_move(game):
     # Test valid moves
-    assert game.parse_move("select 0 1") == CantStopMove("select", [0, 1])
+    assert game.parse_move("select 7 8") == CantStopMove("select", [7, 8])
     assert game.parse_move("stop") == CantStopMove("stop", [])
     assert game.parse_move("roll") == CantStopMove("roll", [])
     
     # Test invalid moves
     assert game.parse_move("invalid") is None
-    assert game.parse_move("select 0") is None
-    assert game.parse_move("select 0 0") is None  # Same dice
-    assert game.parse_move("select 0 4") is None  # Out of range
+    assert game.parse_move("select 7") is None  # Missing second number
+    assert game.parse_move("select 1 13") is None  # Out of range
+    assert game.parse_move("select foo bar") is None  # Non-numeric
 
 def test_validate_move(game, initial_state):
     # Force specific dice for testing
-    initial_state.current_dice = [1, 2, 3, 4]
+    initial_state.current_dice = [2, 3, 4, 5]  # Possible sums: 5,9 or 6,8 or 7,7
     
     # Test valid moves
-    valid_move = CantStopMove("select", [0, 1])  # Sum 3
+    valid_move = CantStopMove("select", [5, 9])  # Valid sum combination
     assert game.validate_move(initial_state, 0, valid_move)[0] == True
+    
+    # Test invalid sum combination
+    invalid_move = CantStopMove("select", [3, 11])  # Impossible with these dice
+    assert game.validate_move(initial_state, 0, invalid_move)[0] == False
     
     # Test wrong player
     assert game.validate_move(initial_state, 1, valid_move)[0] == False
     
-    # Test wrong action type
+    # Test wrong action when selection expected
     wrong_action = CantStopMove("roll", [])
     assert game.validate_move(initial_state, 0, wrong_action)[0] == False
 
 def test_dice_combinations(game):
-    dice = [1, 2, 3, 4]
+    dice = [2, 3, 4, 5]
     combinations = game._get_possible_combinations(dice)
-    expected = [(3, 7), (4, 6), (5, 5)]
-    assert combinations == expected
+    expected = [(5, 9), (6, 8), (7, 7)]  # All possible sum combinations
+    assert sorted(combinations) == sorted(expected)
 
 def test_has_valid_move(game, initial_state):
     # Test with dice that allow valid moves
-    initial_state.current_dice = [1, 2, 3, 4]  # Sums: 3,7 or 4,6 or 5,5
+    initial_state.current_dice = [2, 3, 4, 5]  # Sums: 5,9 or 6,8 or 7,7
     assert game._has_valid_move(initial_state) == True
     
-    # Test with impossible dice (all sums too high)
-    initial_state.current_dice = [6, 6, 6, 6]
+    # Test with dice that have no valid moves
+    # Mark all possible columns as claimed
+    for i in range(2, 13):
+        initial_state.columns[i].is_claimed = True
     assert game._has_valid_move(initial_state) == False
 
 def test_apply_move_selection(game, initial_state):
-    initial_state.current_dice = [1, 2, 3, 4]
-    move = CantStopMove("select", [0, 1])  # Sum 3
+    initial_state.current_dice = [2, 3, 4, 5]  # Sums: 5,9 or 6,8 or 7,7
+    move = CantStopMove("select", [5, 9])  # Select columns 5 and 9
     
     new_state = game.apply_move(initial_state, 0, move)
-    assert new_state.temp_positions.get(3) == 1  # Advanced in column 3
-    assert 3 in new_state.active_columns
+    assert new_state.temp_positions.get(5) == 1  # Advanced in column 5
+    assert new_state.temp_positions.get(9) == 1  # Advanced in column 9
+    assert 5 in new_state.active_columns
+    assert 9 in new_state.active_columns
     assert new_state.awaiting_selection == False
 
 def test_apply_move_stop(game, initial_state):
@@ -94,10 +102,17 @@ def test_apply_move_stop(game, initial_state):
 
 def test_apply_move_bust(game, initial_state):
     # Setup state where next roll will bust
-    initial_state.temp_positions = {3: 2, 7: 1}
-    initial_state.active_columns = {3, 7}
+    initial_state.temp_positions = {5: 2, 9: 1}
+    initial_state.active_columns = {5, 9}
     initial_state.awaiting_selection = False
-    initial_state.current_dice = [6, 6, 6, 6]  # Force impossible roll
+    
+    # Mark all columns as claimed except 5 and 9
+    for i in range(2, 13):
+        if i not in [5, 9]:
+            initial_state.columns[i].is_claimed = True
+    
+    # Roll dice that can't make valid combinations for columns 5 or 9
+    initial_state.current_dice = [1, 1, 1, 1]  # Only possible sum is 2
     
     move = CantStopMove("roll", [])
     new_state = game.apply_move(initial_state, 0, move)

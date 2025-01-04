@@ -95,6 +95,30 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
             (dice[0] + dice[3], dice[1] + dice[2])
         ]
 
+    def _validate_column_sums(self, state: CantStopState, sum1: int, sum2: int) -> Tuple[bool, str]:
+        """Validate if the given column sums are possible and available."""
+        # Check if sums are possible with current dice
+        possible_combinations = self._get_possible_combinations(state.current_dice)
+        possible_sums = {sum1, sum2}
+        valid_pairs = [(s1, s2) for s1, s2 in possible_combinations 
+                      if {s1, s2} == possible_sums]
+        
+        if not valid_pairs:
+            return False, "Selected columns must be possible sums of dice pairs"
+            
+        # Check if columns can be used
+        can_use_sum1 = (not state.columns[sum1].is_claimed and
+                       (sum1 in state.active_columns or 
+                        len(state.active_columns) < 3))
+        can_use_sum2 = (not state.columns[sum2].is_claimed and
+                       (sum2 in state.active_columns or 
+                        len(state.active_columns) < 3))
+        
+        if not (can_use_sum1 or can_use_sum2):
+            return False, "Selected columns must be available for progress"
+            
+        return True, ""
+
     def _has_valid_move(self, state: CantStopState) -> bool:
         """Check if any valid moves are possible with current dice."""
         dice = state.current_dice
@@ -151,27 +175,11 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
             if move.action != "select":
                 return False, "Must select dice now"
                 
-            # Check if the selected columns are valid sums of dice pairs
-            dice = state.current_dice
-            possible_sums = set()
-            for i in range(4):
-                for j in range(i + 1, 4):
-                    possible_sums.add(dice[i] + dice[j])
-            
+            # Validate the selected column sums
             sum1, sum2 = move.selections
-            if sum1 not in possible_sums or sum2 not in possible_sums:
-                return False, "Selected columns must be possible sums of dice pairs"
-            
-            # Check if columns can be used
-            can_use_sum1 = (not state.columns[sum1].is_claimed and
-                           (sum1 in state.active_columns or 
-                            len(state.active_columns) < 3))
-            can_use_sum2 = (not state.columns[sum2].is_claimed and
-                           (sum2 in state.active_columns or 
-                            len(state.active_columns) < 3))
-            
-            if not (can_use_sum1 or can_use_sum2):
-                return False, "Selected columns must be available for progress"
+            valid, msg = self._validate_column_sums(state, sum1, sum2)
+            if not valid:
+                return False, msg
         else:
             if move.action not in ["stop", "roll"]:
                 return False, "Must choose to stop or roll"
@@ -186,11 +194,12 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
             # Process column selection
             sum1, sum2 = move.selections
             
-            # Determine which sum to use
-            if (sum1 in new_state.columns and 
-                not new_state.columns[sum1].is_claimed and
-                (sum1 in new_state.active_columns or 
-                    len(new_state.active_columns) < 3)):
+            # Validate and use selected sums
+            valid, _ = self._validate_column_sums(state, sum1, sum2)
+            if valid and (sum1 in new_state.columns and 
+                         not new_state.columns[sum1].is_claimed and
+                         (sum1 in new_state.active_columns or 
+                          len(new_state.active_columns) < 3)):
                 current_pos = new_state.temp_positions.get(sum1, 0)
                 new_state.temp_positions[sum1] = min(
                     current_pos + 1,
@@ -198,10 +207,10 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
                 )
                 new_state.active_columns.add(sum1)
             
-            if (sum2 in new_state.columns and 
-                not new_state.columns[sum2].is_claimed and
-                (sum2 in new_state.active_columns or 
-                    len(new_state.active_columns) < 3)):
+            if valid and (sum2 in new_state.columns and 
+                         not new_state.columns[sum2].is_claimed and
+                         (sum2 in new_state.active_columns or 
+                          len(new_state.active_columns) < 3)):
                 current_pos = new_state.temp_positions.get(sum2, 0)
                 new_state.temp_positions[sum2] = min(
                     current_pos + 1,

@@ -29,7 +29,8 @@ class LLMPlayer:
 
     @property 
     def llm(self) -> Agent[None, Union[str, ChainOfThoughtMove]]:
-        return self._llm
+        # _llm is guaranteed to be set in __post_init__
+        return self._llm  # type: ignore
 
     async def make_move(self, game_view: GameView, invalid_moves: Optional[List[Dict[str, str]]] = None) -> Any:
         """Generate a move using the LLM agent.

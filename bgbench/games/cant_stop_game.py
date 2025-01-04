@@ -245,9 +245,10 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
             # Check if the player busted
             if not self._has_valid_move(new_state):
                 # Current player busts - lose all progress and switch players
-                new_state.temp_positions = {}
-                new_state.active_columns = set()
-                new_state.current_player = 1 - new_state.current_player
+                new_state = deepcopy(state)  # Start fresh to ensure clean state
+                new_state.temp_positions.clear()  # Explicitly clear temporary positions
+                new_state.active_columns.clear()  # Explicitly clear active columns
+                new_state.current_player = 1 - state.current_player
                 new_state.current_dice = [random.randint(1, 6) for _ in range(4)]
                 new_state.awaiting_selection = True
             else:

@@ -232,12 +232,12 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
             new_state.current_dice = [random.randint(1, 6) for _ in range(4)]
             new_state.awaiting_selection = True
             
-            # Check if any valid moves are possible with new roll
-            if not self._has_valid_move(new_state):
-                # Player busts - lose all progress and end turn
+            # Keep switching players until someone has a valid move
+            while not self._has_valid_move(new_state):
+                # Current player busts - lose all progress and switch players
                 new_state.temp_positions = {}
                 new_state.active_columns = set()
-                new_state.current_player = 1 - player_id
+                new_state.current_player = 1 - new_state.current_player
                 new_state.current_dice = [random.randint(1, 6) for _ in range(4)]
                 new_state.awaiting_selection = True
         

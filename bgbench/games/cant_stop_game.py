@@ -325,9 +325,9 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
             "   - (6+6=12, 1+4=5) for columns 12,5\n"
             "   - (6+1=7, 6+4=10) for columns 7,10\n"
             "   - (6+4=10, 6+1=7) for columns 10,7\n"
-            "2. You can use up to 3 different columns per turn\n"
-            "3. After each roll, choose to continue or stop and keep progress\n"
-            "4. If you can't use any dice combinations, you lose all progress\n"
+            "2. You can use up to 3 different columns per turn. If the dice you roll don't match columns you've temporarily made progress on or available columns, you bust and your turn is over\n"
+            "3. After each roll, choose to continue or stop and keep progress. Continuing faces the prospect of busting, but you may make further progress.\n"
+            "4. If you can't use any dice combinations because the matching columns are full, or they don't match the up to three columns you're making progress on, you bust and lose all progress\n"
             "5. Claim a column by reaching its top space\n"
             "6. First player to claim 3 columns wins"
         )

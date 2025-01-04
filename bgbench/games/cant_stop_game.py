@@ -186,6 +186,16 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
                 
         return True, ""
     
+    def _reset_for_next_player(self, state: CantStopState, next_player: int) -> CantStopState:
+        """Helper method to reset the state for the next player."""
+        new_state = deepcopy(state)
+        new_state.temp_positions.clear()
+        new_state.active_columns.clear()
+        new_state.current_player = next_player
+        new_state.current_dice = [random.randint(1, 6) for _ in range(4)]
+        new_state.awaiting_selection = True
+        return new_state
+
     def apply_move(self, state: CantStopState, player_id: int, move: CantStopMove) -> CantStopState:
         """Apply move to state and return new state."""
         new_state = deepcopy(state)
@@ -232,11 +242,7 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
                         new_state.columns[col].claimed_by = player_id
             
             # Reset for next player
-            new_state.temp_positions = {}
-            new_state.active_columns = set()
-            new_state.current_player = 1 - player_id
-            new_state.current_dice = [random.randint(1, 6) for _ in range(4)]
-            new_state.awaiting_selection = True
+            new_state = self._reset_for_next_player(state, 1 - player_id)
         
         elif move.action == "roll":
             # Roll new dice
@@ -245,12 +251,7 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
             # Check if the player busted
             if not self._has_valid_move(new_state):
                 # Current player busts - lose all progress and switch players
-                new_state = deepcopy(state)  # Start fresh to ensure clean state
-                new_state.temp_positions.clear()  # Explicitly clear temporary positions
-                new_state.active_columns.clear()  # Explicitly clear active columns
-                new_state.current_player = 1 - state.current_player
-                new_state.current_dice = [random.randint(1, 6) for _ in range(4)]
-                new_state.awaiting_selection = True
+                new_state = self._reset_for_next_player(state, 1 - state.current_player)
             else:
                 new_state.awaiting_selection = True
         

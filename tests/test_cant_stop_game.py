@@ -101,27 +101,26 @@ def test_apply_move_stop(game, initial_state):
     assert new_state.awaiting_selection == True
 
 def test_apply_move_bust(game, initial_state):
-    # Setup state where next roll will bust
+    # Setup state with some progress
     initial_state.temp_positions = {5: 2, 9: 1}
     initial_state.active_columns = {5, 9}
     initial_state.awaiting_selection = False
+    initial_state.current_player = 0
     
-    # Mark all columns as claimed except 5 and 9
-    for i in range(2, 13):
-        if i not in [5, 9]:
-            initial_state.columns[i].is_claimed = True
-    
-    # Roll dice that can't make valid combinations for columns 5 or 9
-    initial_state.current_dice = [1, 1, 1, 1]  # Only possible sum is 2
+    # Mock _has_valid_move to always return False to simulate a bust
+    original_has_valid_move = game._has_valid_move
+    game._has_valid_move = lambda state: False
     
     move = CantStopMove("roll", [])
-    import pdb; pdb.set_trace()
     new_state = game.apply_move(initial_state, 0, move)
+    
+    # Restore original method
+    game._has_valid_move = original_has_valid_move
     
     # Check that progress was lost and turn switched
     assert len(new_state.temp_positions) == 0
     assert len(new_state.active_columns) == 0
-    assert new_state.current_player != initial_state.current_player
+    assert new_state.current_player == 1  # Switched to player 1
 
 def test_win_condition(game, initial_state):
     # Set up a winning state for player 0

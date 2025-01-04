@@ -48,7 +48,7 @@ async def test_llm_player_make_move_war(test_llm, db_session):
     db_session.add(game)
     db_session.commit()
 
-    llm_player = LLMPlayer("test_player", test_llm, db_session=db_session, game_id=game.id)
+    llm_player = LLMPlayer("test_player", {"model": "test"}, db_session=db_session, game_id=game.id, _llm=test_llm)
     
     # Create a realistic War game view
     state = {

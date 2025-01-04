@@ -241,16 +241,16 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
         elif move.action == "roll":
             # Roll new dice
             new_state.current_dice = [random.randint(1, 6) for _ in range(4)]
-            new_state.awaiting_selection = True
             
-            # Check if the player busted
+            # Check if the player busted before setting awaiting_selection
             if not self._has_valid_move(new_state):
                 # Current player busts - lose all progress and switch players
                 new_state.temp_positions = {}
                 new_state.active_columns = set()
                 new_state.current_player = 1 - new_state.current_player
                 new_state.current_dice = [random.randint(1, 6) for _ in range(4)]
-                new_state.awaiting_selection = True
+            
+            new_state.awaiting_selection = True
         
         return new_state
     

@@ -307,14 +307,9 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
     
     def get_move_format_instructions(self) -> str:
         return (
-            "Game Flow:\n"
-            "1. System rolls 4 dice\n"
-            "2. Select 2 sums with 'select X Y' (X, Y are column numbers 2-12)\n"
-            "3. Choose to 'roll' or 'stop'\n"
-            "Example moves:\n"
-            "- 'select 7 8' to advance in columns 7 and 8\n"
-            "- 'roll' to continue turn\n"
-            "- 'stop' to end turn and keep progress"
+            "When action_required is 'select two column sums', you must choose two sums\n"
+            "that can be created from the available dice using the format 'select X Y'\n"
+            "When action_required is 'decide to roll or stop', respond with just 'roll' or 'stop'"
         )
     
     def get_rules_explanation(self) -> str:
@@ -322,7 +317,14 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
             "Can't Stop is a push-your-luck dice game where players try to claim three columns.\n"
             "On your turn:\n"
             "1. Roll 4 dice and choose two sums from any combination of dice pairs\n"
-            "   Example: With dice 3,4,2,5 you could choose sums (7,8), (5,10), or (9,6)\n"
+            "   Example 1: With dice [3,4,2,5] you could choose:\n"
+            "   - (3+4=7, 2+5=7) for columns 7,7\n"
+            "   - (3+2=5, 4+5=9) for columns 5,9\n"
+            "   - (3+5=8, 2+4=6) for columns 8,6\n"
+            "   Example 2: With dice [6,6,1,4] you could choose:\n"
+            "   - (6+6=12, 1+4=5) for columns 12,5\n"
+            "   - (6+1=7, 6+4=10) for columns 7,10\n"
+            "   - (6+4=10, 6+1=7) for columns 10,7\n"
             "2. You can use up to 3 different columns per turn\n"
             "3. After each roll, choose to continue or stop and keep progress\n"
             "4. If you can't use any dice combinations, you lose all progress\n"

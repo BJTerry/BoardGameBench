@@ -101,6 +101,10 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
         combinations = self._get_possible_combinations(dice)
         
         for sum1, sum2 in combinations:
+            # Check if sums are valid column numbers (2-12)
+            if not (2 <= sum1 <= 12 and 2 <= sum2 <= 12):
+                continue
+                
             # Check if either sum can be used
             can_use_sum1 = (sum1 in state.columns and 
                            not state.columns[sum1].is_claimed and
@@ -232,8 +236,8 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
             new_state.current_dice = [random.randint(1, 6) for _ in range(4)]
             new_state.awaiting_selection = True
             
-            # Keep switching players until someone has a valid move
-            while not self._has_valid_move(new_state):
+            # Check if the player busted
+            if not self._has_valid_move(new_state):
                 # Current player busts - lose all progress and switch players
                 new_state.temp_positions = {}
                 new_state.active_columns = set()

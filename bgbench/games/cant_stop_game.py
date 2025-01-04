@@ -130,13 +130,11 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
                 return CantStopMove(parts[0], [])
                 
             if parts[0] == "select":
-                # Parse dice selections (0-3)
+                # Parse column selections (2-12)
                 selections = [int(i) for i in parts[1:]]
                 if len(selections) != 2:
                     return None
-                if not all(0 <= i <= 3 for i in selections):
-                    return None
-                if len(set(selections)) != 2:  # Must select different dice
+                if not all(2 <= i <= 12 for i in selections):
                     return None
                 return CantStopMove("select", selections)
                 
@@ -153,24 +151,27 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
             if move.action != "select":
                 return False, "Must select dice now"
                 
-            # Check if the selection would allow progress
+            # Check if the selected columns are valid sums of dice pairs
             dice = state.current_dice
-            sum1 = dice[move.selections[0]] + dice[move.selections[1]]
-            remaining = [dice[i] for i in range(4) if i not in move.selections]
-            sum2 = remaining[0] + remaining[1]
+            possible_sums = set()
+            for i in range(4):
+                for j in range(i + 1, 4):
+                    possible_sums.add(dice[i] + dice[j])
             
-            # Check if either sum can be used
-            can_use_sum1 = (sum1 in state.columns and 
-                           not state.columns[sum1].is_claimed and
+            sum1, sum2 = move.selections
+            if sum1 not in possible_sums or sum2 not in possible_sums:
+                return False, "Selected columns must be possible sums of dice pairs"
+            
+            # Check if columns can be used
+            can_use_sum1 = (not state.columns[sum1].is_claimed and
                            (sum1 in state.active_columns or 
                             len(state.active_columns) < 3))
-            can_use_sum2 = (sum2 in state.columns and 
-                           not state.columns[sum2].is_claimed and
+            can_use_sum2 = (not state.columns[sum2].is_claimed and
                            (sum2 in state.active_columns or 
                             len(state.active_columns) < 3))
             
             if not (can_use_sum1 or can_use_sum2):
-                return False, "Selection must allow progress in at least one column"
+                return False, "Selected columns must be available for progress"
         else:
             if move.action not in ["stop", "roll"]:
                 return False, "Must choose to stop or roll"
@@ -182,11 +183,8 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
         new_state = deepcopy(state)
         
         if state.awaiting_selection:
-            # Process dice selection
-            dice = new_state.current_dice
-            sum1 = dice[move.selections[0]] + dice[move.selections[1]]
-            remaining = [dice[i] for i in range(4) if i not in move.selections]
-            sum2 = remaining[0] + remaining[1]
+            # Process column selection
+            sum1, sum2 = move.selections
             
             # Determine which sum to use
             if (sum1 in new_state.columns and 
@@ -295,10 +293,10 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
         return (
             "Game Flow:\n"
             "1. System rolls 4 dice\n"
-            "2. Select 2 dice with 'select X Y' (X, Y are dice indices 0-3)\n"
+            "2. Select 2 sums with 'select X Y' (X, Y are column numbers 2-12)\n"
             "3. Choose to 'roll' or 'stop'\n"
             "Example moves:\n"
-            "- 'select 0 1' to select first two dice\n"
+            "- 'select 7 8' to advance in columns 7 and 8\n"
             "- 'roll' to continue turn\n"
             "- 'stop' to end turn and keep progress"
         )
@@ -307,7 +305,8 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
         return (
             "Can't Stop is a push-your-luck dice game where players try to claim three columns.\n"
             "On your turn:\n"
-            "1. Roll 4 dice and make two pairs to advance in those columns\n"
+            "1. Roll 4 dice and choose two sums from any combination of dice pairs\n"
+            "   Example: With dice 3,4,2,5 you could choose sums (7,8), (5,10), or (9,6)\n"
             "2. You can use up to 3 different columns per turn\n"
             "3. After each roll, choose to continue or stop and keep progress\n"
             "4. If you can't use any dice combinations, you lose all progress\n"

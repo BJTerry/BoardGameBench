@@ -115,6 +115,7 @@ def test_apply_move_bust(game, initial_state):
     initial_state.current_dice = [1, 1, 1, 1]  # Only possible sum is 2
     
     move = CantStopMove("roll", [])
+    import pdb; pdb.set_trace()
     new_state = game.apply_move(initial_state, 0, move)
     
     # Check that progress was lost and turn switched

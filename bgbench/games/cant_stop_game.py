@@ -27,6 +27,8 @@ class CantStopState:
     current_player: int
     temp_positions: Dict[int, int]  # column -> position (white cubes)
     active_columns: Set[int]  # Columns currently in use this turn
+    current_dice: List[int]  # Current dice values (4 dice)
+    awaiting_selection: bool  # True if waiting for dice selection, False if waiting for stop/roll decision
     
     def to_dict(self) -> dict:
         return {
@@ -39,15 +41,13 @@ class CantStopState:
 @dataclass
 class CantStopMove:
     """Represents a move in Can't Stop."""
-    dice: List[int]  # The four dice values
-    combinations: List[Tuple[int, int]]  # The chosen combinations
-    stop: bool  # Whether to end the turn
+    action: str  # Either 'select' for dice selection, 'stop' to end turn, or 'roll' to continue
+    selections: List[int]  # Indices of selected dice (0-3) when action is 'select'
     
     def to_dict(self) -> dict:
         return {
-            "dice": self.dice,
-            "combinations": self.combinations,
-            "stop": self.stop
+            "action": self.action,
+            "selections": self.selections
         }
 
 class CantStopGame(Game[CantStopState, CantStopMove]):
@@ -71,11 +71,15 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
             )
             for num in range(2, 13)
         }
+        # Roll initial dice
+        initial_dice = [random.randint(1, 6) for _ in range(4)]
         return CantStopState(
             columns=columns,
             current_player=0,
             temp_positions={},
-            active_columns=set()
+            active_columns=set(),
+            current_dice=initial_dice,
+            awaiting_selection=True
         )
     
     def _get_possible_combinations(self, dice: List[int]) -> List[List[Tuple[int, int]]]:
@@ -95,26 +99,25 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
     def parse_move(self, move_str: str) -> Optional[CantStopMove]:
         """Parse a move string."""
         try:
-            parts = move_str.strip().split()
+            parts = move_str.strip().lower().split()
             if not parts:
                 return None
                 
-            if parts[0].lower() == "stop":
-                return CantStopMove([], [], True)
+            if parts[0] in ["stop", "roll"]:
+                return CantStopMove(parts[0], [])
                 
-            # Parse dice and combinations
-            dice = [int(d) for d in parts[0:4]]
-            if len(dice) != 4:
-                return None
+            if parts[0] == "select":
+                # Parse dice selections (0-3)
+                selections = [int(i) for i in parts[1:]]
+                if len(selections) != 2:
+                    return None
+                if not all(0 <= i <= 3 for i in selections):
+                    return None
+                if len(set(selections)) != 2:  # Must select different dice
+                    return None
+                return CantStopMove("select", selections)
                 
-            combinations = []
-            combo_parts = parts[4:]
-            for i in range(0, len(combo_parts), 2):
-                if i + 1 >= len(combo_parts):
-                    break
-                combinations.append((int(combo_parts[i]), int(combo_parts[i + 1])))
-            
-            return CantStopMove(dice, combinations, False)
+            return None
         except (ValueError, IndexError):
             return None
     
@@ -123,20 +126,32 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
         if self.get_current_player(state) != player_id:
             return False, "Not your turn"
             
-        if move.stop:
-            return True, ""
+        if state.awaiting_selection:
+            if move.action != "select":
+                return False, "Must select dice now"
+                
+            # Check if the selection would allow progress
+            dice = state.current_dice
+            sum1 = dice[move.selections[0]] + dice[move.selections[1]]
+            remaining = [dice[i] for i in range(4) if i not in move.selections]
+            sum2 = remaining[0] + remaining[1]
             
-        # Validate dice combinations
-        possible_combos = self._get_possible_combinations(move.dice)
-        if not all(combo in possible_combos for combo in move.combinations):
-            return False, "Invalid dice combinations"
+            # Check if either sum can be used
+            can_use_sum1 = (sum1 in state.columns and 
+                           not state.columns[sum1].is_claimed and
+                           (sum1 in state.active_columns or 
+                            len(state.active_columns) < 3))
+            can_use_sum2 = (sum2 in state.columns and 
+                           not state.columns[sum2].is_claimed and
+                           (sum2 in state.active_columns or 
+                            len(state.active_columns) < 3))
             
-        # Check if columns are available
-        for combo in move.combinations:
-            for num in combo:
-                if state.columns[num].is_claimed:
-                    return False, f"Column {num} is already claimed"
-                    
+            if not (can_use_sum1 or can_use_sum2):
+                return False, "Selection must allow progress in at least one column"
+        else:
+            if move.action not in ["stop", "roll"]:
+                return False, "Must choose to stop or roll"
+                
         return True, ""
     
     def apply_move(self, state: CantStopState, player_id: int, move: CantStopMove) -> CantStopState:

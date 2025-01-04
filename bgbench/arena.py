@@ -65,15 +65,14 @@ class Arena():
         
         for db_player in self.experiment.players:
             if llm_factory:
-                llm: Agent[None, Union[str, ChainOfThoughtMove]] = llm_factory(db_player.name)
+                llm_player = LLMPlayer(db_player.name, db_player.model_config)
+                llm_player._llm = llm_factory(db_player.name)
             else:
                 try:
-                    llm: Agent[None, Union[str, ChainOfThoughtMove]] = create_llm(**db_player.model_config)
+                    llm_player = LLMPlayer(db_player.name, db_player.model_config)
                 except Exception as e:
                     logger.error(f"Could not recreate LLM for player {db_player.name}: {e}")
                     continue
-            
-            llm_player = LLMPlayer(db_player.name, llm)
             # Count games where player was involved
             games_played = self.session.query(GameMatch).filter(
                 (GameMatch.player1_id == db_player.id) | 
@@ -100,16 +99,21 @@ class Arena():
 
         for config in player_configs:
             if llm_factory:
-                llm = llm_factory(config["name"])
+                # For testing purposes
+                llm_player = LLMPlayer(
+                    config["name"],
+                    config["model_config"],
+                    prompt_style=PromptStyle[config.get("prompt_style", "header").upper()],
+                    response_style=ResponseStyle[config.get("response_style", "direct").upper()]
+                )
+                llm_player._llm = llm_factory(config["name"])
             else:
-                llm = create_llm(**config["model_config"])
-            
-            llm_player = LLMPlayer(
-                config["name"], 
-                llm,
-                prompt_style=PromptStyle[config.get("prompt_style", "header").upper()],
-                response_style=ResponseStyle[config.get("response_style", "direct").upper()]
-            )
+                llm_player = LLMPlayer(
+                    config["name"],
+                    config["model_config"],
+                    prompt_style=PromptStyle[config.get("prompt_style", "header").upper()],
+                    response_style=ResponseStyle[config.get("response_style", "direct").upper()]
+                )
             
             # Create database player
             db_player = DBPlayer().create_player(

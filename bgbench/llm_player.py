@@ -15,12 +15,21 @@ logger = logging.getLogger("bgbench")
 @dataclass
 class LLMPlayer:
     name: str
-    llm: Agent[None, Union[str, ChainOfThoughtMove]]
+    model_config: Dict[str, Any]
     prompt_style: PromptStyle = PromptStyle.HEADER
     response_style: ResponseStyle = ResponseStyle.DIRECT
     conversation_history: List[Dict[str, str]] = field(default_factory=list)
     db_session: Optional[Any] = None
     game_id: Optional[int] = None
+    _llm: Optional[Agent[None, Union[str, ChainOfThoughtMove]]] = field(default=None, init=False)
+
+    def __post_init__(self):
+        if self._llm is None:
+            self._llm = create_llm(**self.model_config)
+
+    @property 
+    def llm(self) -> Agent[None, Union[str, ChainOfThoughtMove]]:
+        return self._llm
 
     async def make_move(self, game_view: GameView, invalid_moves: Optional[List[Dict[str, str]]] = None) -> Any:
         """Generate a move using the LLM agent.

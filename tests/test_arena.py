@@ -125,8 +125,7 @@ class TestArena:
                 "model_config": {
                     "model": "test-model",
                     "temperature": 0.0,
-                    "max_tokens": 1000,
-                    "mock_llm": mock_llm
+                    "max_tokens": 1000
                 }
             },
             {
@@ -134,8 +133,7 @@ class TestArena:
                 "model_config": {
                     "model": "test-model", 
                     "temperature": 0.0,
-                    "max_tokens": 1000,
-                    "mock_llm": mock_llm
+                    "max_tokens": 1000
                 }
             }
         ]

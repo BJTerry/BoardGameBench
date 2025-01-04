@@ -275,7 +275,9 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
                 for num, col in state.columns.items()
             },
             "active_columns": list(state.active_columns),
-            "your_turn": player_id == state.current_player
+            "your_turn": player_id == state.current_player,
+            "current_dice": state.current_dice if player_id == state.current_player else None,
+            "action_required": "select two column sums" if state.awaiting_selection else "decide to roll or stop"
         }
         
         # Check win condition

@@ -2,7 +2,7 @@ import json
 import logging
 from typing import Any, Optional, List, Dict, Tuple, Union
 from bgbench.moves import ChainOfThoughtMove, extract_move
-from bgbench.llm_integration import ResponseStyle
+from bgbench.llm_integration import ResponseStyle, create_llm
 from dataclasses import dataclass, field
 import time
 from pydantic_ai import Agent, capture_run_messages

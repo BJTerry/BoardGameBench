@@ -14,7 +14,7 @@ async def test_llm_player_make_move_nim(test_llm, db_session):
     db_session.add(game)
     db_session.commit()
 
-    llm_player = LLMPlayer("test_player", test_llm, db_session=db_session, game_id=game.id)
+    llm_player = LLMPlayer("test_player", {"model": "test"}, db_session=db_session, game_id=game.id, _llm=test_llm)
     
     # Create a realistic Nim game view
     state = {"remaining": 10}
@@ -128,7 +128,7 @@ async def test_llm_player_db_logging(test_llm, mocker):
     # Mock the class to return the mock instance
     mocker.patch('bgbench.llm_player.LLMInteraction', return_value=mock_interaction)
     
-    llm_player = LLMPlayer("test_player", test_llm, db_session=mock_session, game_id=1)
+    llm_player = LLMPlayer("test_player", {"model": "test"}, db_session=mock_session, game_id=1, _llm=test_llm)
     
     game_view = GameView(
         visible_state={"remaining": 5},

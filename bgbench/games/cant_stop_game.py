@@ -271,7 +271,7 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
                     "claimed_by": col.claimed_by,
                     "your_position": col.player_positions.get(player_id, 0),
                     "opponent_position": col.player_positions.get(1 - player_id, 0),
-                    "temp_position": state.temp_positions.get(num, 0) if player_id == state.current_player else 0
+                    "temp_progress_position": state.temp_positions.get(num, 0) if player_id == state.current_player else 0
                 }
                 for num, col in state.columns.items()
             },

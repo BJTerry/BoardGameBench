@@ -2,144 +2,142 @@
 
 ## Architecture Overview
 
-The framework enables flexible game implementation and LLM integration while maintaining clear separation of concerns.
+The framework enables systematic evaluation of LLM game-playing capabilities through a modular, extensible architecture.
 
 ### Core Components
 
 1. Game Engine
-   - Abstract Game interface
-   - Game-specific state classes
-   - Move validation
-   - Player views through GameView
+   - Abstract Game interface defining core game mechanics
+   - Game-specific state classes with type hints
+   - Strict move validation
+   - Player views through GameView with configurable prompt styles
 
 2. LLM Integration
-   - Integration with OpenRouter and OpenAI
-   - Basic conversation management
-   - Simple move parsing
+   - Unified interface for OpenRouter and OpenAI models
+   - Advanced conversation management with history tracking
+   - Robust move parsing with chain-of-thought support
+   - Configurable system prompts and response styles
+   - Comprehensive error handling and retry logic
 
 3. Game Implementations
-   - NimGame
-   - BattleshipGame 
-   - WarGame
-   - Each with specific state classes and consistent method implementations
+   - NimGame, BattleshipGame, WarGame with consistent interfaces
+   - Type-safe state management
+   - Clear validation rules
+   - Detailed game history tracking
+
+4. Arena System
+   - Automated match scheduling
+   - Elo rating calculations
+   - Confidence-based match termination
+   - Comprehensive experiment tracking
 
 ## Key Design Decisions
 
 ### 1. Game State & Views
 
-Each game implements:
-- get_player_view() returning GameView
-- validate_move() for move checking
-- get_move_format_instructions() for LLM guidance
-- apply_move() for state transitions
+Each game provides:
+- Strongly typed state management
+- Configurable view formatting (JSON/XML/Text)
+- Detailed move validation
+- Comprehensive game history
+- Clear win condition tracking
 
-### 2. Move Handling
+### 2. LLM Integration
 
-Two-phase move process:
-1. Validation via validate_move()
-2. Application via apply_move()
+Advanced integration features:
+- Multiple response styles (Direct/Chain-of-thought)
+- Configurable prompt formatting
+- Model-specific optimizations
+- Detailed interaction logging
+- Performance metrics tracking
 
-### 3. LLM Integration
+### 3. Database Integration
 
-Basic async interface:
-- complete() method for queries
-- Simple message format
-- Minimal error handling
-- Basic retry logic implemented
+Comprehensive experiment tracking:
+- Full game history
+- Player statistics
+- LLM interaction details
+- Performance metrics
+- Rating progression
 
-### Core Testing Components
+### Testing Architecture
 
-1. **Test Framework**
-   - pytest as the primary testing framework
-   - pytest-asyncio for testing async code
-   - pytest-mock for dependency mocking
-   - conftest.py providing common fixtures
+1. **Framework Components**
+   - pytest with async support
+   - Comprehensive fixture system
+   - Controlled test environments
+   - Detailed failure logging
 
 2. **LLM Testing**
-   - pydantic-ai TestModel for LLM simulation
-   - Captured message flows for verification
-   - Mocked database sessions
-   - System prompt consistency checks
+   - TestModel for deterministic LLM simulation
+   - Message flow capture and verification
+   - System prompt consistency validation
+   - Error condition simulation
 
-3. **Game Testing**
-   - Comprehensive game logic validation
-   - State transition verification
-   - Move validation testing
-   - Win condition checks
-   - Edge case handling
-
-### Test Organization
-
-Tests are organized by component:
-
-1. **Game Logic Tests**
-   - NimGame
-   - BattleshipGame
-   - WarGame
-   - Move validation
-   - State transitions
-   - Win conditions
-
-2. **LLM Integration Tests**
-   - LLMPlayer interactions
-   - Move generation
-   - Error handling
-   - Database logging
-   - System prompt consistency
-
-3. **Infrastructure Tests**
-   - Database operations
-   - Configuration handling
-   - Error conditions
-   - Edge cases
+3. **Integration Testing**
+   - End-to-end game scenarios
+   - Database operation verification
+   - Rating system validation
+   - Performance metric tracking
 
 ### Best Practices
 
-1. **Test Isolation**
-   - Each test focuses on one component
-   - Dependencies properly mocked
-   - Clean state between tests
-   - Async support where needed
+1. **Code Organization**
+   - Clear separation of concerns
+   - Type safety throughout
+   - Comprehensive error handling
+   - Detailed logging
 
-2. **Mocking Strategy**
-   - External APIs always mocked
-   - Database operations simulated
-   - File system interactions controlled
-   - Time-dependent operations managed
+2. **Testing Strategy**
+   - Isolated component testing
+   - Comprehensive mocking
+   - Edge case coverage
+   - Performance validation
 
-3. **Coverage Goals**
-   - Critical paths fully covered
-   - Edge cases included
-   - Error conditions tested
-   - Integration points verified
+3. **Documentation**
+   - Clear API documentation
+   - Usage examples
+   - Configuration guides
+   - Troubleshooting information
 
 ## Current Status
 
-1. Core Features Implemented
-   - Game state management
-   - Player tracking
-   - Basic error handling
-   - Move validation
-   - Game completion tracking
-   - Rating system
-   - Win/loss statistics
+1. Core Features
+   - Robust game engine
+   - Advanced LLM integration
+   - Comprehensive testing
+   - Detailed experiment tracking
+   - Rating system implementation
 
 2. Database Features
-   - Experiment tracking
-   - Player statistics
-   - Game state history
-   - LLM interaction logging
-   - Win matrix generation
-   - Concession handling
+   - Full experiment logging
+   - Detailed player statistics
+   - Complete game history
+   - LLM interaction tracking
+   - Performance metrics
+
+3. Testing Coverage
+   - Component isolation
+   - Integration verification
+   - Error handling
+   - Performance validation
 
 ## Next Steps
 
-1. Standardization
-   - Standard error handling
+1. Enhancements
+   - Additional game implementations
+   - Extended metrics tracking
+   - Advanced analysis tools
+   - Performance optimizations
 
-2. Core Improvements
-   - Add retry logic to LLMs
-   - LLM prompt styles
+2. Documentation
+   - API reference updates
+   - Configuration guides
+   - Best practices documentation
+   - Troubleshooting guides
 
 3. Future Features
-   - Game replay capability in progress
+   - Tournament support
+   - Advanced analytics
+   - Real-time monitoring
+   - Performance benchmarking

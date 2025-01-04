@@ -21,7 +21,7 @@ class LLMPlayer:
     conversation_history: List[Dict[str, str]] = field(default_factory=list)
     db_session: Optional[Any] = None
     game_id: Optional[int] = None
-    _llm: Optional[Agent[None, Union[str, ChainOfThoughtMove]]] = field(default=None, init=False)
+    _llm: Optional[Agent[None, Union[str, ChainOfThoughtMove]]] = field(default=None)
 
     def __post_init__(self):
         if self._llm is None:

@@ -110,8 +110,8 @@ class Arena():
                     config["model_config"],
                     prompt_style=PromptStyle[config.get("prompt_style", "header").upper()],
                     response_style=ResponseStyle[config.get("response_style", "direct").upper()],
+                    _llm=mock_llm,
                 )
-                llm_player._llm = mock_llm  # Set mock LLM directly
             else:
                 llm_player = LLMPlayer(
                     config["name"],

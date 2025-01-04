@@ -103,13 +103,15 @@ class Arena():
         for config in player_configs:
             if llm_factory:
                 # For testing purposes
+                # Create LLM player with mock for testing
+                mock_llm = llm_factory(config["name"])
                 llm_player = LLMPlayer(
                     config["name"],
                     config["model_config"],
                     prompt_style=PromptStyle[config.get("prompt_style", "header").upper()],
                     response_style=ResponseStyle[config.get("response_style", "direct").upper()],
-                    _llm=llm_factory(config["name"])
                 )
+                llm_player._llm = mock_llm  # Set mock LLM directly
             else:
                 llm_player = LLMPlayer(
                     config["name"],

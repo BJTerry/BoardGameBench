@@ -94,22 +94,14 @@ class TestArena:
                 "max_tokens": 1000
             }
         }]
-        
+
         def mock_llm_factory(name):
-            return {"model": "test-model", "mock_llm": mock_llm}
-            
+            return mock_llm
+
         arena = Arena(
             nim_game,
             db_session,
-            player_configs=[{
-                "name": "test-player",
-                "model_config": {
-                    "model": "test-model",
-                    "temperature": 0.0,
-                    "max_tokens": 1000,
-                    "mock_llm": mock_llm
-                }
-            }],
+            player_configs=player_configs,
             experiment_name="test-new-experiment",
             llm_factory=mock_llm_factory
         )

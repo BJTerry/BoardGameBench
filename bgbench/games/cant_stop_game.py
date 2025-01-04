@@ -83,19 +83,37 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
             awaiting_selection=True
         )
     
-    def _get_possible_combinations(self, dice: List[int]) -> List[List[Tuple[int, int]]]:
+    def _get_possible_combinations(self, dice: List[int]) -> List[Tuple[int, int]]:
         """Get all possible dice combinations."""
         if len(dice) != 4:
             return []
             
-        results = []
         # Try all possible pairings
-        pairs = [
-            [(dice[0] + dice[1], dice[2] + dice[3]),
-             (dice[0] + dice[2], dice[1] + dice[3]),
-             (dice[0] + dice[3], dice[1] + dice[2])]
+        return [
+            (dice[0] + dice[1], dice[2] + dice[3]),
+            (dice[0] + dice[2], dice[1] + dice[3]),
+            (dice[0] + dice[3], dice[1] + dice[2])
         ]
-        return pairs[0]
+
+    def _has_valid_move(self, state: CantStopState) -> bool:
+        """Check if any valid moves are possible with current dice."""
+        dice = state.current_dice
+        combinations = self._get_possible_combinations(dice)
+        
+        for sum1, sum2 in combinations:
+            # Check if either sum can be used
+            can_use_sum1 = (sum1 in state.columns and 
+                           not state.columns[sum1].is_claimed and
+                           (sum1 in state.active_columns or 
+                            len(state.active_columns) < 3))
+            can_use_sum2 = (sum2 in state.columns and 
+                           not state.columns[sum2].is_claimed and
+                           (sum2 in state.active_columns or 
+                            len(state.active_columns) < 3))
+            
+            if can_use_sum1 or can_use_sum2:
+                return True
+        return False
     
     def parse_move(self, move_str: str) -> Optional[CantStopMove]:
         """Parse a move string."""
@@ -160,37 +178,46 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
         new_state = deepcopy(state)
         
         if state.awaiting_selection:
-            # Process dice selection
-            dice = new_state.current_dice
-            sum1 = dice[move.selections[0]] + dice[move.selections[1]]
-            remaining = [dice[i] for i in range(4) if i not in move.selections]
-            sum2 = remaining[0] + remaining[1]
-            
-            # Determine which sum to use
-            if (sum1 in new_state.columns and 
-                not new_state.columns[sum1].is_claimed and
-                (sum1 in new_state.active_columns or 
-                 len(new_state.active_columns) < 3)):
-                current_pos = new_state.temp_positions.get(sum1, 0)
-                new_state.temp_positions[sum1] = min(
-                    current_pos + 1,
-                    new_state.columns[sum1].max_height
-                )
-                new_state.active_columns.add(sum1)
-            
-            if (sum2 in new_state.columns and 
-                not new_state.columns[sum2].is_claimed and
-                (sum2 in new_state.active_columns or 
-                 len(new_state.active_columns) < 3)):
-                current_pos = new_state.temp_positions.get(sum2, 0)
-                new_state.temp_positions[sum2] = min(
-                    current_pos + 1,
-                    new_state.columns[sum2].max_height
-                )
-                new_state.active_columns.add(sum2)
-            
-            # Switch to stop/roll decision
-            new_state.awaiting_selection = False
+            # First check if any valid moves are possible
+            if not self._has_valid_move(new_state):
+                # Player busts - lose all progress and end turn
+                new_state.temp_positions = {}
+                new_state.active_columns = set()
+                new_state.current_player = 1 - player_id
+                new_state.current_dice = [random.randint(1, 6) for _ in range(4)]
+                new_state.awaiting_selection = True
+            else:
+                # Process dice selection
+                dice = new_state.current_dice
+                sum1 = dice[move.selections[0]] + dice[move.selections[1]]
+                remaining = [dice[i] for i in range(4) if i not in move.selections]
+                sum2 = remaining[0] + remaining[1]
+                
+                # Determine which sum to use
+                if (sum1 in new_state.columns and 
+                    not new_state.columns[sum1].is_claimed and
+                    (sum1 in new_state.active_columns or 
+                     len(new_state.active_columns) < 3)):
+                    current_pos = new_state.temp_positions.get(sum1, 0)
+                    new_state.temp_positions[sum1] = min(
+                        current_pos + 1,
+                        new_state.columns[sum1].max_height
+                    )
+                    new_state.active_columns.add(sum1)
+                
+                if (sum2 in new_state.columns and 
+                    not new_state.columns[sum2].is_claimed and
+                    (sum2 in new_state.active_columns or 
+                     len(new_state.active_columns) < 3)):
+                    current_pos = new_state.temp_positions.get(sum2, 0)
+                    new_state.temp_positions[sum2] = min(
+                        current_pos + 1,
+                        new_state.columns[sum2].max_height
+                    )
+                    new_state.active_columns.add(sum2)
+                
+                # Switch to stop/roll decision
+                new_state.awaiting_selection = False
         
         elif move.action == "stop":
             # Convert temporary positions to permanent ones

@@ -13,6 +13,7 @@ pydantic-ai = "^0.0.15"
 openai = "^1.58.1"
 sqlalchemy = "^2.0.36"
 alembic = "^1.14.0"
+python-chess = "^1.999"
 
 
 [tool.poetry.group.dev.dependencies]

@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 import time
 from pydantic_ai import Agent, capture_run_messages
 from bgbench.game_view import GameView, PromptStyle
+from bgbench.llm_integration import NON_SYSTEM_MODELS, SYSTEM_PROMPT
 from bgbench.models import LLMInteraction, Player
 
 logger = logging.getLogger("bgbench")
@@ -39,7 +40,12 @@ class LLMPlayer:
         # Format the game view according to the configured style
         formatted_game_view = game_view.format_prompt()
         
-        prompt = (
+        if self.llm.model in NON_SYSTEM_MODELS:
+            prompt = SYSTEM_PROMPT + "\n"
+        else:
+            prompt = ""
+        
+        prompt += (
             f"{formatted_game_view}\n\n"
             "What is your move? Respond with ONLY your move in the exact format specified."
         )

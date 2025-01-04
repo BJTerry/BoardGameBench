@@ -111,13 +111,16 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
 
         # Card-specific validation
         if move.card == Card.GUARD:
-            if not all_others_protected:
-                if move.target_player is None or move.named_card is None:
-                    return False, "Guard requires target player and named card"
-                if move.target_player == player_id:
-                    return False, "Cannot target yourself with Guard"
-                if move.named_card == Card.GUARD:
-                    return False, "Guard cannot name Guard"
+            # When all other players are protected, Guard can be played without target
+            if all_others_protected:
+                return True, ""
+            if move.target_player is None or move.named_card is None:
+                return False, "Guard requires target player and named card"
+            if move.target_player == player_id:
+                return False, "Cannot target yourself with Guard"
+            if move.named_card == Card.GUARD:
+                return False, "Guard cannot name Guard"
+            # Guard can target protected players but will have no effect
         elif move.card == Card.PRIEST:
             if not all_others_protected and move.target_player is None:
                 return False, "Priest requires a target player"
@@ -132,8 +135,9 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
         elif move.card == Card.PRINCE:
             if move.target_player is None:
                 return False, "Prince requires a target player"
-            if all_others_protected and move.target_player != player_id:
-                return False, "Must target yourself with Prince when all others are protected"
+            # Prince can always self-target, regardless of protection
+            if move.target_player == player_id:
+                return True, ""
         elif move.card == Card.KING:
             if not all_others_protected:
                 if move.target_player is None:

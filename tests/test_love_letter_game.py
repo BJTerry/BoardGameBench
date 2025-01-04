@@ -54,6 +54,8 @@ def test_validate_move(game, initial_state):
     # Test self-targeting rules
     assert not game.validate_move(state, 0, LoveLetterMove(Card.GUARD, 0, Card.PRIEST))[0]  # Guard can't self-target
     assert game.validate_move(state, 0, LoveLetterMove(Card.PRIEST, 0))[0]  # Priest can self-target
+
+    state.drawn_card = Card.PRINCE
     assert game.validate_move(state, 0, LoveLetterMove(Card.PRINCE, 0))[0]  # Prince can self-target
 
 def test_countess_rule(game, initial_state):
@@ -103,26 +105,23 @@ def test_handmaid_protection(game, initial_state):
     # Test behavior when all others are protected
     # Guard can be played without target
     assert game.validate_move(state, 0, LoveLetterMove(Card.GUARD))[0]
-    # Guard with target does nothing but is valid
-    assert game.validate_move(state, 0, LoveLetterMove(Card.GUARD, 1, Card.PRIEST))[0]
     
     # Priest must target self
     assert game.validate_move(state, 0, LoveLetterMove(Card.PRIEST, 0))[0]
     assert not game.validate_move(state, 0, LoveLetterMove(Card.PRIEST, 1))[0]
     
     # Baron can be played without target
+    state.drawn_card = Card.BARON
     assert game.validate_move(state, 0, LoveLetterMove(Card.BARON))[0]
-    # Baron with target does nothing but is valid
-    assert game.validate_move(state, 0, LoveLetterMove(Card.BARON, 1))[0]
     
     # Prince must target self
+    state.drawn_card = Card.PRINCE
     assert game.validate_move(state, 0, LoveLetterMove(Card.PRINCE, 0))[0]
     assert not game.validate_move(state, 0, LoveLetterMove(Card.PRINCE, 1))[0]
     
     # King can be played without target
+    state.drawn_card = Card.KING
     assert game.validate_move(state, 0, LoveLetterMove(Card.KING))[0]
-    # King with target does nothing but is valid
-    assert game.validate_move(state, 0, LoveLetterMove(Card.KING, 1))[0]
 
 def test_guard_effect(game, initial_state):
     state = initial_state

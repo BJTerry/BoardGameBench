@@ -46,23 +46,14 @@ async def main():
             "prompt_style": "json"
         },
         {
-            "name": "claude-3-haiku (xml)",
+            "name": "o1-mini",
             "model_config": {
-                "model": "openrouter/anthropic/claude-3-haiku",
+                "model": "openai/o1-mini",
                 "temperature": 0.0,
                 "max_tokens": 1000
             },
-            "prompt_style": "xml"
-        },
-        {
-            "name": "claude-3-haiku (header)",
-            "model_config": {
-                "model": "openrouter/anthropic/claude-3-haiku",
-                "temperature": 0.0,
-                "max_tokens": 1000
-            },
-            "prompt_style": "header"
-        },
+            "prompt_style": "json"
+        }
     ]
 
     # Get the game class from our available games

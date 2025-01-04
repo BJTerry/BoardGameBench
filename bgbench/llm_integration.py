@@ -6,19 +6,26 @@ from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.settings import ModelSettings
 from typing import TypedDict
 
+NON_SYSTEM_MODELS = ["openai/o1-mini", "openai/o1-preview"]
+SYSTEM_PROMPT = (
+    "You are playing a game. Your goal is to win by making valid moves according to the rules. "
+    "Always respond with ONLY your move in the exact format specified - no explanation or other text."
+)
+
 class OurModelSettings(TypedDict, total=True):
     temperature: float
     max_tokens: int
     top_p: float
     timeout: float
 
-def convert_to_agent_settings(settings: OurModelSettings) -> ModelSettings:
+def convert_to_agent_settings(settings: OurModelSettings, model: str) -> ModelSettings:
     """Convert our settings to Agent's ModelSettings"""
     return ModelSettings(
-        temperature=settings["temperature"],
-        max_tokens=settings["max_tokens"],
         top_p=settings["top_p"],
-        timeout=settings["timeout"]
+        timeout=settings["timeout"],
+        **({'temperature': settings['temperature']} if model not in NON_SYSTEM_MODELS else {}),
+        **({'max_completion_tokens': settings['max_tokens']} if model in NON_SYSTEM_MODELS else {}),
+        **({'max_tokens': settings['max_tokens']} if model not in NON_SYSTEM_MODELS else {}),
     )
 
 logger = logging.getLogger(__name__)
@@ -31,7 +38,7 @@ def create_llm(model: str, temperature: float = 0.0, max_tokens: int = 1000, **k
         top_p=1.0,  # Default value
         timeout=60.0  # Default timeout in seconds
     )
-    model_settings = convert_to_agent_settings(settings)
+    model_settings = convert_to_agent_settings(settings, model)
     
     if model.startswith('openrouter'):
         # For Claude models, we use OpenRouter to access Anthropic
@@ -63,12 +70,10 @@ def create_llm(model: str, temperature: float = 0.0, max_tokens: int = 1000, **k
     else:
         raise ValueError(f"Invalid model provider for {model}")
 
-    @agent.system_prompt
-    def system_prompt():
-        return (
-            "You are playing a game. Your goal is to win by making valid moves according to the rules. "
-            "Always respond with ONLY your move in the exact format specified - no explanation or other text."
-        )
+    if model not in NON_SYSTEM_MODELS:
+        @agent.system_prompt
+        def system_prompt():
+            return SYSTEM_PROMPT
 
     return agent
 
@@ -77,13 +82,13 @@ def create_test_llm(test_responses: List[str]) -> Agent:
     from pydantic_ai.models.test import TestModel
     
     agent = Agent(
-        TestModel(),
+        TestModel(test_responses),  # Added test_responses parameter
         model_settings=convert_to_agent_settings(OurModelSettings(
             temperature=0.0,
             max_tokens=1000,
             top_p=1.0,
             timeout=60.0
-        ))
+        ), "test_model")
     )
     return agent
 

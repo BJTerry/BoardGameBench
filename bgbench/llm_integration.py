@@ -1,5 +1,5 @@
 import os
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, cast
 import logging
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIModel
@@ -12,11 +12,20 @@ SYSTEM_PROMPT = (
     "Always respond with ONLY your move in the exact format specified - no explanation or other text."
 )
 
+from enum import Enum
+from typing import Union, Type
+from .moves import ChainOfThoughtMove
+
+class ResponseStyle(Enum):
+    DIRECT = "direct"  # Direct response with just the move
+    CHAIN_OF_THOUGHT = "chain_of_thought"  # Structured response with reasoning
+
 class OurModelSettings(TypedDict, total=True):
     temperature: float
     max_tokens: int
     top_p: float
     timeout: float
+    response_style: ResponseStyle
 
 def convert_to_agent_settings(settings: OurModelSettings, model: str) -> ModelSettings:
     """Convert our settings to Agent's ModelSettings"""
@@ -30,15 +39,24 @@ def convert_to_agent_settings(settings: OurModelSettings, model: str) -> ModelSe
 
 logger = logging.getLogger(__name__)
 
-def create_llm(model: str, temperature: float = 0.0, max_tokens: int = 1000, **kwargs) -> Agent:
+def create_llm(
+    model: str, 
+    temperature: float = 0.0, 
+    max_tokens: int = 1000,
+    response_style: ResponseStyle = ResponseStyle.DIRECT,
+    **kwargs
+) -> Agent[None, Union[str, ChainOfThoughtMove]]:
     """Factory function to create appropriate Agent instance based on model name."""
     settings = OurModelSettings(
         temperature=temperature,
         max_tokens=max_tokens,
         top_p=1.0,  # Default value
-        timeout=60.0  # Default timeout in seconds
+        timeout=60.0,  # Default timeout in seconds
+        response_style=response_style
     )
     model_settings = convert_to_agent_settings(settings, model)
+
+    result_type: Union[type[str], type[ChainOfThoughtMove]] = str if response_style == ResponseStyle.DIRECT.value else ChainOfThoughtMove
     
     if model.startswith('openrouter'):
         # For Claude models, we use OpenRouter to access Anthropic
@@ -53,7 +71,8 @@ def create_llm(model: str, temperature: float = 0.0, max_tokens: int = 1000, **k
                 base_url='https://openrouter.ai/api/v1',
                 api_key=openrouter_key,
             ),
-            model_settings=model_settings
+            model_settings=model_settings,
+            result_type=result_type
         )
         logger.info(f"Initialized OpenRouter Agent for Anthropic model {model} via OpenRouter")
     elif model.startswith("openai"):
@@ -65,6 +84,7 @@ def create_llm(model: str, temperature: float = 0.0, max_tokens: int = 1000, **k
                 api_key=openai_key,
             ),
             model_settings=model_settings,
+            result_type=result_type
         )
         logger.info(f"Initialized OpenAI Agent with model {model}")
     else:
@@ -75,7 +95,7 @@ def create_llm(model: str, temperature: float = 0.0, max_tokens: int = 1000, **k
         def system_prompt():
             return SYSTEM_PROMPT
 
-    return agent
+    return cast(Agent[None, Union[str, ChainOfThoughtMove]], agent)
 
 def create_test_llm(test_responses: List[str]) -> Agent:
     """Create an agent with overridden responses for testing."""
@@ -87,7 +107,8 @@ def create_test_llm(test_responses: List[str]) -> Agent:
             temperature=0.0,
             max_tokens=1000,
             top_p=1.0,
-            timeout=60.0
+            timeout=60.0,
+            response_style=ResponseStyle.DIRECT,
         ), "test_model")
     )
     return agent

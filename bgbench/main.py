@@ -37,23 +37,25 @@ async def main():
     # Configure players
     player_configs = [
         {
-            "name": "claude-3-haiku (json)",
-            "model_config": {
-                "model": "openrouter/anthropic/claude-3-haiku",
-                "temperature": 0.0,
-                "max_tokens": 1000
-            },
-            "prompt_style": "json"
-        },
-        {
             "name": "o1-mini",
             "model_config": {
                 "model": "openai/o1-mini",
                 "temperature": 0.0,
-                "max_tokens": 1000
+                "max_tokens": 1000,
+                "response_style": "direct",
             },
-            "prompt_style": "json"
-        }
+            "prompt_style": "json",
+        },
+        {
+            "name": "claude-3-haiku (json, cot)",
+            "model_config": {
+                "model": "openrouter/anthropic/claude-3-haiku",
+                "temperature": 0.0,
+                "max_tokens": 1000,
+                "response_style": "chain_of_thought",
+            },
+            "prompt_style": "json",
+        },
     ]
 
     # Get the game class from our available games

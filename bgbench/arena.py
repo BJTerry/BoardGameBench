@@ -1,14 +1,16 @@
 import logging
 from dataclasses import dataclass
 import random
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
+from pydantic_ai import Agent
 from sqlalchemy.orm import Session
 from bgbench.models import Experiment, Player as DBPlayer, GameMatch
-from bgbench.llm_integration import create_llm
+from bgbench.llm_integration import ResponseStyle, create_llm
 from bgbench.game import Game
 from bgbench.llm_player import LLMPlayer
 from bgbench.game_view import PromptStyle
 from bgbench.game_runner import GameRunner
+from bgbench.moves import ChainOfThoughtMove
 from bgbench.rating import PlayerRating, EloSystem
 
 logger = logging.getLogger("bgbench")
@@ -63,10 +65,10 @@ class Arena():
         
         for db_player in self.experiment.players:
             if llm_factory:
-                llm = llm_factory(db_player.name)
+                llm: Agent[None, Union[str, ChainOfThoughtMove]] = llm_factory(db_player.name)
             else:
                 try:
-                    llm = create_llm(**db_player.model_config)
+                    llm: Agent[None, Union[str, ChainOfThoughtMove]] = create_llm(**db_player.model_config)
                 except Exception as e:
                     logger.error(f"Could not recreate LLM for player {db_player.name}: {e}")
                     continue
@@ -105,7 +107,8 @@ class Arena():
             llm_player = LLMPlayer(
                 config["name"], 
                 llm,
-                prompt_style=PromptStyle[config.get("prompt_style", "header").upper()]
+                prompt_style=PromptStyle[config.get("prompt_style", "header").upper()],
+                response_style=ResponseStyle[config.get("response_style", "direct").upper()]
             )
             
             # Create database player

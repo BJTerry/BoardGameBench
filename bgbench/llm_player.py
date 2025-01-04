@@ -1,6 +1,8 @@
 import json
 import logging
-from typing import Any, Optional, List, Dict, Tuple
+from typing import Any, Optional, List, Dict, Tuple, Union
+from bgbench.moves import ChainOfThoughtMove, extract_move
+from bgbench.llm_integration import ResponseStyle
 from dataclasses import dataclass, field
 import time
 from pydantic_ai import Agent, capture_run_messages
@@ -13,8 +15,9 @@ logger = logging.getLogger("bgbench")
 @dataclass
 class LLMPlayer:
     name: str
-    llm: Agent
+    llm: Agent[None, Union[str, ChainOfThoughtMove]]
     prompt_style: PromptStyle = PromptStyle.HEADER
+    response_style: ResponseStyle = ResponseStyle.DIRECT
     conversation_history: List[Dict[str, str]] = field(default_factory=list)
     db_session: Optional[Any] = None
     game_id: Optional[int] = None
@@ -63,8 +66,11 @@ class LLMPlayer:
             try:
                 result = await self.llm.run(prompt)
                 end_time = time.time()
-                response = result.data.strip()
-                self.conversation_history.append({"role": "assistant", "content": response})
+                
+                # Extract move based on response style
+                raw_response = result.data
+                move = extract_move(raw_response).strip()
+                self.conversation_history.append({"role": "assistant", "content": move})
                 
                 # Extract token usage if available
                 token_usage = getattr(result, 'usage', None)
@@ -88,12 +94,12 @@ class LLMPlayer:
                         game_id=self.game_id,
                         player_id=player.id,
                         prompt=json_messages,
-                        response=response
+                        response=move,
                     )
                     llm_interaction.log_interaction(
                         self.db_session,
                         json_messages,
-                        response,
+                        move,
                         start_time,
                         end_time,
                         prompt_tokens,
@@ -101,7 +107,7 @@ class LLMPlayer:
                         total_tokens
                     )
                 
-                return response
+                return move
             except Exception:
                 print(messages)
                 raise

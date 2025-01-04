@@ -178,16 +178,7 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
         new_state = deepcopy(state)
         
         if state.awaiting_selection:
-            # First check if any valid moves are possible
-            if not self._has_valid_move(new_state):
-                # Player busts - lose all progress and end turn
-                new_state.temp_positions = {}
-                new_state.active_columns = set()
-                new_state.current_player = 1 - player_id
-                new_state.current_dice = [random.randint(1, 6) for _ in range(4)]
-                new_state.awaiting_selection = True
-            else:
-                # Process dice selection
+            # Process dice selection
                 dice = new_state.current_dice
                 sum1 = dice[move.selections[0]] + dice[move.selections[1]]
                 remaining = [dice[i] for i in range(4) if i not in move.selections]
@@ -240,6 +231,15 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
             # Roll new dice
             new_state.current_dice = [random.randint(1, 6) for _ in range(4)]
             new_state.awaiting_selection = True
+            
+            # Check if any valid moves are possible with new roll
+            if not self._has_valid_move(new_state):
+                # Player busts - lose all progress and end turn
+                new_state.temp_positions = {}
+                new_state.active_columns = set()
+                new_state.current_player = 1 - player_id
+                new_state.current_dice = [random.randint(1, 6) for _ in range(4)]
+                new_state.awaiting_selection = True
         
         return new_state
     

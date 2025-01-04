@@ -165,10 +165,45 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
             ) for k, v in state.columns.items()},
             current_player=state.current_player,
             temp_positions=state.temp_positions.copy(),
-            active_columns=state.active_columns.copy()
+            active_columns=state.active_columns.copy(),
+            current_dice=state.current_dice.copy(),
+            awaiting_selection=state.awaiting_selection
         )
         
-        if move.stop:
+        if state.awaiting_selection:
+            # Process dice selection
+            dice = new_state.current_dice
+            sum1 = dice[move.selections[0]] + dice[move.selections[1]]
+            remaining = [dice[i] for i in range(4) if i not in move.selections]
+            sum2 = remaining[0] + remaining[1]
+            
+            # Determine which sum to use
+            if (sum1 in new_state.columns and 
+                not new_state.columns[sum1].is_claimed and
+                (sum1 in new_state.active_columns or 
+                 len(new_state.active_columns) < 3)):
+                current_pos = new_state.temp_positions.get(sum1, 0)
+                new_state.temp_positions[sum1] = min(
+                    current_pos + 1,
+                    new_state.columns[sum1].max_height
+                )
+                new_state.active_columns.add(sum1)
+            
+            if (sum2 in new_state.columns and 
+                not new_state.columns[sum2].is_claimed and
+                (sum2 in new_state.active_columns or 
+                 len(new_state.active_columns) < 3)):
+                current_pos = new_state.temp_positions.get(sum2, 0)
+                new_state.temp_positions[sum2] = min(
+                    current_pos + 1,
+                    new_state.columns[sum2].max_height
+                )
+                new_state.active_columns.add(sum2)
+            
+            # Switch to stop/roll decision
+            new_state.awaiting_selection = False
+        
+        elif move.action == "stop":
             # Convert temporary positions to permanent ones
             for col, pos in new_state.temp_positions.items():
                 if col in new_state.columns:
@@ -178,28 +213,17 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
                         new_state.columns[col].is_claimed = True
                         new_state.columns[col].claimed_by = player_id
             
-            # Clear temporary state
+            # Reset for next player
             new_state.temp_positions = {}
             new_state.active_columns = set()
             new_state.current_player = 1 - player_id
-            return new_state
-            
-        # Process the combinations
-        for combo in move.combinations:
-            for num in combo:
-                if num not in new_state.active_columns:
-                    if len(new_state.active_columns) >= 3:
-                        continue
-                    new_state.active_columns.add(num)
-                
-                current_pos = new_state.temp_positions.get(num, 0)
-                if num in new_state.columns[num].player_positions:
-                    current_pos = max(current_pos, 
-                                   new_state.columns[num].player_positions[player_id] + 1)
-                new_state.temp_positions[num] = min(
-                    current_pos + 1,
-                    new_state.columns[num].max_height
-                )
+            new_state.current_dice = [random.randint(1, 6) for _ in range(4)]
+            new_state.awaiting_selection = True
+        
+        elif move.action == "roll":
+            # Roll new dice
+            new_state.current_dice = [random.randint(1, 6) for _ in range(4)]
+            new_state.awaiting_selection = True
         
         return new_state
     
@@ -249,11 +273,14 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
     
     def get_move_format_instructions(self) -> str:
         return (
-            "To make a move, enter:\n"
-            "1. Four dice values (1-6)\n"
-            "2. Your chosen combinations as pairs of sums\n"
-            "Example: '2 3 4 6 5 7' (using 2+3=5 and 4+6=10)\n"
-            "Or enter 'stop' to end your turn and keep progress"
+            "Game Flow:\n"
+            "1. System rolls 4 dice\n"
+            "2. Select 2 dice with 'select X Y' (X, Y are dice indices 0-3)\n"
+            "3. Choose to 'roll' or 'stop'\n"
+            "Example moves:\n"
+            "- 'select 0 1' to select first two dice\n"
+            "- 'roll' to continue turn\n"
+            "- 'stop' to end turn and keep progress"
         )
     
     def get_rules_explanation(self) -> str:

@@ -87,7 +87,7 @@ async def test_llm_player_invalid_move_retry_with_context(test_llm, db_session):
     db_session.add(game)
     db_session.commit()
 
-    llm_player = LLMPlayer("test_player", test_llm, db_session=db_session, game_id=game.id)
+    llm_player = LLMPlayer("test_player", {"model": "test"}, db_session=db_session, game_id=game.id, _llm=test_llm)
     
     game_view = GameView(
         visible_state={"remaining": 5},
@@ -162,7 +162,7 @@ async def test_llm_player_system_prompt_consistency(test_llm, capture_messages, 
     db_session.add(game)
     db_session.commit()
 
-    llm_player = LLMPlayer("test_player", test_llm, db_session=db_session, game_id=game.id)
+    llm_player = LLMPlayer("test_player", {"model": "test"}, db_session=db_session, game_id=game.id, _llm=test_llm)
     
     game_view = GameView(
         visible_state={"remaining": 5},

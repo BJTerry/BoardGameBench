@@ -3,6 +3,7 @@ from typing import List, Dict, Any, Optional, Tuple, Set
 from bgbench.game import Game
 from bgbench.game_view import GameView, PromptStyle
 import random
+from copy import deepcopy
 
 @dataclass
 class ColumnState:
@@ -156,19 +157,7 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
     
     def apply_move(self, state: CantStopState, player_id: int, move: CantStopMove) -> CantStopState:
         """Apply move to state and return new state."""
-        new_state = CantStopState(
-            columns={k: ColumnState(
-                player_positions=v.player_positions.copy(),
-                max_height=v.max_height,
-                is_claimed=v.is_claimed,
-                claimed_by=v.claimed_by
-            ) for k, v in state.columns.items()},
-            current_player=state.current_player,
-            temp_positions=state.temp_positions.copy(),
-            active_columns=state.active_columns.copy(),
-            current_dice=state.current_dice.copy(),
-            awaiting_selection=state.awaiting_selection
-        )
+        new_state = deepcopy(state)
         
         if state.awaiting_selection:
             # Process dice selection

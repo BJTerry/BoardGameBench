@@ -228,8 +228,9 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
                 )
                 new_state.active_columns.add(sum2)
             
-            # Switch to stop/roll decision
+            # Switch to stop/roll decision and clear dice
             new_state.awaiting_selection = False
+            new_state.current_dice = []
         
         elif move.action == "stop":
             # Convert temporary positions to permanent ones

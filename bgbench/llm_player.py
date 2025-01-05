@@ -53,7 +53,7 @@ class LLMPlayer:
         # Format the game view according to the configured style
         formatted_game_view = game_view.format_prompt()
         
-        if self.llm.model in NON_SYSTEM_MODELS:
+        if self.model_config['model'] in NON_SYSTEM_MODELS:
             prompt = SYSTEM_PROMPT + "\n"
         else:
             prompt = ""

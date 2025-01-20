@@ -133,8 +133,8 @@ class GuessWhoGame(Game):
             rules_explanation=self.get_rules_explanation(),
             visible_state=visible_state,
             valid_moves=self._get_valid_moves(),
-            is_terminal=self._is_game_over(state),
-            winner=self._get_winner(state),
+            is_terminal=self.is_terminal(state),
+            winner=self.get_winner(state),
             history=history if history else [],
             move_format_instructions=self.get_move_format_instructions(),
             prompt_style=prompt_style
@@ -222,13 +222,13 @@ class GuessWhoGame(Game):
         new_state.current_player = 1 - state.current_player
         return new_state
 
-    def _is_game_over(self, state: GuessWhoState) -> bool:
+    def is_terminal(self, state: GuessWhoState) -> bool:
         """Check if the game is over."""
         return any(len(chars) == 1 for chars in state.possible_characters)
 
-    def _get_winner(self, state: GuessWhoState) -> Optional[int]:
+    def get_winner(self, state: GuessWhoState) -> Optional[int]:
         """Return the winner if game is over, None otherwise."""
-        if not self._is_game_over(state):
+        if not self.is_terminal(state):
             return None
         
         # Winner is the player who has narrowed down to one possibility

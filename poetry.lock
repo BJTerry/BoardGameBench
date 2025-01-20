@@ -774,6 +774,17 @@ dev = ["pre-commit", "tox"]
 testing = ["pytest", "pytest-benchmark"]
 
 [[package]]
+name = "pokerkit"
+version = "0.5.4"
+description = "An open-source Python library for poker game simulations, hand evaluations, and statistical analysis"
+optional = false
+python-versions = ">=3.11"
+files = [
+    {file = "pokerkit-0.5.4-py3-none-any.whl", hash = "sha256:99c47e65fd1061cb41f9cd467daca80f8118f7d4a474fe73093840574722a6d0"},
+    {file = "pokerkit-0.5.4.tar.gz", hash = "sha256:c634e830b6c35d8a17267a466c85b4778cf8c78f930fb1e323eb4b4a6f9d70b0"},
+]
+
+[[package]]
 name = "pyasn1"
 version = "0.6.1"
 description = "Pure-Python implementation of ASN.1 types and DER/BER/CER codecs (X.208)"
@@ -1316,4 +1327,4 @@ zstd = ["zstandard (>=0.18.0)"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "c52723767ca102a8e830913118a11a5ab30dedb86a0f3c9bcdc58c605c900e35"
+content-hash = "853d64588fe7ff65b8101b71a20e7408ecebcf2dd99781dd2a162a3086cda29b"

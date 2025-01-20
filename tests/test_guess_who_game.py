@@ -92,8 +92,8 @@ def test_game_over_conditions(game, initial_state):
     # Modify state so player 0 has narrowed down to correct character
     initial_state.possible_characters[0] = [initial_state.target_characters[1]]
     
-    assert game._is_game_over(initial_state)
-    assert game._get_winner(initial_state) == 0
+    assert game.is_terminal(initial_state)
+    assert game.get_winner(initial_state) == 0
 
 def test_get_player_view(game, initial_state):
     """Test player view generation."""

@@ -210,3 +210,11 @@ class WarGame(Game):
         new_state = self.apply_move(state, state.current_player, str(move))
         new_state.current_player = 1 - state.current_player
         return new_state
+
+    def is_terminal(self, state: WarState) -> bool:
+        return len(state.player_hands[0]) == 0 or len(state.player_hands[1]) == 0
+
+    def get_winner(self, state: WarState) -> Optional[int]:
+        if not self.is_terminal(state):
+            return None
+        return 1 if len(state.player_hands[0]) == 0 else 0

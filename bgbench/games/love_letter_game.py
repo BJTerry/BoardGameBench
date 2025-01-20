@@ -581,3 +581,17 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
         # Verify card counts after move
         self._verify_card_counts(new_state)
         return new_state
+
+    def is_terminal(self, state: LoveLetterState) -> bool:
+        # Game ends when a player reaches target score
+        return max(state.scores) >= self.target_score
+
+    def get_winner(self, state: LoveLetterState) -> Optional[int]:
+        if not self.is_terminal(state):
+            return None
+        # Return player with highest score
+        if state.scores[0] > state.scores[1]:
+            return 0
+        elif state.scores[1] > state.scores[0]:
+            return 1
+        return None  # Tie

@@ -51,6 +51,9 @@ class GameRunner:
         game_state.record_state(self.session)
         
         while True:
+            if self.game.is_terminal(state):
+                break
+                
             current_player: int = self.game.get_current_player(state)
             game_view: GameView = self.game.get_player_view(
                 state, 
@@ -59,9 +62,9 @@ class GameRunner:
                 prompt_style=self.players[current_player].prompt_style
             )
             
-            if game_view.is_terminal:
-                break
-                
+            player = self.players[current_player]
+            self.turn_count += 1
+
             player = self.players[current_player]
             self.turn_count += 1
             
@@ -128,8 +131,7 @@ class GameRunner:
                 })
                 break
 
-        final_view = self.game.get_player_view(state, current_player)
-        winner_idx = 0 if final_view.winner is None else final_view.winner
+        winner_idx = self.game.get_winner(state)
         winner = None if winner_idx is None else self.players[winner_idx]
         
         return winner, history, None  # No concession reason for normal game completion

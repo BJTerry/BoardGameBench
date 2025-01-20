@@ -101,6 +101,16 @@ class Game(ABC, Generic[StateType, MoveType]):
         pass
 
     @abstractmethod
+    def is_terminal(self, state: StateType) -> bool:
+        """Return True if the game has ended."""
+        pass
+
+    @abstractmethod
+    def get_winner(self, state: StateType) -> Optional[int]:
+        """Return the ID of the winner if the game has ended, otherwise None."""
+        pass
+
+    @abstractmethod
     def get_next_state(self, state: StateType, move: MoveType) -> StateType:
         """Return the next state after applying the move.
         

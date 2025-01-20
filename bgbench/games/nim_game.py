@@ -151,6 +151,14 @@ class NimGame(Game[NimState, NimMove]):
             current_player=1 - state.current_player
         )
 
+    def is_terminal(self, state: NimState) -> bool:
+        return state.remaining == 0
+
+    def get_winner(self, state: NimState) -> Optional[int]:
+        if not self.is_terminal(state):
+            return None
+        return 1 - state.current_player  # Previous player won
+
     def __init__(self, starting_count: int = 12, max_take: int = 3):
         self.starting_count = starting_count
         self.max_take = max_take

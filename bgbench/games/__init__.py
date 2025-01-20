@@ -1,3 +1,4 @@
+from bgbench.games.poker_game import PokerGame
 from .nim_game import NimGame
 from .battleship_game import BattleshipGame
 from .war_game import WarGame
@@ -14,6 +15,7 @@ AVAILABLE_GAMES = {
     'love_letter': LoveLetterGame,
     'chess': ChessGame,
     'cant_stop': CantStopGame,
+    'poker': PokerGame,
 }
 
 __all__ = ['NimGame', 'BattleshipGame', 'WarGame', 'GuessWhoGame', 'AVAILABLE_GAMES']

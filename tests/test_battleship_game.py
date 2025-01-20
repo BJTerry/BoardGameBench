@@ -55,5 +55,5 @@ def test_game_over(game, empty_state, sample_board):
     state = game.apply_move(state, 1, (0, 0))
     state = game.apply_move(state, 1, (1, 0))
     
-    assert game._is_game_over(state)
-    assert game._get_winner(state) == 1
+    assert game.is_terminal(state)
+    assert game.get_winner(state) == 1

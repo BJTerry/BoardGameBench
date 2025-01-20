@@ -217,8 +217,8 @@ class BattleshipGame(Game):
             rules_explanation=rules_explanation,
             visible_state=visible_state,
             valid_moves=self._get_valid_moves(state, player_id),
-            is_terminal=self._is_game_over(state),
-            winner=self._get_winner(state),
+            is_terminal=self.is_terminal(state),
+            winner=self.get_winner(state),
             history=history if history else [],
             move_format_instructions=move_instructions,
             prompt_style=prompt_style
@@ -334,13 +334,13 @@ class BattleshipGame(Game):
             new_state.current_player = 1 - state.current_player
         return new_state
     
-    def _is_game_over(self, state: BattleshipState) -> bool:
+    def is_terminal(self, state: BattleshipState) -> bool:
         if not state.setup_complete:
             return False
         return any(all(ship.is_sunk for ship in board.ships) for board in state.boards)
     
-    def _get_winner(self, state: BattleshipState) -> Optional[int]:
-        if not self._is_game_over(state):
+    def get_winner(self, state: BattleshipState) -> Optional[int]:
+        if not self.is_terminal(state):
             return None
         # Return the player who sunk all of their opponent's ships
         # Player 0 wins if player 1's ships are all sunk, and vice versa

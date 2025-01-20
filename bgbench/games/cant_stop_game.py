@@ -343,6 +343,19 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
             "   - First to claim ANY THREE columns wins the game"
         )
     
+    def is_terminal(self, state: CantStopState) -> bool:
+        return self.get_winner(state) is not None
+
+    def get_winner(self, state: CantStopState) -> Optional[int]:
+        for player_id in [0, 1]:
+            claimed_columns = sum(
+                1 for col in state.columns.values()
+                if col.is_claimed and col.claimed_by == player_id
+            )
+            if claimed_columns >= 3:
+                return player_id
+        return None
+
     def get_next_state(self, state: CantStopState, move: CantStopMove) -> CantStopState:
         """Return the next state after applying the move."""
         return self.apply_move(state, self.get_current_player(state), move)

@@ -149,6 +149,21 @@ class ChessGame(Game[ChessState, ChessMove]):
     def get_next_state(self, state: ChessState, move: ChessMove) -> ChessState:
         """Return the next state after applying the move."""
         return self.apply_move(state, self.get_current_player(state), move)
+
+    def is_terminal(self, state: ChessState) -> bool:
+        return (
+            state.board.is_checkmate() or 
+            state.board.is_stalemate() or 
+            state.board.is_insufficient_material() or
+            state.board.is_fifty_moves() or
+            state.board.is_repetition()
+        )
+
+    def get_winner(self, state: ChessState) -> Optional[int]:
+        if not state.board.is_checkmate():
+            return None  # Draw or game not over
+        # The player who just moved won
+        return 1 - self.get_current_player(state)
         
     def get_rules_explanation(self) -> str:
         return (

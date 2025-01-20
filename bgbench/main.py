@@ -37,9 +37,9 @@ async def main():
     # Configure players
     player_configs = [
         {
-            "name": "o1-mini",
+            "name": "claude-3-haiku (json)",
             "model_config": {
-                "model": "openai/o1-mini",
+                "model": "openrouter/deepseek/deepseek-chat",
                 "temperature": 0.0,
                 "max_tokens": 1000,
                 "response_style": "direct",

@@ -1,6 +1,7 @@
 import pytest
 import logging
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
+import random
 from bgbench.arena import Arena, ArenaPlayer
 from bgbench.games.nim_game import NimGame
 from bgbench.llm_player import LLMPlayer
@@ -28,11 +29,17 @@ def mock_llm():
     return llm
 
 @pytest.fixture
+def mock_llm_factory(mock_llm):
+    def factory(name):
+        return mock_llm
+    return factory
+
+@pytest.fixture
 def nim_game():
     return NimGame(12, 3)  # 12 objects, max take 3
 
 class TestArena:
-    def test_arena_initialization_new_experiment(self, db_session, nim_game, mock_llm):
+    def test_arena_initialization_new_experiment(self, db_session, nim_game, mock_llm, mock_llm_factory):
         """Test creating a new Arena with a new experiment"""
         player_configs = [{
             "name": "test-player",
@@ -43,9 +50,6 @@ class TestArena:
             }
         }]
 
-        def mock_llm_factory(name):
-            return mock_llm
-            
         arena = Arena(
             nim_game, 
             db_session, 
@@ -76,7 +80,7 @@ class TestArena:
         assert arena.experiment.id == exp.id
         assert arena.experiment.name == "test-resume"
 
-    def test_create_new_experiment_with_players(self, db_session, nim_game, mock_llm):
+    def test_create_new_experiment_with_players(self, db_session, nim_game, mock_llm, mock_llm_factory):
         """Test creating a new experiment with players"""
         player_configs = [{
             "name": "test-player",
@@ -86,9 +90,6 @@ class TestArena:
                 "max_tokens": 1000
             }
         }]
-
-        def mock_llm_factory(name):
-            return mock_llm
 
         arena = Arena(
             nim_game,
@@ -109,7 +110,7 @@ class TestArena:
         assert db_player.experiment_id == arena.experiment.id
         assert db_player in arena.experiment.players
 
-    def test_calculate_match_uncertainty(self, db_session, nim_game, mock_llm):
+    def test_calculate_match_uncertainty(self, db_session, nim_game, mock_llm, mock_llm_factory):
         """Test match uncertainty calculation"""
         player_configs = [
             {
@@ -130,9 +131,6 @@ class TestArena:
             }
         ]
         
-        def mock_llm_factory(name):
-            return mock_llm
-            
         arena = Arena(
             nim_game,
             db_session,
@@ -154,7 +152,7 @@ class TestArena:
         )
         assert uncertainty < 1.0
 
-    def test_find_best_match(self, db_session, nim_game, mock_llm):
+    def test_find_best_match(self, db_session, nim_game, mock_llm, mock_llm_factory):
         """Test finding best match between players"""
         player_configs = [
             {
@@ -171,9 +169,6 @@ class TestArena:
             }
         ]
         
-        def mock_llm_factory(name):
-            return mock_llm
-            
         arena = Arena(
             nim_game,
             db_session,
@@ -197,7 +192,50 @@ class TestArena:
         player_names = {match[0].llm_player.name, match[1].llm_player.name}
         assert player_names == {"player-a", "player-b"}
 
-    def test_concession_tracking(self, db_session, nim_game, mock_llm):
+    @pytest.mark.asyncio
+    async def test_max_games_between_players(self, db_session, nim_game, mock_llm, mock_llm_factory):
+        """Test that the Arena does not schedule more than 10 games between any two players."""
+        player_configs = [
+            {
+                "name": "player-1",
+                "model_config": {"model": "test-model", "temperature": 0.0}
+            },
+            {
+                "name": "player-2",
+                "model_config": {"model": "test-model", "temperature": 0.0}
+            }
+        ]
+
+        # Initialize the Arena
+        arena = Arena(
+            nim_game,
+            db_session,
+            player_configs=player_configs,
+            experiment_name="test-max-games",
+            llm_factory=mock_llm_factory,
+            confidence_threshold=1.0
+        )
+
+        # Mock the GameRunner to avoid actual game execution
+        async def mock_play_game(self):
+            # Simulate a game where a random player wins
+            winner = random.choice(self.players)
+            return winner, [], None  # winner, history, concession
+
+        with patch('bgbench.game_runner.GameRunner.play_game', new=mock_play_game):
+            # Run the evaluation loop
+            await arena.evaluate_all()
+
+        # Check the number of games between the two players
+        games_played = arena._games_played_between(
+            arena.players[0].player_model,
+            arena.players[1].player_model
+        )
+        assert games_played == 10, f"Expected 10 games, but found {games_played}"
+
+        # Ensure no more matches are scheduled
+        next_match = arena.find_best_match()
+        assert next_match is None, "No more matches should be scheduled between the players"
         """Test tracking of concessions in games"""
         player_configs = [
             {
@@ -210,8 +248,6 @@ class TestArena:
             }
         ]
         
-        def mock_llm_factory(name):
-            return mock_llm
             
         arena = Arena(
             nim_game,
@@ -269,7 +305,7 @@ class TestArena:
         assert results["player_concessions"]["player-b"] == 1
         assert results["total_games"] == 3
 
-    def test_log_standings_with_concessions(self, db_session, nim_game, mock_llm, caplog):
+    def test_log_standings_with_concessions(self, db_session, nim_game, mock_llm, caplog, mock_llm_factory):
         """Test that log_standings correctly shows concession information"""
         # Configure logging to capture output
         caplog.set_level(logging.INFO)
@@ -283,10 +319,7 @@ class TestArena:
                 "model_config": {"model": "test-model", "temperature": 0.0}
             }
         ]
-        
-        def mock_llm_factory(name):
-            return mock_llm
-            
+                
         arena = Arena(
             nim_game,
             db_session,

@@ -137,6 +137,15 @@ class Arena():
             self.players.append(ArenaPlayer(llm_player, rating, db_player))
         
 
+    def _games_played_between(self, player_a: DBPlayer, player_b: DBPlayer) -> int:
+        """Return the number of games played between two players in this experiment."""
+        count = self.session.query(GameMatch).filter(
+            GameMatch.experiment_id == self.experiment.id,
+            ((GameMatch.player1_id == player_a.id) & (GameMatch.player2_id == player_b.id)) |
+            ((GameMatch.player1_id == player_b.id) & (GameMatch.player2_id == player_a.id))
+        ).count()
+        return count
+
     def find_best_match(self) -> Optional[Tuple[ArenaPlayer, ArenaPlayer]]:
         """Find the match with highest uncertainty between players."""
         if len(self.players) < 2:
@@ -147,7 +156,10 @@ class Arena():
         
         for i, player_a in enumerate(self.players):
             for player_b in self.players[i+1:]:
-                # Only consider matches where we need more games
+                # Check if the pair has played fewer than 10 games
+                games_played = self._games_played_between(player_a.player_model, player_b.player_model)
+                if games_played >= 10:
+                    continue  # Skip this pair
                 if self.elo_system.is_match_needed(player_a.rating, player_b.rating):
                     uncertainty = self.elo_system.calculate_match_uncertainty(
                         player_a.rating, player_b.rating
@@ -179,7 +191,7 @@ class Arena():
         while True:
             match = self.find_best_match()
             if not match:
-                break  # All pairs have reached confidence threshold
+                break  # No more matches available; exit the loop
                 
             # Randomize the order to avoid first-player advantage
             player_a, player_b = random.sample(match, 2)

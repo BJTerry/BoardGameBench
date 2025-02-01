@@ -2,7 +2,6 @@ import logging
 from dataclasses import dataclass
 import random
 from typing import Any, Dict, List, Optional, Tuple, Union
-from pydantic_ai import Agent
 from sqlalchemy.orm import Session
 from bgbench.models import Experiment, Player as DBPlayer, GameMatch
 from bgbench.llm_integration import ResponseStyle, create_llm

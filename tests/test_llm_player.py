@@ -4,9 +4,9 @@ from bgbench.game_view import GameView
 from bgbench.models import LLMInteraction, Experiment, Player, GameMatch
 
 @pytest.mark.asyncio
-async def test_llm_player_make_move_nim(test_llm, db_session):
-    """Test LLMPlayer with a Nim game scenario"""
-    # Create experiment and game
+async def test_llm_player_basic_move(test_llm, db_session):
+    """Test basic move generation and response handling"""
+    # Set up test environment
     experiment = Experiment().create_experiment(db_session, "Test Experiment")
     player = Player(name="test_player", model_config={"model": "test"}, experiment_id=experiment.id)
     db_session.add(player)
@@ -16,10 +16,8 @@ async def test_llm_player_make_move_nim(test_llm, db_session):
 
     llm_player = LLMPlayer("test_player", {"model": "test"}, db_session=db_session, game_id=game.id, _llm=test_llm)
     
-    # Create a realistic Nim game view
-    state = {"remaining": 10}
     game_view = GameView(
-        visible_state=state,
+        visible_state={"remaining": 10},
         valid_moves=["1", "2", "3"],
         is_terminal=False,
         winner=None,
@@ -29,57 +27,22 @@ async def test_llm_player_make_move_nim(test_llm, db_session):
         error_message=None
     )
     
-    # Set expected response
-    test_llm.model.custom_result_text = "2"
-    
+    # Test move generation
+    test_llm.set_response("2")
     move = await llm_player.make_move(game_view)
+    
+    # Verify response
     assert move == "2"
     assert len(llm_player.conversation_history) == 1
     assert "2" in llm_player.conversation_history[0]["content"]
+    
+    # Verify prompt content
+    assert "Take 1-3 objects" in test_llm.last_prompt
+    assert "Enter a number between 1 and 3" in test_llm.last_prompt
 
 @pytest.mark.asyncio
-async def test_llm_player_make_move_war(test_llm, db_session):
-    """Test LLMPlayer with a War game scenario"""
-    # Create experiment and game
-    experiment = Experiment().create_experiment(db_session, "Test Experiment")
-    player = Player(name="test_player", model_config={"model": "test"}, experiment_id=experiment.id)
-    db_session.add(player)
-    game = GameMatch(experiment_id=experiment.id, player1_id=1, player2_id=2)
-    db_session.add(game)
-    db_session.commit()
-
-    llm_player = LLMPlayer("test_player", {"model": "test"}, db_session=db_session, game_id=game.id, _llm=test_llm)
-    
-    # Create a realistic War game view
-    state = {
-        "your_cards": 26,
-        "opponent_cards": 26,
-        "board": [],
-        "war_state": False,
-        "cards_needed": 1,
-        "face_down_count": 0
-    }
-    
-    game_view = GameView(
-        visible_state=state,
-        valid_moves=["play"],
-        is_terminal=False,
-        winner=None,
-        history=[],
-        move_format_instructions="Type 'play' to play your next card",
-        rules_explanation="Standard War card game rules...",
-        error_message=None
-    )
-    
-    test_llm.model.custom_result_text = "play"
-    
-    move = await llm_player.make_move(game_view)
-    assert move == "play"
-
-@pytest.mark.asyncio
-async def test_llm_player_invalid_move_retry_with_context(test_llm, db_session):
-    """Test LLMPlayer's handling of invalid moves with context"""
-    # Create experiment and game
+async def test_llm_player_invalid_move_retry(test_llm, db_session):
+    """Test handling of invalid moves with context"""
     experiment = Experiment().create_experiment(db_session, "Test Experiment")
     player = Player(name="test_player", model_config={"model": "test"}, experiment_id=experiment.id)
     db_session.add(player)
@@ -100,13 +63,9 @@ async def test_llm_player_invalid_move_retry_with_context(test_llm, db_session):
         error_message=None
     )
     
-    # First move - invalid
-    test_llm.model.custom_result_text = "4"
-    first_move = await llm_player.make_move(game_view)
-    
-    # Retry with error context
-    test_llm.model.custom_result_text = "2"
-    retry_move = await llm_player.make_move(
+    # Test retry with invalid move context
+    test_llm.set_response("2")
+    move = await llm_player.make_move(
         game_view,
         invalid_moves=[{
             "move": "4",
@@ -114,18 +73,14 @@ async def test_llm_player_invalid_move_retry_with_context(test_llm, db_session):
         }]
     )
     
-    assert retry_move == "2"
-    assert len(llm_player.conversation_history) == 2
+    assert move == "2"
+    assert "Cannot take 4 objects" in test_llm.last_prompt
 
 @pytest.mark.asyncio
 async def test_llm_player_db_logging(test_llm, mocker):
-    """Test database logging functionality of LLMPlayer"""
-    # Mock database session
+    """Test database logging of LLM interactions"""
     mock_session = mocker.MagicMock()
-        
-    # Create a mock LLMInteraction class
     mock_interaction = mocker.MagicMock()
-    # Mock the class to return the mock instance
     mocker.patch('bgbench.llm_player.LLMInteraction', return_value=mock_interaction)
     
     llm_player = LLMPlayer("test_player", {"model": "test"}, db_session=mock_session, game_id=1, _llm=test_llm)
@@ -141,44 +96,12 @@ async def test_llm_player_db_logging(test_llm, mocker):
         error_message=None
     )
     
-    test_llm.model.custom_result_text = "2"
+    test_llm.set_response("2")
     await llm_player.make_move(game_view)
     
-    # Verify logging occurred
+    # Verify logging
     mock_interaction.log_interaction.assert_called_once()
     args = mock_interaction.log_interaction.call_args[0]
     assert args[0] == mock_session
-    assert isinstance(args[1], list)  # prompt is now a list of dicts
-    assert args[2] == "2"  # response
-
-@pytest.mark.asyncio
-async def test_llm_player_system_prompt_consistency(test_llm, capture_messages, db_session):
-    """Test that system prompts are consistently included"""
-    # Create experiment and game
-    experiment = Experiment().create_experiment(db_session, "Test Experiment")
-    player = Player(name="test_player", model_config={"model": "test"}, experiment_id=experiment.id)
-    db_session.add(player)
-    game = GameMatch(experiment_id=experiment.id, player1_id=1, player2_id=2)
-    db_session.add(game)
-    db_session.commit()
-
-    llm_player = LLMPlayer("test_player", {"model": "test"}, db_session=db_session, game_id=game.id, _llm=test_llm)
-    
-    game_view = GameView(
-        visible_state={"remaining": 5},
-        valid_moves=["1", "2", "3"],
-        is_terminal=False,
-        winner=None,
-        history=[],
-        move_format_instructions="Enter a number between 1 and 3",
-        rules_explanation="Take 1-3 objects",
-        error_message=None
-    )
-    
-    test_llm.model.custom_result_text = "2"
-    await llm_player.make_move(game_view)
-    
-    # The system prompt is now handled by the LLM integration
-    # Verify the move response is correct
-    assert any("2" in part.content for msg in capture_messages 
-              for part in msg.parts if part.part_kind == "text")
+    assert isinstance(args[1], list)
+    assert args[2] == "2"

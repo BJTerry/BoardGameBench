@@ -5,6 +5,9 @@ from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.settings import ModelSettings
 from typing import TypedDict
+from enum import Enum
+from typing import Union, Type
+from .moves import ChainOfThoughtMove
 
 NON_SYSTEM_MODELS = ["openai/o1-mini", "openai/o1-preview"]
 SYSTEM_PROMPT = (
@@ -12,9 +15,6 @@ SYSTEM_PROMPT = (
     "Always respond with ONLY your move in the exact format specified - no explanation or other text."
 )
 
-from enum import Enum
-from typing import Union, Type
-from .moves import ChainOfThoughtMove
 
 class ResponseStyle(Enum):
     DIRECT = "direct"  # Direct response with just the move
@@ -74,7 +74,7 @@ def create_llm(
             model_settings=model_settings,
             result_type=result_type
         )
-        logger.info(f"Initialized OpenRouter Agent for Anthropic model {model} via OpenRouter")
+        logger.info(f"Initialized OpenRouter Agent for model {model} via OpenRouter")
     elif model.startswith("openai"):
         # For other models (GPT, etc), we use OpenAI provider
         openai_key = os.getenv("OPENAI_API_KEY", "")

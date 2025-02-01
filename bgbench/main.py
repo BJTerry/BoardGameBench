@@ -1,5 +1,6 @@
 import argparse
 import logging
+import json
 from typing import Any, Dict
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
@@ -23,40 +24,24 @@ async def main():
     parser.add_argument('--resume', type=int, help='Resume experiment by ID')
     parser.add_argument('--name', help='Name for new experiment')
     parser.add_argument('--export', type=int, help='Export results for experiment ID')
+    parser.add_argument('--players', type=str, help='Path to player configuration JSON file')
     parser.add_argument('--list', action='store_true', help='List all experiments')
-    
     args = parser.parse_args()
-    
+
     setup_logging(debug=args.debug)
+
+    with open(args.players, 'r') as f:
+        player_configs = json.load(f)
+
+    for entry in player_configs:
+        model_conf = entry.get("model_config", {})
+        logger.info(f"Player: {entry.get('name')} - Model: {model_conf.get('model')}, Temperature: {model_conf.get('temperature')}, Max Tokens: {model_conf.get('max_tokens')}, Response Style: {model_conf.get('response_style')}, Prompt Style: {entry.get('prompt_style')}")
     
     # Set up database session
     engine = create_engine(DATABASE_URL)
     Session = sessionmaker(bind=engine)
     db_session = Session()
 
-    # Configure players
-    player_configs = [
-        {
-            "name": "claude-3-haiku (json)",
-            "model_config": {
-                "model": "openrouter/deepseek/deepseek-chat",
-                "temperature": 0.0,
-                "max_tokens": 1000,
-                "response_style": "direct",
-            },
-            "prompt_style": "json",
-        },
-        {
-            "name": "claude-3-haiku (json, cot)",
-            "model_config": {
-                "model": "openrouter/anthropic/claude-3-haiku",
-                "temperature": 0.0,
-                "max_tokens": 1000,
-                "response_style": "chain_of_thought",
-            },
-            "prompt_style": "json",
-        },
-    ]
 
     # Get the game class from our available games
     game_class = AVAILABLE_GAMES[args.game]

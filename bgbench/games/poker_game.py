@@ -43,6 +43,28 @@ class PokerState:
         return self.player_to_pk_player(player_idx)
 
     def winner(self) -> Optional[int]:
+        # A winner of the poker tournament is someone who can't post their blind, either because they have 0 left, or 
+        # they don't have enough to post their blind. Since blind is posted automatically, this requires that the
+        # actor_index is None and the small_blind has less than small_blind amount, or big_blind has less than big_blind
+        # amount.
+        print(f"Evaluating winner, statuses: {self.internal_state.statuses}, stacks: {self.internal_state.stacks}, actor_index: {self.internal_state.actor_index}, blind_statuses: {self.internal_state.blind_or_straddle_posting_statuses}")
+        if self.internal_state.actor_index is None:
+            if (not self.internal_state.statuses[0]) and self.internal_state.stacks[0] < 10:
+                # Small blind has lost
+                return 1 - self.big_blind
+            elif (not self.internal_state.statuses[1]) and self.internal_state.stacks[1] < 20:
+                return self.big_blind
+        return None
+
+        statuses = self.internal_state.statuses
+        if self.internal_state.actor_index is None:
+            if not statuses[0]:
+                # Small blind has lost
+                return 1 - self.big_blind
+            elif not statuses[1]:
+                return self.big_blind
+
+
         if not self.internal_state.status:
             if self.internal_state.stacks[0] == 0:
                 # Small blind has lost

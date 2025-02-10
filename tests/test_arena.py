@@ -2,6 +2,11 @@ import pytest
 import logging
 from unittest.mock import MagicMock, patch
 import random
+
+async def mock_play_game_no_elo_update(self):
+    # Pretend a random player wins, but we skip rating updates.
+    winner = random.choice(self.players)
+    return winner, [], None  # no rating changes
 from bgbench.arena import Arena, ArenaPlayer
 from bgbench.games.nim_game import NimGame
 from bgbench.llm_player import LLMPlayer
@@ -152,7 +157,8 @@ class TestArena:
         )
         assert uncertainty < 1.0
 
-    def test_find_best_match(self, db_session, nim_game, mock_llm, mock_llm_factory):
+    @pytest.mark.asyncio
+    async def test_find_best_match(self, db_session, nim_game, mock_llm, mock_llm_factory):
         """Test finding best match between players"""
         player_configs = [
             {
@@ -185,7 +191,7 @@ class TestArena:
             db_session.commit()
         
         # Find best match
-        match = arena.find_best_match()
+        match = await arena.find_next_available_match()
         assert match is not None
         
         # Should match closest rated players
@@ -193,6 +199,7 @@ class TestArena:
         assert player_names == {"player-a", "player-b"}
 
     @pytest.mark.asyncio
+    @patch('bgbench.game_runner.GameRunner.play_game', new=mock_play_game_no_elo_update)
     async def test_max_games_between_players(self, db_session, nim_game, mock_llm, mock_llm_factory):
         """Test that the Arena does not schedule more than 10 games between any two players."""
         player_configs = [
@@ -213,18 +220,12 @@ class TestArena:
             player_configs=player_configs,
             experiment_name="test-max-games",
             llm_factory=mock_llm_factory,
-            confidence_threshold=1.0
+            confidence_threshold=1.0  # Set to 1.0 so games continue until max limit
         )
 
-        # Mock the GameRunner to avoid actual game execution
-        async def mock_play_game(self):
-            # Simulate a game where a random player wins
-            winner = random.choice(self.players)
-            return winner, [], None  # winner, history, concession
 
-        with patch('bgbench.game_runner.GameRunner.play_game', new=mock_play_game):
-            # Run the evaluation loop
-            await arena.evaluate_all()
+        # Run the evaluation loop
+        await arena.evaluate_all()
 
         # Check the number of games between the two players
         games_played = arena._games_played_between(
@@ -234,7 +235,7 @@ class TestArena:
         assert games_played == 10, f"Expected 10 games, but found {games_played}"
 
         # Ensure no more matches are scheduled
-        next_match = arena.find_best_match()
+        next_match = await arena.find_next_available_match()
         assert next_match is None, "No more matches should be scheduled between the players"
         """Test tracking of concessions in games"""
         player_configs = [

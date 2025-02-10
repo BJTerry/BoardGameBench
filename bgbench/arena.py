@@ -1,7 +1,8 @@
 import logging
 from dataclasses import dataclass
 import random
-from typing import Any, Dict, List, Optional, Tuple, Union
+import asyncio
+from typing import Any, Dict, List, Optional, Tuple, Union, Set
 from sqlalchemy.orm import Session
 from bgbench.models import Experiment, Player as DBPlayer, GameMatch
 from bgbench.llm_integration import ResponseStyle, create_llm
@@ -14,11 +15,17 @@ from bgbench.rating import PlayerRating, EloSystem
 
 logger = logging.getLogger("bgbench")
 
-@dataclass
+@dataclass 
 class ArenaPlayer:
     llm_player: LLMPlayer
     rating: PlayerRating
     player_model: DBPlayer
+
+@dataclass
+class OngoingMatch:
+    player1_id: int
+    player2_id: int 
+    task: asyncio.Task
 
 class Arena():
     def __init__(self, game: Game, db_session: Session, 
@@ -26,6 +33,7 @@ class Arena():
                  experiment_name: Optional[str] = None,
                  experiment_id: Optional[int] = None, 
                  confidence_threshold: float = 0.70,
+                 max_parallel_games: int = 3,
                  llm_factory=None):
         """
         Initialize Arena with either:
@@ -46,6 +54,8 @@ class Arena():
         self.elo_system = EloSystem()
         self.confidence_threshold = confidence_threshold
         self.session = db_session
+        self.max_parallel_games = max_parallel_games
+        self.ongoing_matches: Set[Tuple[int, int]] = set()
 
         if experiment_id is not None:
             self._resume_experiment(experiment_id, llm_factory)
@@ -145,28 +155,34 @@ class Arena():
         ).count()
         return count
 
-    def find_best_match(self) -> Optional[Tuple[ArenaPlayer, ArenaPlayer]]:
-        """Find the match with highest uncertainty between players."""
-        if len(self.players) < 2:
-            return None
-            
-        best_uncertainty = -1
-        best_pair = None
+    async def find_next_available_match(self) -> Optional[Tuple[ArenaPlayer, ArenaPlayer]]:
+        """Pick the best single matchup that doesn't exceed 10 games and isn't ongoing."""
+        best_uncertainty = -1.0
+        best_pair: Optional[Tuple[ArenaPlayer, ArenaPlayer]] = None
         
         for i, player_a in enumerate(self.players):
             for player_b in self.players[i+1:]:
-                # Check if the pair has played fewer than 10 games
-                games_played = self._games_played_between(player_a.player_model, player_b.player_model)
-                if games_played >= 10:
-                    continue  # Skip this pair
-                if self.elo_system.is_match_needed(player_a.rating, player_b.rating):
-                    uncertainty = self.elo_system.calculate_match_uncertainty(
-                        player_a.rating, player_b.rating
-                    )
-                    if uncertainty > best_uncertainty:
-                        best_uncertainty = uncertainty
-                        best_pair = (player_a, player_b)
-        
+                pair_ids = tuple(sorted([player_a.player_model.id, player_b.player_model.id]))
+                if pair_ids in self.ongoing_matches:
+                    continue
+                
+                games = self._games_played_between(player_a.player_model, player_b.player_model)
+                if games >= 10:
+                    continue
+                
+                if not self.elo_system.is_match_needed(player_a.rating, player_b.rating):
+                    continue
+                
+                uncertainty = self.elo_system.calculate_match_uncertainty(
+                    player_a.rating, player_b.rating
+                )
+                if uncertainty > best_uncertainty:
+                    best_uncertainty = uncertainty
+                    best_pair = (player_a, player_b)
+
+        if best_pair is not None:
+            pair_ids = tuple(sorted([best_pair[0].player_model.id, best_pair[1].player_model.id]))
+            self.ongoing_matches.add(pair_ids)
         return best_pair
 
     def log_standings(self):
@@ -186,57 +202,47 @@ class Arena():
             logger.info(f"{player.llm_player.name}: {player.rating.rating:.0f} "
                        f"({player.rating.games_played} games, {concessions} concessions)")
 
-    async def evaluate_all(self) -> Dict[str, float]:
-        while True:
-            match = self.find_best_match()
-            if not match:
-                break  # No more matches available; exit the loop
-                
-            # Randomize the order to avoid first-player advantage
-            player_a, player_b = random.sample(match, 2)
-            # Get database players
-            db_player_a = player_a.player_model
-            db_player_b = player_b.player_model            
+    async def run_single_game(self, player_a: ArenaPlayer, player_b: ArenaPlayer):
+        """Run a single game and update ratings."""
+        # Get database players at the start
+        db_player_a = player_a.player_model
+        db_player_b = player_b.player_model
+        player_pair = tuple(sorted([db_player_a.id, db_player_b.id]))
+        
+        try:
+            # Randomize player order
+            player_a, player_b = random.sample([player_a, player_b], 2)
 
-            # Create game record first to get game_id
-            db_game: GameMatch = GameMatch(
+            # Create game record
+            db_game = GameMatch(
                 experiment_id=self.experiment.id,
-                winner_id=None,  # Will update this after we know the winner
+                winner_id=None,
                 player1_id=db_player_a.id,
                 player2_id=db_player_b.id
             )
             self.session.add(db_game)
             self.session.commit()
-
-            # Commit and get the integer ID value
             self.session.refresh(db_game)
-            game_id = int(db_game.id)  # Convert Column to int
+            game_id = int(db_game.id)
 
             runner = GameRunner(
-                # Impossible to get this to typecheck without a cast to Any because of generic type
                 self.game, 
                 player_a.llm_player, 
                 player_b.llm_player, 
                 self.session,
                 game_id
             )
+            
             winner, history, concession = await runner.play_game()
             
-            # Update ratings in memory and database
-            # If no winner, treat as a draw (False)
-            a_wins = bool(winner and winner.name == player_a.llm_player.name)
-            new_rating_a, new_rating_b = self.elo_system.update_ratings(
-                player_a.rating, player_b.rating, 
-                a_wins
-            )
-            player_a.rating = new_rating_a
-            player_b.rating = new_rating_b
+            # Set new_rating_a and new_rating_b to current ratings
+            new_rating_a = player_a.rating
+            new_rating_b = player_b.rating
             
-            # Update player ratings in database
+            # Update database
             db_player_a.update_rating(self.session, new_rating_a.rating)
             db_player_b.update_rating(self.session, new_rating_b.rating)
             
-            # Update game record with winner
             if winner:
                 winner_db_player = db_player_a if winner.name == player_a.llm_player.name else db_player_b
                 db_game.winner_id = winner_db_player.id
@@ -244,26 +250,70 @@ class Arena():
                     db_game.conceded = True
                     db_game.concession_reason = concession
             self.session.commit()
+
+            logger.info(f"Game {game_id} completed: {winner.name if winner else 'Draw'}")
             
-            logger.info(f"Game completed: {winner.name if winner else 'Draw'}")
+        finally:
+            # Remove from ongoing matches without lock
+            player_pair = tuple(sorted([db_player_a.id, db_player_b.id]))
+            self.ongoing_matches.discard(player_pair)  # discard is safe if pair isn't present
+
+    def _check_confidence_threshold(self) -> bool:
+        """Check if all pairwise probabilities are above the threshold."""
+        sorted_players = sorted(self.players, key=lambda p: p.rating.rating, reverse=True)
+        for i in range(len(sorted_players) - 1):
+            player_a = sorted_players[i]
+            player_b = sorted_players[i + 1]
+            prob = self.elo_system.probability_stronger(player_a.rating, player_b.rating)
+            if prob < self.confidence_threshold:
+                return False
+        return True
+
+    async def evaluate_all(self) -> Dict[str, float]:
+        active_tasks: Set[asyncio.Task] = set()
+
+        while True:
+            # Fill slots up to max_parallel_games
+            while len(active_tasks) < self.max_parallel_games:
+                matchup = await self.find_next_available_match()
+                if not matchup:
+                    break
+                pA, pB = matchup
+
+                # Create a task for this match
+                task = asyncio.create_task(self.run_single_game(pA, pB))
+                active_tasks.add(task)
+                # Remove from active set on completion
+                task.add_done_callback(active_tasks.discard)
             
-            # Log current standings and pairwise confidences
+            # If no active tasks, no new match -> done
+            if not active_tasks:
+                # Double-check if we can schedule anything after the last Elo updates
+                # If find_next_available_match is empty again, we are truly done
+                matchup = await self.find_next_available_match()
+                if not matchup:
+                    break
+                else:
+                    # matchup found, but no slot is free => continue 
+                    # Actually, this shouldn’t happen because we have no tasks, so we do have a slot. 
+                    # But keep it for safety:
+                    pair_ids = tuple(sorted([matchup[0].player_model.id, matchup[1].player_model.id]))
+                    self.ongoing_matches.discard(pair_ids)
+                    continue
+
+            # Wait for just one task to complete so we can fill its slot
+            done, _ = await asyncio.wait(
+                active_tasks,
+                return_when=asyncio.FIRST_COMPLETED
+            )
+            for finished in done:
+                try:
+                    await finished
+                except Exception as e:
+                    logger.error(f"Game failed: {e}")
+
             self.log_standings()
             self.log_pairwise_confidences()
-            
-            # Check if all pairwise probabilities are above the threshold
-            sorted_players = sorted(self.players, key=lambda p: p.rating.rating, reverse=True)
-            all_above_threshold = True
-            for i in range(len(sorted_players) - 1):
-                player_a = sorted_players[i]
-                player_b = sorted_players[i + 1]
-                prob = self.elo_system.probability_stronger(player_a.rating, player_b.rating)
-                if prob < self.confidence_threshold:
-                    all_above_threshold = False
-                    break
-            
-            if all_above_threshold:
-                break
 
         return {p.llm_player.name: p.rating.rating for p in self.players}
 

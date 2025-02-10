@@ -26,6 +26,9 @@ async def main():
     parser.add_argument('--export', type=int, help='Export results for experiment ID')
     parser.add_argument('--players', type=str, help='Path to player configuration JSON file')
     parser.add_argument('--list', action='store_true', help='List all experiments')
+    
+    # Parallel execution options
+    parser.add_argument('--parallel-games', type=int, default=3, help='Number of games to run in parallel')
     args = parser.parse_args()
 
     setup_logging(debug=args.debug)
@@ -58,11 +61,20 @@ async def main():
         return
 
     if args.resume:
-        arena = Arena(game, db_session, experiment_id=args.resume)
+        arena = Arena(
+            game, 
+            db_session, 
+            experiment_id=args.resume,
+            max_parallel_games=args.parallel_games
+        )
     else:
-        arena = Arena(game, db_session, 
-                     player_configs=player_configs,
-                     experiment_name=args.name)
+        arena = Arena(
+            game, 
+            db_session, 
+            player_configs=player_configs,
+            experiment_name=args.name,
+            max_parallel_games=args.parallel_games
+        )
 
     if args.export:
         experiment = Experiment.resume_experiment(db_session, args.export)

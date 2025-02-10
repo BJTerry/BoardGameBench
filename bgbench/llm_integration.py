@@ -52,7 +52,7 @@ async def complete_prompt(llm_config: Union[Dict[str, Any], LLMCompletionProvide
             messages = llm_config["messages"].copy()
             messages.append({"role": "user", "content": prompt})
             
-            response = litellm.completion(
+            response = await litellm.acompletion(
                 model=llm_config["model"],
                 messages=messages,
                 temperature=llm_config.get("temperature"),

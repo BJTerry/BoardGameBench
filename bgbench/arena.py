@@ -235,15 +235,27 @@ class Arena():
             
             winner, history, concession = await runner.play_game()
             
-            # Set new_rating_a and new_rating_b to current ratings
-            new_rating_a = player_a.rating
-            new_rating_b = player_b.rating
-            
-            # Update database
-            db_player_a.update_rating(self.session, new_rating_a.rating)
-            db_player_b.update_rating(self.session, new_rating_b.rating)
-            
+            # Calculate new Elo ratings
             if winner:
+                winner_rating = player_a.rating if winner.name == player_a.llm_player.name else player_b.rating
+                loser_rating = player_b.rating if winner.name == player_a.llm_player.name else player_a.rating
+                
+                # Update ratings using ELO system
+                new_winner_rating, new_loser_rating = self.elo_system.update_ratings(winner_rating, loser_rating)
+                
+                # Update both memory and database ratings
+                if winner.name == player_a.llm_player.name:
+                    player_a.rating = new_winner_rating
+                    player_b.rating = new_loser_rating
+                    db_player_a.update_rating(self.session, new_winner_rating.rating)
+                    db_player_b.update_rating(self.session, new_loser_rating.rating)
+                else:
+                    player_a.rating = new_loser_rating
+                    player_b.rating = new_winner_rating
+                    db_player_a.update_rating(self.session, new_loser_rating.rating)
+                    db_player_b.update_rating(self.session, new_winner_rating.rating)
+                
+                # Update winner in database
                 winner_db_player = db_player_a if winner.name == player_a.llm_player.name else db_player_b
                 db_game.winner_id = winner_db_player.id
                 if concession:
@@ -255,7 +267,6 @@ class Arena():
             
         finally:
             # Remove from ongoing matches without lock
-            player_pair = tuple(sorted([db_player_a.id, db_player_b.id]))
             self.ongoing_matches.discard(player_pair)  # discard is safe if pair isn't present
 
     def _check_confidence_threshold(self) -> bool:

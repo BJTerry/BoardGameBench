@@ -156,29 +156,35 @@ class Arena():
         return count
 
     async def find_next_available_match(self) -> Optional[Tuple[ArenaPlayer, ArenaPlayer]]:
-        """Pick the best single matchup that doesn't exceed 10 games and isn't ongoing."""
+        """Pick the best matchup between adjacent players that doesn't exceed 10 games and isn't ongoing."""
         best_uncertainty = -1.0
         best_pair: Optional[Tuple[ArenaPlayer, ArenaPlayer]] = None
         
-        for i, player_a in enumerate(self.players):
-            for player_b in self.players[i+1:]:
-                pair_ids = tuple(sorted([player_a.player_model.id, player_b.player_model.id]))
-                if pair_ids in self.ongoing_matches:
-                    continue
-                
-                games = self._games_played_between(player_a.player_model, player_b.player_model)
-                if games >= 10:
-                    continue
-                
-                if not self.elo_system.is_match_needed(player_a.rating, player_b.rating):
-                    continue
-                
-                uncertainty = self.elo_system.calculate_match_uncertainty(
-                    player_a.rating, player_b.rating
-                )
-                if uncertainty > best_uncertainty:
-                    best_uncertainty = uncertainty
-                    best_pair = (player_a, player_b)
+        # Sort players by rating
+        sorted_players = sorted(self.players, key=lambda p: p.rating.rating, reverse=True)
+        
+        # Only look at adjacent pairs
+        for i in range(len(sorted_players) - 1):
+            player_a = sorted_players[i]
+            player_b = sorted_players[i + 1]
+            
+            pair_ids = tuple(sorted([player_a.player_model.id, player_b.player_model.id]))
+            if pair_ids in self.ongoing_matches:
+                continue
+            
+            games = self._games_played_between(player_a.player_model, player_b.player_model)
+            if games >= 10:
+                continue
+            
+            if not self.elo_system.is_match_needed(player_a.rating, player_b.rating):
+                continue
+            
+            uncertainty = self.elo_system.calculate_match_uncertainty(
+                player_a.rating, player_b.rating
+            )
+            if uncertainty > best_uncertainty:
+                best_uncertainty = uncertainty
+                best_pair = (player_a, player_b)
 
         if best_pair is not None:
             pair_ids = tuple(sorted([best_pair[0].player_model.id, best_pair[1].player_model.id]))

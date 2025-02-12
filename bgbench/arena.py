@@ -175,7 +175,6 @@ class Arena():
 
     async def find_next_available_match(self) -> Optional[Tuple[ArenaPlayer, ArenaPlayer]]:
         """Pick the best matchup between adjacent players that doesn't exceed 10 games and isn't ongoing."""
-        import pdb; pdb.set_trace()
         best_uncertainty = -1.0
         best_pair: Optional[Tuple[ArenaPlayer, ArenaPlayer]] = None
         

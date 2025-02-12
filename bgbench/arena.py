@@ -70,18 +70,22 @@ class Arena():
         if not self.experiment:
             raise ValueError(f"No experiment found with ID {experiment_id}")
         
-        # Clean up incomplete games (those without a winner)
+        # Clean up incomplete games and their states
         incomplete_games = self.session.query(GameMatch).filter(
             GameMatch.experiment_id == experiment_id,
             GameMatch.winner_id.is_(None)
         ).all()
         
         for game in incomplete_games:
+            # Delete associated game states first
+            if game.state:
+                self.session.delete(game.state)
             self.session.delete(game)
+            
         self.session.commit()
         
         logger.info(f"Resumed experiment {self.experiment.name} (id: {experiment_id})")
-        logger.info(f"Cleaned up {len(incomplete_games)} incomplete games")
+        logger.info(f"Cleaned up {len(incomplete_games)} incomplete games and their states")
         
         for db_player in self.experiment.players:
             if llm_factory:

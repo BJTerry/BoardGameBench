@@ -1,6 +1,6 @@
 import os
 import logging
-from typing import Optional, List, Dict, Any, Union, Protocol
+from typing import Optional, List, Dict, Any, Union, Protocol, Tuple
 from enum import Enum
 from .moves import ChainOfThoughtMove
 import litellm

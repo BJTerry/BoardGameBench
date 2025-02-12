@@ -70,7 +70,18 @@ class Arena():
         if not self.experiment:
             raise ValueError(f"No experiment found with ID {experiment_id}")
         
+        # Clean up incomplete games (those without a winner)
+        incomplete_games = self.session.query(GameMatch).filter(
+            GameMatch.experiment_id == experiment_id,
+            GameMatch.winner_id.is_(None)
+        ).all()
+        
+        for game in incomplete_games:
+            self.session.delete(game)
+        self.session.commit()
+        
         logger.info(f"Resumed experiment {self.experiment.name} (id: {experiment_id})")
+        logger.info(f"Cleaned up {len(incomplete_games)} incomplete games")
         
         for db_player in self.experiment.players:
             if llm_factory:
@@ -85,8 +96,11 @@ class Arena():
                 except Exception as e:
                     logger.error(f"Could not recreate LLM for player {db_player.name}: {e}")
                     continue
-            # Count games where player was involved
+            
+            # Count only completed games where player was involved
             games_played = self.session.query(GameMatch).filter(
+                GameMatch.experiment_id == self.experiment.id,
+                GameMatch.winner_id.isnot(None),
                 (GameMatch.player1_id == db_player.id) | 
                 (GameMatch.player2_id == db_player.id)
             ).count()

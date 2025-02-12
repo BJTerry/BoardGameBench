@@ -6,6 +6,7 @@ from .moves import ChainOfThoughtMove
 import litellm
 from litellm.types.utils import ModelResponse, Choices
 
+litellm._turn_on_debug()
 logger = logging.getLogger(__name__)
 
 class LLMCompletionProvider(Protocol):

@@ -45,7 +45,7 @@ def create_llm(
         **kwargs
     }
 
-async def complete_prompt(llm_config: Union[Dict[str, Any], LLMCompletionProvider], prompt: str) -> str:
+async def complete_prompt(llm_config: Union[Dict[str, Any], LLMCompletionProvider], prompt: str) -> Tuple[str, Dict[str, int]]:
     """Helper function to complete a prompt using litellm."""
     try:
         if isinstance(llm_config, dict):
@@ -79,7 +79,14 @@ async def complete_prompt(llm_config: Union[Dict[str, Any], LLMCompletionProvide
         if content is None:
             raise ValueError("No content in LLM response")
             
-        return content
+        # Extract token counts
+        token_info = {
+            "prompt_tokens": response.usage.prompt_tokens if response.usage else None,
+            "completion_tokens": response.usage.completion_tokens if response.usage else None,
+            "total_tokens": response.usage.total_tokens if response.usage else None
+        }
+            
+        return content, token_info
         
     except Exception as e:
         logger.error(f"Error completing prompt: {str(e)}")

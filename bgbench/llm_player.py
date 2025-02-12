@@ -58,7 +58,7 @@ class LLMPlayer:
 
         try:
             # Get response from LLM
-            response = await complete_prompt(self._llm, prompt)
+            response, token_info = await complete_prompt(self._llm, prompt)
             end_time = time.time()
             
             # Extract move and add to conversation history
@@ -84,7 +84,10 @@ class LLMPlayer:
                     messages,
                     move,
                     start_time,
-                    end_time
+                    end_time,
+                    token_info["prompt_tokens"],
+                    token_info["completion_tokens"],
+                    token_info["total_tokens"]
                 )
             
             return move

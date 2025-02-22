@@ -200,7 +200,7 @@ class BattleshipGame(Game):
         rules_explanation = (
             "We are playing Battleship on a 10x10 grid (A-J × 1-10). "
             "First, place your ships by specifying start coordinate and direction (h/v). "
-            "Ships are: Carrier (5), Battleship (4), Cruiser (3), Submarine (3), Destroyer (2). "
+            "Ships are: Carrier (length 5), Battleship (length 4), Cruiser (length 3), Submarine (length 3), Destroyer (length 2). You get one of each ship. "
             "During play, call shots using coordinates (e.g., 'B5'). "
             "On your boards:\n"
             "- 'S' marks your ship locations\n"

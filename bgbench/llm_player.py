@@ -85,7 +85,8 @@ class LLMPlayer:
                     end_time,
                     token_info["prompt_tokens"],
                     token_info["completion_tokens"],
-                    token_info["total_tokens"]
+                    token_info["total_tokens"],
+                    token_info["cost"]
                 )
             
             return move

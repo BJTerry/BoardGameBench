@@ -10,6 +10,7 @@ class UsageInfo(TypedDict):
     prompt_tokens: Optional[int]
     completion_tokens: Optional[int] 
     total_tokens: Optional[int]
+    cost: Optional[float]
 
 class LLMCompletionProvider(Protocol):
     """Protocol for objects that can provide completions"""
@@ -85,7 +86,8 @@ async def complete_prompt(llm_config: Union[Dict[str, Any], LLMCompletionProvide
         token_info: UsageInfo = {
             "prompt_tokens": getattr(response, 'usage', {}).get('prompt_tokens'),
             "completion_tokens": getattr(response, 'usage', {}).get('completion_tokens'),
-            "total_tokens": getattr(response, 'usage', {}).get('total_tokens')
+            "total_tokens": getattr(response, 'usage', {}).get('total_tokens'),
+            "cost": response._hidden_params.get("response_cost")
         }
             
         return content, token_info

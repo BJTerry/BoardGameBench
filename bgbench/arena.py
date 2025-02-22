@@ -4,7 +4,7 @@ import random
 import asyncio
 from typing import Any, Dict, List, Optional, Tuple, Set
 from sqlalchemy.orm import Session
-from bgbench.models import Experiment, Player as DBPlayer, GameMatch
+from bgbench.models import Experiment, Player as DBPlayer, GameMatch, LLMInteraction
 from bgbench.llm_integration import ResponseStyle
 from bgbench.game import Game
 from bgbench.llm_player import LLMPlayer
@@ -27,6 +27,12 @@ class OngoingMatch:
     task: asyncio.Task
 
 class Arena():
+    def _get_player_cost(self, player: ArenaPlayer) -> float:
+        """Calculate total cost of LLM interactions for a player."""
+        costs = self.session.query(LLMInteraction.cost).filter(
+            LLMInteraction.player_id == player.player_model.id
+        ).all()
+        return sum(cost[0] for cost in costs if cost[0] is not None)
     def __init__(self, game: Game, db_session: Session, 
                  player_configs: Optional[List[Dict[str, Any]]] = None,
                  experiment_name: Optional[str] = None,
@@ -209,7 +215,7 @@ class Arena():
         return best_pair
 
     def log_standings(self):
-        """Log current ratings for all players"""
+        """Log current ratings and costs for all players"""
         logger.info("\nCurrent Standings:")
         sorted_players = sorted(self.players, key=lambda p: p.rating.rating, reverse=True)
         for player in sorted_players:
@@ -222,8 +228,11 @@ class Arena():
                  (GameMatch.player2_id == player.player_model.id))
             ).count()
             
+            total_cost = self._get_player_cost(player)
+            
             logger.info(f"{player.llm_player.name}: {player.rating.rating:.0f} "
-                       f"({player.rating.games_played} games, {concessions} concessions)")
+                       f"({player.rating.games_played} games, {concessions} concessions, "
+                       f"${total_cost:.4f} cost)")
 
     async def run_single_game(self, player_a: ArenaPlayer, player_b: ArenaPlayer):
         """Run a single game and update ratings."""

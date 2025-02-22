@@ -352,4 +352,4 @@ class TestArena:
         # Check that concessions are mentioned in the log
         log_text = caplog.text
         assert "player-a: 1500 (0 games, 1 concessions, $0.0000 cost)" in log_text
-        assert "player-b: 1500 (0 games, 0 concessions)" in log_text
+        assert "player-b: 1500 (0 games, 0 concessions, $0.0000 cost)" in log_text

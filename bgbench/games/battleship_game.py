@@ -187,9 +187,11 @@ class BattleshipGame(Game):
         }
         
         if not state.setup_complete:
-            ships_to_place = [ship for ship in SHIPS 
-                            if not any(s.name == ship[0] for s in state.boards[player_id].ships)]
-            visible_state["ships_to_place"] = ships_to_place
+            ships_placed = len(state.boards[player_id].ships)
+            if ships_placed < len(SHIPS):
+                next_ship = SHIPS[ships_placed]
+                visible_state["next_ship_to_place"] = next_ship
+                visible_state["remaining_ships"] = SHIPS[ships_placed + 1:]
         
         move_instructions = (
             self.get_move_format_instructions_setup()
@@ -200,7 +202,8 @@ class BattleshipGame(Game):
         rules_explanation = (
             "We are playing Battleship on a 10x10 grid (A-J × 1-10). "
             "First, place your ships by specifying start coordinate and direction (h/v). "
-            "Ships are: Carrier (length 5), Battleship (length 4), Cruiser (length 3), Submarine (length 3), Destroyer (length 2). You get one of each ship. "
+            "Ships must be placed in this exact order: "
+            "Carrier (length 5), Battleship (length 4), Cruiser (length 3), Submarine (length 3), Destroyer (length 2). "
             "During play, call shots using coordinates (e.g., 'B5'). "
             "On your boards:\n"
             "- 'S' marks your ship locations\n"

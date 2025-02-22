@@ -275,16 +275,23 @@ class BattleshipGame(Game):
             ships_placed = len(state.boards[player_id].ships)
             if ships_placed >= len(SHIPS):
                 return False, "All ships already placed"
-                
-            # Check if this ship type has already been placed
-            ship_name, ship_size = SHIPS[ships_placed]
-            if any(ship.name == ship_name for ship in state.boards[player_id].ships):
-                return False, f"{ship_name} has already been placed"
-                
+
             # Check if placement is valid
-            positions = self._get_ship_positions(x, y, ship_size, is_horizontal)
+            positions = self._get_ship_positions(x, y, len(SHIPS[ships_placed][1]), is_horizontal)
             if not positions:
                 return False, "Ship placement out of bounds"
+
+            # Find which ship we're trying to place based on the size
+            ship_name = None
+            ship_size = None
+            for name, size in SHIPS:
+                if len(positions) == size and not any(ship.name == name for ship in state.boards[player_id].ships):
+                    ship_name = name
+                    ship_size = size
+                    break
+
+            if not ship_name:
+                return False, "Invalid ship placement or ship already placed"
             # Check for overlap
             for ship in state.boards[player_id].ships:
                 if positions & ship.positions:

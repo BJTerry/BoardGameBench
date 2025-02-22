@@ -1,7 +1,5 @@
-import json
 import logging
-from typing import Any, Optional, List, Dict, Tuple, Union
-from bgbench.moves import ChainOfThoughtMove, extract_move
+from typing import Any, Optional, List, Dict
 from bgbench.llm_integration import ResponseStyle, create_llm, complete_prompt
 from dataclasses import dataclass, field
 import time

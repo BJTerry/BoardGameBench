@@ -2,15 +2,14 @@ import logging
 from dataclasses import dataclass
 import random
 import asyncio
-from typing import Any, Dict, List, Optional, Tuple, Union, Set
+from typing import Any, Dict, List, Optional, Tuple, Set
 from sqlalchemy.orm import Session
 from bgbench.models import Experiment, Player as DBPlayer, GameMatch
-from bgbench.llm_integration import ResponseStyle, create_llm
+from bgbench.llm_integration import ResponseStyle
 from bgbench.game import Game
 from bgbench.llm_player import LLMPlayer
 from bgbench.game_view import PromptStyle
 from bgbench.game_runner import GameRunner
-from bgbench.moves import ChainOfThoughtMove
 from bgbench.rating import PlayerRating, EloSystem
 
 logger = logging.getLogger("bgbench")
@@ -217,7 +216,7 @@ class Arena():
             # Count concessions by this player
             concessions = self.session.query(GameMatch).filter(
                 (GameMatch.experiment_id == self.experiment.id) &
-                (GameMatch.conceded == True) &
+                (GameMatch.conceded) &
                 (GameMatch.winner_id != player.player_model.id) &
                 ((GameMatch.player1_id == player.player_model.id) | 
                  (GameMatch.player2_id == player.player_model.id))
@@ -375,7 +374,7 @@ class Arena():
         for player in db_players:
             concessions = self.session.query(GameMatch).filter(
                 (GameMatch.experiment_id == self.experiment.id) &
-                (GameMatch.conceded == True) &
+                (GameMatch.conceded) &
                 (GameMatch.winner_id != player.id) &
                 ((GameMatch.player1_id == player.id) | 
                  (GameMatch.player2_id == player.id))

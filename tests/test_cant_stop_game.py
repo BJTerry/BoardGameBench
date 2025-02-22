@@ -1,5 +1,5 @@
 import pytest
-from bgbench.games.cant_stop_game import CantStopGame, CantStopState, CantStopMove, ColumnState
+from bgbench.games.cant_stop_game import CantStopGame, CantStopMove
 
 @pytest.fixture
 def game():

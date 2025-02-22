@@ -62,14 +62,14 @@ def test_ship_placement_rules(game):
     assert valid, "Should be able to place first ship"
     state = game.apply_move(state, 0, (0, 0, True))
     
-    # Try to place another Carrier
-    carrier_move = (2, 2, True)
-    valid, msg = game.validate_move(state, 0, carrier_move)
-    assert not valid, "Should not be able to place duplicate Carrier"
-    assert "already been placed" in msg
+    # Try to place a ship on the same spot
+    duplicate_move = (0, 0, True)
+    valid, msg = game.validate_move(state, 0, duplicate_move)
+    assert not valid, "Should not be able to place overlapping space"
+    assert "Ships cannot overlap" in msg
     
     # Place remaining ships correctly
-    valid_positions = [(0, 2, True), (0, 4, True), (0, 6, True), (0, 8, True)]
+    valid_positions = [(0, 1, True), (0, 2, True), (0, 4, True), (0, 6, True), (0, 8, True)]
     for pos in valid_positions[:-1]:
         valid, msg = game.validate_move(state, 0, pos)
         assert valid, f"Should be able to place ship at {pos}"

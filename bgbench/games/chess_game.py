@@ -4,7 +4,6 @@ from bgbench.game import Game
 from bgbench.game_view import GameView, PromptStyle
 import chess
 import chess.pgn
-import io
 
 @dataclass
 class ChessState:

@@ -1,6 +1,5 @@
 import pytest
 from bgbench.games.chess_game import ChessGame, ChessState, ChessMove
-from bgbench.game_view import PromptStyle
 import chess
 
 @pytest.fixture

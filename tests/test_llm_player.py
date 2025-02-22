@@ -1,7 +1,7 @@
 import pytest
 from bgbench.llm_player import LLMPlayer
 from bgbench.game_view import GameView
-from bgbench.models import LLMInteraction, Experiment, Player, GameMatch
+from bgbench.models import Experiment, Player, GameMatch
 
 @pytest.mark.asyncio
 async def test_llm_player_basic_move(test_llm, db_session):

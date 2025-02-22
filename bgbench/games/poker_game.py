@@ -1,6 +1,5 @@
 from pokerkit import Card, NoLimitTexasHoldem as PKNoLimitTexasHoldem, Automation, State
-from bgbench.games.poker_types import NoLimitTexasHoldem
-from typing import Optional, Dict, Any, List, Tuple, NamedTuple
+from typing import Optional, Dict, Any, List, Tuple
 from dataclasses import dataclass
 from bgbench.game import Game
 from bgbench.game_view import GameView, PromptStyle

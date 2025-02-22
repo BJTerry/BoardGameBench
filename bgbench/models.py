@@ -203,7 +203,8 @@ class LLMInteraction(Base):
                        start_time: float, end_time: float, 
                        prompt_tokens: Optional[int] = None,
                        completion_tokens: Optional[int] = None,
-                       total_tokens: Optional[int] = None):
+                       total_tokens: Optional[int] = None,
+                       cost: Optional[float] = None):
         self.prompt = json.loads(json.dumps(prompt))  # Ensure proper JSON serialization
         self.response = response
         self.start_time = start_time
@@ -211,6 +212,7 @@ class LLMInteraction(Base):
         self.prompt_tokens = prompt_tokens
         self.completion_tokens = completion_tokens
         self.total_tokens = total_tokens
+        self.cost = cost
         session.add(self)
         session.commit()
         
@@ -219,6 +221,8 @@ class LLMInteraction(Base):
         logger.debug(f"Duration: {duration:.2f}s")
         if total_tokens:
             logger.debug(f"Total tokens: {total_tokens}")
+        if cost:
+            logger.debug(f"Cost: ${cost:.4f}")
 
     __tablename__ = 'llm_interactions'
     
@@ -232,4 +236,5 @@ class LLMInteraction(Base):
     prompt_tokens: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     completion_tokens: Mapped[Optional[int]] = mapped_column(Integer, nullable=True) 
     total_tokens: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    cost: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     player: Mapped["Player"] = relationship("Player")

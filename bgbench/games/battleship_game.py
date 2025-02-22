@@ -277,7 +277,7 @@ class BattleshipGame(Game):
                 return False, "All ships already placed"
 
             # Check if placement is valid
-            positions = self._get_ship_positions(x, y, len(SHIPS[ships_placed][1]), is_horizontal)
+            positions = self._get_ship_positions(x, y, SHIPS[ships_placed][1], is_horizontal)
             if not positions:
                 return False, "Ship placement out of bounds"
 

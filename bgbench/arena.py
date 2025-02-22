@@ -29,7 +29,10 @@ class OngoingMatch:
 class Arena():
     def _get_player_cost(self, player: ArenaPlayer) -> float:
         """Calculate total cost of LLM interactions for a player."""
-        costs = self.session.query(LLMInteraction.cost).filter(
+        costs = self.session.query(LLMInteraction.cost).join(
+            GameMatch, LLMInteraction.game_id == GameMatch.id
+        ).filter(
+            GameMatch.experiment_id == self.experiment.id,
             LLMInteraction.player_id == player.player_model.id
         ).all()
         return sum(cost[0] for cost in costs if cost[0] is not None)

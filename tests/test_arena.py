@@ -7,11 +7,9 @@ async def mock_play_game_no_elo_update(self):
     # Pretend a random player wins, but we skip rating updates.
     winner = random.choice(self.players)
     return winner, [], None  # no rating changes
-from bgbench.arena import Arena, ArenaPlayer
+from bgbench.arena import Arena
 from bgbench.games.nim_game import NimGame
-from bgbench.llm_player import LLMPlayer
 from bgbench.models import Experiment, Player as DBPlayer, GameMatch
-from bgbench.rating import PlayerRating
 
 @pytest.fixture
 def mock_llm():

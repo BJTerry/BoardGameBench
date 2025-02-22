@@ -1,14 +1,18 @@
 import os
 import logging
-from typing import Optional, List, Dict, Any, Union, Protocol, Tuple
+from typing import Optional, List, Dict, Any, Union, Protocol, Tuple, TypedDict
 from enum import Enum
 from .moves import ChainOfThoughtMove
 import litellm
+from litellm.types.completion import Completion
 from litellm.types.utils import ModelResponse, Choices
 
-router = litellm.Router(num_retries=5)
-litellm._turn_on_debug()
 logger = logging.getLogger(__name__)
+
+class UsageInfo(TypedDict):
+    prompt_tokens: Optional[int]
+    completion_tokens: Optional[int] 
+    total_tokens: Optional[int]
 
 class LLMCompletionProvider(Protocol):
     """Protocol for objects that can provide completions"""
@@ -46,7 +50,7 @@ def create_llm(
         **kwargs
     }
 
-async def complete_prompt(llm_config: Union[Dict[str, Any], LLMCompletionProvider], prompt: str) -> Tuple[str, Dict[str, int]]:
+async def complete_prompt(llm_config: Union[Dict[str, Any], LLMCompletionProvider], prompt: str) -> Tuple[str, UsageInfo]:
     """Helper function to complete a prompt using litellm."""
     try:
         if isinstance(llm_config, dict):
@@ -80,11 +84,11 @@ async def complete_prompt(llm_config: Union[Dict[str, Any], LLMCompletionProvide
         if content is None:
             raise ValueError("No content in LLM response")
             
-        # Extract token counts
-        token_info = {
-            "prompt_tokens": response.usage.prompt_tokens if response.usage else None,
-            "completion_tokens": response.usage.completion_tokens if response.usage else None,
-            "total_tokens": response.usage.total_tokens if response.usage else None
+        # Extract token counts with proper typing
+        token_info: UsageInfo = {
+            "prompt_tokens": getattr(response, 'usage', {}).get('prompt_tokens'),
+            "completion_tokens": getattr(response, 'usage', {}).get('completion_tokens'),
+            "total_tokens": getattr(response, 'usage', {}).get('total_tokens')
         }
             
         return content, token_info

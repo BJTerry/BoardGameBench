@@ -174,10 +174,10 @@ class BattleshipGame(Game):
                         x, y, is_horizontal = move
                         direction = "horizontally" if is_horizontal else "vertically"
                         coord = f"{string.ascii_uppercase[x]}{y+1}"
-                        ships_placed = len(state.boards[player_id].ships)
-                        if ships_placed < len(SHIPS):
-                            ship_name = SHIPS[ships_placed][0]
-                            shot_history.append(f"Turn {turn['turn']}: Placed {ship_name} {direction} at {coord}")
+                        # Get the actual ship that was placed in this turn
+                        if turn['turn'] <= len(state.boards[player_id].ships):
+                            ship = state.boards[player_id].ships[turn['turn'] - 1]  # -1 because turns are 1-based
+                            shot_history.append(f"Turn {turn['turn']}: Placed {ship.name} {direction} at {coord}")
         
         visible_state = {
             "your_board": self._format_board(state.boards[player_id], True),

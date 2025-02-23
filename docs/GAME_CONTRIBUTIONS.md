@@ -1,6 +1,7 @@
 # Game Contributions Guide
 
-This document explains how to add new game engines to BoardGameBench. New games allow LLMs to play against one another without human intervention. Follow these guidelines to ensure your game integrates smoothly with the platform’s architecture, conforms to security and serialization standards, and meets the expectations for hidden information and proper game state management.
+This guide explains how to implement game engines within the architecture described in [DESIGN.md](../DESIGN.md),
+following the coding conventions in [CONVENTIONS.md](../CONVENTIONS.md). New games allow LLMs to play against one another without human intervention. Follow these guidelines to ensure your game integrates smoothly with the platform’s architecture, conforms to security and serialization standards, and meets the expectations for hidden information and proper game state management.
 
 ---
 

@@ -31,6 +31,8 @@ def is_prime(n):
     return True
 ```
 
+For guidelines on implementing new games, see [GAME_CONTRIBUTIONS.md](docs/GAME_CONTRIBUTIONS.md).
+
 2. Focus on Core Functionality
 - Start with the minimum viable solution
 - Question every feature: "Is this really necessary?"

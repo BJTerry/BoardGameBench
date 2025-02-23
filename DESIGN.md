@@ -26,6 +26,7 @@ The framework enables systematic evaluation of LLM game-playing capabilities thr
    - Type-safe state management
    - Clear validation rules
    - Detailed game history tracking
+   - See [GAME_CONTRIBUTIONS.md](docs/GAME_CONTRIBUTIONS.md) for detailed implementation guidelines.
    See GAME_CONTRIBUTIONS.md for detailed implementation guidelines.
 
 4. Arena System

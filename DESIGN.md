@@ -1,5 +1,7 @@
 # LLM Game Evaluation Framework Design
 
+See CONVENTIONS.md for coding style and practices to follow when implementing components.
+
 ## Architecture Overview
 
 The framework enables systematic evaluation of LLM game-playing capabilities through a modular, extensible architecture.
@@ -24,6 +26,7 @@ The framework enables systematic evaluation of LLM game-playing capabilities thr
    - Type-safe state management
    - Clear validation rules
    - Detailed game history tracking
+   See GAME_CONTRIBUTIONS.md for detailed implementation guidelines.
 
 4. Arena System
    - Automated match scheduling

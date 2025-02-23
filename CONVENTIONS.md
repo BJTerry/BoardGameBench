@@ -1,6 +1,8 @@
 Instructions for Aider and other LLM tools:
 Keep it simple!
 
+These conventions should be followed when implementing components described in DESIGN.md.
+
 1. Embrace Simplicity Over Cleverness
 - Write code that's immediately understandable to others
 - If a solution feels complex, it probably needs simplification

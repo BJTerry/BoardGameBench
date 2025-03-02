@@ -29,16 +29,32 @@ class OngoingMatch:
 class Arena():
     def _get_player_cost(self, player: ArenaPlayer) -> float:
         """Calculate total cost of LLM interactions for a player in this experiment."""
+        # Add debug logging
+        logger.debug(f"Getting costs for player {player.llm_player.name} (id: {player.player_model.id}) in experiment {self.experiment.id}")
+        
         # Query LLMInteraction joined with GameMatch to filter by experiment
-        costs = self.session.query(LLMInteraction.cost).join(
+        query = self.session.query(LLMInteraction.cost).join(
             GameMatch, LLMInteraction.game_id == GameMatch.id
         ).filter(
             GameMatch.experiment_id == self.experiment.id,
             LLMInteraction.player_id == player.player_model.id
-        ).all()
+        )
+        
+        # Log the SQL query
+        logger.debug(f"SQL Query: {query}")
+        
+        # Execute the query and get results
+        costs = query.all()
+        
+        # Log the raw results
+        logger.debug(f"Raw cost results: {costs}")
         
         # Sum the costs, handling None values
-        return sum(cost[0] for cost in costs if cost[0] is not None)
+        total_cost = sum(cost[0] for cost in costs if cost[0] is not None)
+        
+        logger.debug(f"Total cost for player {player.llm_player.name}: ${total_cost:.4f}")
+        
+        return total_cost
     def __init__(self, game: Game, db_session: Session, 
                  player_configs: Optional[List[Dict[str, Any]]] = None,
                  experiment_name: Optional[str] = None,

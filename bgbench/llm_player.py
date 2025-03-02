@@ -83,6 +83,13 @@ class LLMPlayer:
                 # Add debug logging
                 logger.debug(f"Logging interaction for player_id={self.player_id}, game_id={self.game_id}")
                 logger.debug(f"Cost from token_info: ${token_info.get('cost', 0):.6f}")
+                
+                # Double-check player ID in database
+                player = self.db_session.query(Player).filter_by(name=self.name).first()
+                if player and player.id != self.player_id:
+                    logger.warning(f"Player ID mismatch! Using {self.player_id} but database has {player.id} for {self.name}")
+                    # Use the correct ID from database
+                    self.player_id = player.id
             
                 messages = [{"role": "user", "content": prompt}]
                 llm_interaction = LLMInteraction(

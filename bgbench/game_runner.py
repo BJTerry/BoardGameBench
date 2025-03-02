@@ -36,6 +36,10 @@ class GameRunner:
         from bgbench.models import Player
         player_record = self.session.query(Player).filter_by(name=player.name).first()
         if player_record:
+            logger.debug(f"Found player {player.name} in database with ID {player_record.id}")
+            # Log all players in the database for debugging
+            all_players = self.session.query(Player).all()
+            logger.debug(f"All players in database: {[(p.id, p.name) for p in all_players]}")
             return player_record.id
         else:
             logger.error(f"Could not find player {player.name} in database")

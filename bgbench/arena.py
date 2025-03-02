@@ -32,12 +32,31 @@ class Arena():
         # Add debug logging
         logger.debug(f"Getting costs for player {player.llm_player.name} (id: {player.player_model.id}) in experiment {self.experiment.id}")
         
+        # First, let's check what player_id is actually used in the database
+        player_id_check = self.session.query(LLMInteraction.player_id).filter(
+            LLMInteraction.game_id.in_(
+                self.session.query(GameMatch.id).filter(
+                    GameMatch.experiment_id == self.experiment.id
+                )
+            )
+        ).distinct().all()
+        
+        logger.debug(f"Player IDs found in LLMInteraction for this experiment: {player_id_check}")
+        
+        # Get the player by name to ensure we have the correct ID
+        db_player = self.session.query(DBPlayer).filter_by(name=player.llm_player.name).first()
+        if not db_player:
+            logger.error(f"Could not find player {player.llm_player.name} in database")
+            return 0.0
+        
+        logger.debug(f"Player {player.llm_player.name} has ID {db_player.id} in database")
+        
         # Query LLMInteraction joined with GameMatch to filter by experiment
         query = self.session.query(LLMInteraction.cost).join(
             GameMatch, LLMInteraction.game_id == GameMatch.id
         ).filter(
             GameMatch.experiment_id == self.experiment.id,
-            LLMInteraction.player_id == player.player_model.id
+            LLMInteraction.player_id == db_player.id  # Use the ID from the database lookup
         )
         
         # Log the SQL query

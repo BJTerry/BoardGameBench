@@ -72,24 +72,13 @@ class LLMPlayer:
             
             # Log the interaction if we have a database session
             if self.db_session and self.game_id:
-                # Use player_id if set, otherwise look up by name
+                # Check that player_id is set
                 if not hasattr(self, 'player_id') or self.player_id is None:
-                    # Get the player record from the database if player_id isn't set
-                    player = self.db_session.query(Player).filter_by(name=self.name).first()
-                    if player is None:
-                        raise ValueError(f"Player {self.name} not found in database")
-                    self.player_id = player.id
+                    raise ValueError(f"Player {self.name} does not have player_id set. This must be set before making moves.")
             
                 # Add debug logging
                 logger.debug(f"Logging interaction for player_id={self.player_id}, game_id={self.game_id}")
                 logger.debug(f"Cost from token_info: ${token_info.get('cost', 0):.6f}")
-                
-                # Double-check player ID in database
-                player = self.db_session.query(Player).filter_by(name=self.name).first()
-                if player and player.id != self.player_id:
-                    logger.warning(f"Player ID mismatch! Using {self.player_id} but database has {player.id} for {self.name}")
-                    # Use the correct ID from database
-                    self.player_id = player.id
             
                 messages = [{"role": "user", "content": prompt}]
                 llm_interaction = LLMInteraction(

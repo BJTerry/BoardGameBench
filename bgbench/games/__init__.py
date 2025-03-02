@@ -6,6 +6,7 @@ from .guess_who_game import GuessWhoGame
 from .love_letter_game import LoveLetterGame
 from .chess_game import ChessGame
 from .cant_stop_game import CantStopGame
+from .scrabble_game import ScrabbleGame
 
 AVAILABLE_GAMES = {
     'nim': NimGame,
@@ -16,6 +17,7 @@ AVAILABLE_GAMES = {
     'chess': ChessGame,
     'cant_stop': CantStopGame,
     'poker': PokerGame,
+    'scrabble': ScrabbleGame,
 }
 
 __all__ = ['NimGame', 'BattleshipGame', 'WarGame', 'GuessWhoGame', 'AVAILABLE_GAMES']

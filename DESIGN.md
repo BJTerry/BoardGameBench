@@ -64,25 +64,11 @@ Comprehensive experiment tracking:
 - Performance metrics
 - Rating progression
 
-### Testing Architecture
+## Testing Framework
 
-1. **Framework Components**
-   - pytest with async support
-   - Comprehensive fixture system
-   - Controlled test environments
-   - Detailed failure logging
-
-2. **LLM Testing**
-   - TestModel for deterministic LLM simulation
-   - Message flow capture and verification
-   - System prompt consistency validation
-   - Error condition simulation
-
-3. **Integration Testing**
-   - End-to-end game scenarios
-   - Database operation verification
-   - Rating system validation
-   - Performance metric tracking
+- **Framework:** The project uses `pytest` for unit testing.
+- **Approach:** Write tests to cover core game logic, edge cases, and full game scenarios.
+- **Guidelines:** Refer to `GAME_CONTRIBUTIONS.md` for detailed instructions on writing tests for new games.
 
 ### Best Practices
 

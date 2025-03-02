@@ -2,6 +2,7 @@ import logging
 from typing import Optional, List, Dict, Any, Union, Protocol, Tuple, TypedDict
 from enum import Enum
 import litellm
+from litellm.cost_calculator import completion_cost
 from litellm.types.utils import ModelResponse, Choices
 
 logger = logging.getLogger(__name__)
@@ -83,11 +84,16 @@ async def complete_prompt(llm_config: Union[Dict[str, Any], LLMCompletionProvide
             raise ValueError("No content in LLM response")
             
         # Extract token counts with proper typing
+        cost = None
+        try:
+            cost = completion_cost(response)
+        except Exception as e:
+            print(f"Couldn't calculate cost {e}")
         token_info: UsageInfo = {
             "prompt_tokens": getattr(response, 'usage', {}).get('prompt_tokens'),
             "completion_tokens": getattr(response, 'usage', {}).get('completion_tokens'),
             "total_tokens": getattr(response, 'usage', {}).get('total_tokens'),
-            "cost": response._hidden_params.get("response_cost")
+            "cost": cost,
         }
             
         return content, token_info

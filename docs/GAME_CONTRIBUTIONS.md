@@ -5,6 +5,36 @@ following the coding conventions in [CONVENTIONS.md](../CONVENTIONS.md). New gam
 
 ---
 
+## 11. Enabling LLM to Perform Moves
+
+To ensure that the LLM can effectively perform moves in a game, it is crucial to provide clear instructions, robust parsing, and comprehensive validation. This involves three key components:
+
+1. **Move Format Instructions:**
+   - **Purpose:** Guide the LLM on how to format its moves.
+   - **Implementation:** Use the `get_move_format_instructions` method to provide a detailed string that explains how moves should be formatted.
+   - **Example:** In Scrabble, the instructions might be: "To make a move, specify the word, starting position (row, column), and direction (horizontal or vertical). Example: 'WORD 7 7 horizontal'."
+
+2. **Move Parsing:**
+   - **Purpose:** Convert the LLM's response into a structured move object.
+   - **Implementation:** Implement the `parse_move` method to handle the conversion from a string to a move object.
+   - **Considerations:** Ensure robust error handling for malformed inputs and provide meaningful error messages.
+
+3. **Move Validation:**
+   - **Purpose:** Ensure that the move is legal according to the game's rules.
+   - **Implementation:** Implement the `validate_move` method to check the legality of the move.
+   - **Considerations:** Verify turn order, game-specific constraints, and any other rules that apply to the move.
+
+### Example from Scrabble
+
+In the Scrabble game implementation:
+- **Move Format Instructions:** Clearly instruct the LLM on how to specify a word, its starting position, and direction.
+- **Move Parsing:** Convert the LLM's string input into a `ScrabbleMove` object, handling any errors gracefully.
+- **Move Validation:** Check that the word fits on the board, is connected to existing words, and is in the dictionary.
+
+By ensuring these components are well-implemented, the LLM can effectively interact with the game and perform all possible moves.
+
+---
+
 ## 1. Overview
 
 BoardGameBench uses a modular design where every game engine:
@@ -98,6 +128,29 @@ When implementing game methods, keep these common patterns in mind:
   - **Example:** In card games, the opponent’s hand should not be visible.
   - **Tip:** Build a dictionary of “visible_state” with keys like `your_board`, `target_board`, or similar, and avoid including internal state details.
 
+- **Move Format Instructions:**  
+  Every game must provide clear move format instructions to guide the LLM on how to play the game. This is crucial for ensuring that the LLM can generate valid moves.
+  - **Implementation:** Use the `get_move_format_instructions` method to return a string that explains how moves should be formatted. This string should be included in the `GameView`.
+  - **Example:** In `chess_game.py`, the move format instructions are provided in standard chess notation (PGN format).
+
+- **GameView Setup:**  
+  The `GameView` class in `game_view.py` is used to encapsulate what a player can see of the game state. It includes:
+  - `visible_state`: A dictionary or string representing the current state visible to the player.
+  - `valid_moves`: A list of legal moves available to the player.
+  - `is_terminal`: A boolean indicating if the game has ended.
+  - `winner`: The player ID of the winner if the game is over, otherwise `None`.
+  - `history`: A list of previous moves and their results.
+  - `move_format_instructions`: Instructions on how moves should be formatted.
+  - `rules_explanation`: An explanation of the game rules.
+  - `prompt_style`: The style in which the prompt should be formatted (e.g., JSON, XML, HEADER).
+
+- **Example from ChessGame:**  
+  In `chess_game.py`, the `get_player_view` method constructs a `GameView` by:
+  - Providing the current board position in FEN format.
+  - Listing legal moves in PGN format.
+  - Including move format instructions to guide the LLM.
+  - Indicating if the game is in a terminal state and who the winner is, if applicable.
+
 - **Documentation:**  
   Clearly document in your code which parts of the state are public and which are private.
 
@@ -116,15 +169,63 @@ When implementing game methods, keep these common patterns in mind:
 
 ## 8. Testing and Validation
 
-- **Unit Testing:**  
-  Create tests for each game engine to verify that:
-  - Moves are correctly parsed and validated.
-  - State transitions follow the rules.
-  - Player views do not leak hidden information.
-  - Terminal conditions and winner detection are accurate.
+To ensure the robustness and correctness of your game implementation, it is crucial to create comprehensive unit tests. Follow these guidelines to write effective tests using `pytest`, the project's testing framework.
 
-- **Simulation:**  
-  Run simulated matches (LLM vs. LLM) to check for edge cases and ensure the game behaves as expected under various scenarios.
+### Setting Up Tests
+
+1. **Use Fixtures:**
+   - Create fixtures for setting up the game instance and initial state.
+   - Example:
+     ```python
+     import pytest
+     from bgbench.games.your_game import YourGame, YourState
+
+     @pytest.fixture
+     def game():
+         return YourGame()
+
+     @pytest.fixture
+     def initial_state(game):
+         return game.get_initial_state()
+     ```
+
+2. **Test Core Game Logic:**
+   - Write tests for move parsing, validation, and application.
+   - Example:
+     ```python
+     def test_parse_move(game):
+         move = game.parse_move("your_move_format")
+         assert move is not None
+     ```
+
+3. **Test Edge Cases:**
+   - Include tests for invalid moves, special rules, and game-ending conditions.
+   - Example:
+     ```python
+     def test_invalid_move(game, initial_state):
+         move = game.parse_move("invalid_move")
+         is_valid, _ = game.validate_move(initial_state, 0, move)
+         assert not is_valid
+     ```
+
+4. **Simulate Game Scenarios:**
+   - Simulate full games to ensure correct behavior under various scenarios.
+   - Example:
+     ```python
+     def test_game_scenario(game, initial_state):
+         moves = ["move1", "move2", "move3"]
+         state = initial_state
+         for move_str in moves:
+             move = game.parse_move(move_str)
+             state = game.apply_move(state, 0, move)
+         assert game.is_terminal(state)
+     ```
+
+### Best Practices
+
+- **Consistent Naming:** Use descriptive names for test functions to indicate what they are testing.
+- **Comprehensive Coverage:** Ensure tests cover all aspects of the game logic, including edge cases.
+- **Use Assertions:** Use assertions to verify expected outcomes and behaviors.
 
 ---
 

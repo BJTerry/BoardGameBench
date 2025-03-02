@@ -192,6 +192,8 @@ suspected component. Modify the code if necessary to get more
 information, such as adding debug logs. Ensure that any 
 modifications do not hide the bug[2][4].
 
+Note: Never remove debug logging until you've confirmed the
+code is fixed.
 
 
 # Object-Oriented Programming Guidelines for Simple, Robust Code

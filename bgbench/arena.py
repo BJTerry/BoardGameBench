@@ -52,7 +52,7 @@ class Arena():
         # Sum the costs, handling None values
         total_cost = sum(cost[0] for cost in costs if cost[0] is not None)
         
-        logger.debug(f"Total cost for player {player.llm_player.name}: ${total_cost:.4f}")
+        logger.debug(f"Total cost for player {player.llm_player.name}: ${total_cost:.6f}")
         
         return total_cost
     def __init__(self, game: Game, db_session: Session, 

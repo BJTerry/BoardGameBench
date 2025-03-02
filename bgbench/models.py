@@ -213,6 +213,10 @@ class LLMInteraction(Base):
         self.completion_tokens = completion_tokens
         self.total_tokens = total_tokens
         self.cost = cost
+        
+        # Add debug logging
+        logger.debug(f"Setting cost={cost} for interaction in game_id={self.game_id}, player_id={self.player_id}")
+        
         session.add(self)
         session.commit()
         
@@ -222,7 +226,7 @@ class LLMInteraction(Base):
         if total_tokens:
             logger.debug(f"Total tokens: {total_tokens}")
         if cost:
-            logger.debug(f"Cost: ${cost:.4f}")
+            logger.debug(f"Cost: ${cost:.6f}")
 
     __tablename__ = 'llm_interactions'
     

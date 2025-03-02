@@ -29,6 +29,9 @@ class LLMPlayer:
         if self.db_session is None or self.game_id is None:
             raise ValueError("LLMPlayer must have db_session and game_id set before making moves")
         
+        # Add debug logging
+        logger.debug(f"Player {self.name} making move for game_id={self.game_id}")
+        
         if self._llm is None:
             raise ValueError("LLM configuration is not initialized")
         
@@ -59,6 +62,9 @@ class LLMPlayer:
             response, token_info = await complete_prompt(self._llm, prompt)
             end_time = time.time()
             
+            # Add debug logging for token info and cost
+            logger.debug(f"LLM response received with token info: {token_info}")
+            
             # Extract move and add to conversation history
             move = response.strip()
             self.conversation_history.append({"role": "assistant", "content": move})
@@ -69,6 +75,10 @@ class LLMPlayer:
                 player = self.db_session.query(Player).filter_by(name=self.name).first()
                 if player is None:
                     raise ValueError(f"Player {self.name} not found in database")
+                
+                # Add debug logging
+                logger.debug(f"Logging interaction for player_id={player.id}, game_id={self.game_id}")
+                logger.debug(f"Cost from token_info: ${token_info.get('cost', 0):.6f}")
                 
                 messages = [{"role": "user", "content": prompt}]
                 llm_interaction = LLMInteraction(

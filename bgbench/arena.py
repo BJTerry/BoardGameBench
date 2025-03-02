@@ -295,7 +295,9 @@ class Arena():
                 player_a.llm_player, 
                 player_b.llm_player, 
                 self.session,
-                game_id
+                game_id,
+                player_a.player_model.id,  # Pass the correct player IDs
+                player_b.player_model.id
             )
             
             winner, history, concession = await runner.play_game()

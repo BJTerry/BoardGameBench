@@ -19,11 +19,28 @@ class GameRunner:
         self.start_time = None
         
         # Set database session and game_id for players
+        logger.debug(f"Setting game_id={game_id} for players {player1.name} and {player2.name}")
         player1.db_session = db_session
         player1.game_id = game_id
+        player1.player_id = self._get_player_id(player1)
+        
         player2.db_session = db_session
         player2.game_id = game_id
+        player2.player_id = self._get_player_id(player2)
+        
+        logger.debug(f"Player {player1.name} has player_id={player1.player_id}")
+        logger.debug(f"Player {player2.name} has player_id={player2.player_id}")
 
+    def _get_player_id(self, player: LLMPlayer) -> int:
+        """Get the database ID for a player."""
+        from bgbench.models import Player
+        player_record = self.session.query(Player).filter_by(name=player.name).first()
+        if player_record:
+            return player_record.id
+        else:
+            logger.error(f"Could not find player {player.name} in database")
+            return -1
+            
     async def play_game(self) -> Tuple[Optional[LLMPlayer], List[Dict[str, Any]], Optional[str]]:
         """Play a game between two LLM players.
         

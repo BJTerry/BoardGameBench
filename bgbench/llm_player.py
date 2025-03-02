@@ -18,6 +18,7 @@ class LLMPlayer:
     conversation_history: List[Dict[str, str]] = field(default_factory=list)
     db_session: Optional[Any] = None
     game_id: Optional[int] = None
+    player_id: Optional[int] = None
     _llm: Optional[Dict[str, Any]] = field(default=None)
 
     def __post_init__(self):
@@ -71,19 +72,22 @@ class LLMPlayer:
             
             # Log the interaction if we have a database session
             if self.db_session and self.game_id:
-                # Get the player record from the database
-                player = self.db_session.query(Player).filter_by(name=self.name).first()
-                if player is None:
-                    raise ValueError(f"Player {self.name} not found in database")
-                
+                # Use player_id if set, otherwise look up by name
+                if not hasattr(self, 'player_id') or self.player_id is None:
+                    # Get the player record from the database if player_id isn't set
+                    player = self.db_session.query(Player).filter_by(name=self.name).first()
+                    if player is None:
+                        raise ValueError(f"Player {self.name} not found in database")
+                    self.player_id = player.id
+            
                 # Add debug logging
-                logger.debug(f"Logging interaction for player_id={player.id}, game_id={self.game_id}")
+                logger.debug(f"Logging interaction for player_id={self.player_id}, game_id={self.game_id}")
                 logger.debug(f"Cost from token_info: ${token_info.get('cost', 0):.6f}")
-                
+            
                 messages = [{"role": "user", "content": prompt}]
                 llm_interaction = LLMInteraction(
                     game_id=self.game_id,
-                    player_id=player.id,
+                    player_id=self.player_id,
                     prompt=messages,
                     response=move,
                 )

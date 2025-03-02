@@ -2,9 +2,57 @@ import logging
 from typing import Optional, List, Dict, Any, Union, Protocol, Tuple, TypedDict
 from enum import Enum
 import litellm
+from litellm import register_model
 from litellm.cost_calculator import completion_cost
 from litellm.types.utils import ModelResponse, Choices
 
+register_model({
+    "openrouter/anthropic/claude-3.5-haiku": {
+        "max_tokens": 200000,
+        "input_cost_per_token": 0.000001,
+        "output_cost_per_token": 0.000005,
+        "litellm_provider": "openrouter",
+        "mode": "chat",
+        "supports_function_calling": True,
+        "supports_tool_choice": True,
+    },
+    "gemini/gemini-2.0-flash-thinking-exp-01-21": {
+        "max_tokens": 8192,
+        "max_input_tokens": 1048576,
+        "max_output_tokens": 8192,
+        "max_images_per_prompt": 3000,
+        "max_videos_per_prompt": 10,
+        "max_video_length": 1,
+        "max_audio_length_hours": 8.4,
+        "max_audio_per_prompt": 1,
+        "max_pdf_size_mb": 30,
+        "input_cost_per_image": 0,
+        "input_cost_per_video_per_second": 0,
+        "input_cost_per_audio_per_second": 0,
+        "input_cost_per_token": 0,
+        "input_cost_per_character": 0, 
+        "input_cost_per_token_above_128k_tokens": 0, 
+        "input_cost_per_character_above_128k_tokens": 0, 
+        "input_cost_per_image_above_128k_tokens": 0,
+        "input_cost_per_video_per_second_above_128k_tokens": 0,
+        "input_cost_per_audio_per_second_above_128k_tokens": 0,
+        "output_cost_per_token": 0,
+        "output_cost_per_character": 0,
+        "output_cost_per_token_above_128k_tokens": 0,
+        "output_cost_per_character_above_128k_tokens": 0,
+        "litellm_provider": "gemini",
+        "mode": "chat",
+        "supports_system_messages": True,
+        "supports_function_calling": True,
+        "supports_vision": True,
+        "supports_response_schema": True,
+        "supports_audio_output": True,
+        "tpm": 4000000,
+        "rpm": 10,
+        "source": "https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models#gemini-2.0-flash",
+        "supports_tool_choice": True
+    },
+})
 logger = logging.getLogger(__name__)
 
 class UsageInfo(TypedDict):

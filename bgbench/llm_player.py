@@ -78,7 +78,10 @@ class LLMPlayer:
             
                 # Add debug logging
                 logger.debug(f"Logging interaction for player_id={self.player_id}, game_id={self.game_id}")
-                logger.debug(f"Cost from token_info: ${token_info.get('cost', 0):.6f}")
+                cost = 0
+                if token_info is not None and isinstance(token_info, dict):
+                    cost = token_info.get('cost', 0) or 0
+                logger.debug(f"Cost from token_info: ${float(cost):.6f}")
             
                 messages = [{"role": "user", "content": prompt}]
                 llm_interaction = LLMInteraction(
@@ -86,6 +89,7 @@ class LLMPlayer:
                     player_id=self.player_id,
                     prompt=messages,
                     response=move,
+                    cost=float(cost),
                 )
                 llm_interaction.log_interaction(
                     self.db_session,

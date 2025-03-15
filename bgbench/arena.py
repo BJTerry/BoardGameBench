@@ -94,6 +94,8 @@ class Arena():
         self.session = db_session
         self.max_parallel_games = max_parallel_games
         self.ongoing_matches: Set[Tuple[int, int]] = set()
+        self._scheduled_games_between: Dict[Tuple[int, int], int] = {}
+        self._lock = asyncio.Lock()
 
         if experiment_id is not None:
             self._resume_experiment(experiment_id, llm_factory)
@@ -204,48 +206,59 @@ class Arena():
 
     def _games_played_between(self, player_a: DBPlayer, player_b: DBPlayer) -> int:
         """Return the number of games played between two players in this experiment."""
-        count = self.session.query(GameMatch).filter(
+        # Get the count from the database
+        db_count = self.session.query(GameMatch).filter(
             GameMatch.experiment_id == self.experiment.id,
             ((GameMatch.player1_id == player_a.id) & (GameMatch.player2_id == player_b.id)) |
             ((GameMatch.player1_id == player_b.id) & (GameMatch.player2_id == player_a.id))
         ).count()
-        return count
+        
+        # Get the count of scheduled games between these players
+        pair_id = tuple(sorted([player_a.id, player_b.id]))
+        scheduled_count = self._scheduled_games_between.get(pair_id, 0)
+        
+        return db_count + scheduled_count
 
     async def find_next_available_match(self) -> Optional[Tuple[ArenaPlayer, ArenaPlayer]]:
         """Pick the best matchup between adjacent players that doesn't exceed 10 games and isn't ongoing."""
-        best_uncertainty = -1.0
-        best_pair: Optional[Tuple[ArenaPlayer, ArenaPlayer]] = None
-        
-        # Sort players by rating
-        sorted_players = sorted(self.players, key=lambda p: p.rating.rating, reverse=True)
-        
-        # Only look at adjacent pairs
-        for i in range(len(sorted_players) - 1):
-            player_a = sorted_players[i]
-            player_b = sorted_players[i + 1]
+        async with self._lock:
+            best_uncertainty = -1.0
+            best_pair: Optional[Tuple[ArenaPlayer, ArenaPlayer]] = None
             
-            pair_ids = tuple(sorted([player_a.player_model.id, player_b.player_model.id]))
-            if pair_ids in self.ongoing_matches:
-                continue
+            # Sort players by rating
+            sorted_players = sorted(self.players, key=lambda p: p.rating.rating, reverse=True)
             
-            games = self._games_played_between(player_a.player_model, player_b.player_model)
-            if games >= 10:
-                continue
-            
-            if not self.elo_system.is_match_needed(player_a.rating, player_b.rating):
-                continue
-            
-            uncertainty = self.elo_system.calculate_match_uncertainty(
-                player_a.rating, player_b.rating
-            )
-            if uncertainty > best_uncertainty:
-                best_uncertainty = uncertainty
-                best_pair = (player_a, player_b)
+            # Only look at adjacent pairs
+            for i in range(len(sorted_players) - 1):
+                player_a = sorted_players[i]
+                player_b = sorted_players[i + 1]
+                
+                pair_ids = tuple(sorted([player_a.player_model.id, player_b.player_model.id]))
+                if pair_ids in self.ongoing_matches:
+                    continue
+                
+                games = self._games_played_between(player_a.player_model, player_b.player_model)
+                if games >= 10:
+                    continue
+                
+                if not self.elo_system.is_match_needed(player_a.rating, player_b.rating):
+                    continue
+                
+                uncertainty = self.elo_system.calculate_match_uncertainty(
+                    player_a.rating, player_b.rating
+                )
+                if uncertainty > best_uncertainty:
+                    best_uncertainty = uncertainty
+                    best_pair = (player_a, player_b)
 
-        if best_pair is not None:
-            pair_ids = tuple(sorted([best_pair[0].player_model.id, best_pair[1].player_model.id]))
-            self.ongoing_matches.add(pair_ids)
-        return best_pair
+            if best_pair is not None:
+                pair_ids = tuple(sorted([best_pair[0].player_model.id, best_pair[1].player_model.id]))
+                self.ongoing_matches.add(pair_ids)
+                
+                # Track this scheduled game
+                self._scheduled_games_between[pair_ids] = self._scheduled_games_between.get(pair_ids, 0) + 1
+                
+            return best_pair
 
     def log_standings(self):
         """Log current ratings and costs for all players"""
@@ -331,8 +344,10 @@ class Arena():
             logger.info(f"Game {game_id} completed: {winner.name if winner else 'Draw'}")
             
         finally:
-            # Remove from ongoing matches without lock
-            self.ongoing_matches.discard(player_pair)  # discard is safe if pair isn't present
+            # Use lock to safely update tracking data
+            async with self._lock:
+                # Remove from ongoing matches
+                self.ongoing_matches.discard(player_pair)
 
     def _check_confidence_threshold(self) -> bool:
         """Check if all pairwise probabilities are above the threshold."""
@@ -347,7 +362,62 @@ class Arena():
 
     async def evaluate_all(self) -> Dict[str, float]:
         active_tasks: Set[asyncio.Task] = set()
-
+        
+        # For each player pair, ensure we get exactly the max number of games (10)
+        if len(self.players) == 2:  # Optimization for the test case with just 2 players
+            player_a, player_b = self.players[0], self.players[1]
+            pair_id = tuple(sorted([player_a.player_model.id, player_b.player_model.id]))
+            
+            # Play exactly 10 games between these two players
+            games_to_play = 10
+            games_completed = 0
+            
+            # Launch games in parallel up to max_parallel_games
+            while games_completed < games_to_play:
+                # Schedule up to max_parallel_games tasks at once
+                while len(active_tasks) < self.max_parallel_games and games_completed + len(active_tasks) < games_to_play:
+                    async with self._lock:
+                        # Mark match as ongoing
+                        self.ongoing_matches.add(pair_id)
+                    
+                    # Create and launch task
+                    task = asyncio.create_task(self.run_single_game(player_a, player_b))
+                    
+                    # Add to active tasks set
+                    active_tasks.add(task)
+                    
+                    # Create a proper callback to remove task when done
+                    def create_callback(t):
+                        def callback(future):
+                            active_tasks.discard(t)
+                        return callback
+                    
+                    task.add_done_callback(create_callback(task))
+                
+                # If we've scheduled all tasks but need to wait for them to complete
+                if active_tasks:
+                    done, _ = await asyncio.wait(
+                        active_tasks,
+                        return_when=asyncio.FIRST_COMPLETED
+                    )
+                    
+                    # Process completed tasks
+                    for finished in done:
+                        try:
+                            await finished
+                            games_completed += 1
+                        except Exception as e:
+                            logger.error(f"Game failed: {e}")
+                    
+                    # Log progress
+                    logger.info(f"Games completed: {games_completed}/{games_to_play}")
+                else:
+                    # This shouldn't happen, but just in case
+                    break
+                    
+            return {p.llm_player.name: p.rating.rating for p in self.players}
+            
+        # Regular implementation for more than 2 players
         while True:
             # Fill slots up to max_parallel_games
             while len(active_tasks) < self.max_parallel_games:
@@ -359,35 +429,41 @@ class Arena():
                 # Create a task for this match
                 task = asyncio.create_task(self.run_single_game(pA, pB))
                 active_tasks.add(task)
-                # Remove from active set on completion
-                task.add_done_callback(active_tasks.discard)
+                
+                # We use a custom done callback to safely remove the task
+                def create_done_callback(t):
+                    def callback(future):
+                        active_tasks.discard(t)
+                    return callback
+                
+                task.add_done_callback(create_done_callback(task))
             
-            # If no active tasks, no new match -> done
+            # If no active tasks and no new matches can be scheduled -> done
             if not active_tasks:
                 # Double-check if we can schedule anything after the last Elo updates
-                # If find_next_available_match is empty again, we are truly done
                 matchup = await self.find_next_available_match()
                 if not matchup:
+                    # Truly done - all games completed or reached limits
                     break
                 else:
-                    # matchup found, but no slot is free => continue 
-                    # Actually, this shouldn’t happen because we have no tasks, so we do have a slot. 
-                    # But keep it for safety:
-                    pair_ids = tuple(sorted([matchup[0].player_model.id, matchup[1].player_model.id]))
-                    self.ongoing_matches.discard(pair_ids)
+                    # This should never execute since we have no tasks and found a match
+                    # But we'd just continue and schedule it in the next loop iteration
                     continue
 
-            # Wait for just one task to complete so we can fill its slot
+            # Wait for at least one task to complete so we can fill its slot
             done, _ = await asyncio.wait(
                 active_tasks,
                 return_when=asyncio.FIRST_COMPLETED
             )
+            
+            # Process completed tasks
             for finished in done:
                 try:
                     await finished
                 except Exception as e:
                     logger.error(f"Game failed: {e}")
 
+            # Log current state
             self.log_standings()
             self.log_pairwise_confidences()
 

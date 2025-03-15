@@ -14,7 +14,7 @@ async def test_llm_player_basic_move(test_llm, db_session):
     db_session.add(game)
     db_session.commit()
 
-    llm_player = LLMPlayer("test_player", {"model": "test"}, db_session=db_session, game_id=game.id, _llm=test_llm)
+    llm_player = LLMPlayer("test_player", {"model": "test"}, db_session=db_session, game_id=game.id, player_id=player.id, _llm=test_llm)
     
     game_view = GameView(
         visible_state={"remaining": 10},
@@ -50,7 +50,7 @@ async def test_llm_player_invalid_move_retry(test_llm, db_session):
     db_session.add(game)
     db_session.commit()
 
-    llm_player = LLMPlayer("test_player", {"model": "test"}, db_session=db_session, game_id=game.id, _llm=test_llm)
+    llm_player = LLMPlayer("test_player", {"model": "test"}, db_session=db_session, game_id=game.id, player_id=player.id, _llm=test_llm)
     
     game_view = GameView(
         visible_state={"remaining": 5},
@@ -83,7 +83,7 @@ async def test_llm_player_db_logging(test_llm, mocker):
     mock_interaction = mocker.MagicMock()
     mocker.patch('bgbench.llm_player.LLMInteraction', return_value=mock_interaction)
     
-    llm_player = LLMPlayer("test_player", {"model": "test"}, db_session=mock_session, game_id=1, _llm=test_llm)
+    llm_player = LLMPlayer("test_player", {"model": "test"}, db_session=mock_session, game_id=1, player_id=1, _llm=test_llm)
     
     game_view = GameView(
         visible_state={"remaining": 5},

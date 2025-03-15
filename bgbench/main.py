@@ -29,6 +29,7 @@ async def main():
     
     # Parallel execution options
     parser.add_argument('--parallel-games', type=int, default=3, help='Number of games to run in parallel')
+    parser.add_argument('--cost-budget', type=float, default=2.0, help='Maximum cost budget for the experiment in dollars')
     args = parser.parse_args()
 
     setup_logging(debug=args.debug)
@@ -65,7 +66,8 @@ async def main():
             game, 
             db_session, 
             experiment_id=args.resume,
-            max_parallel_games=args.parallel_games
+            max_parallel_games=args.parallel_games,
+            cost_budget=args.cost_budget
         )
     else:
         arena = Arena(
@@ -73,7 +75,8 @@ async def main():
             db_session, 
             player_configs=player_configs,
             experiment_name=args.name,
-            max_parallel_games=args.parallel_games
+            max_parallel_games=args.parallel_games,
+            cost_budget=args.cost_budget
         )
 
     if args.export:

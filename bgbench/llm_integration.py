@@ -2,7 +2,7 @@ import logging
 from typing import Optional, List, Dict, Any, Union, Protocol, Tuple, TypedDict
 from enum import Enum
 import litellm
-from litellm import register_model
+from litellm.utils import register_model
 from litellm.cost_calculator import completion_cost
 from litellm.types.utils import ModelResponse, Choices
 

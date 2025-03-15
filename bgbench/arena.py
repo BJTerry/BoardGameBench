@@ -72,6 +72,7 @@ class Arena():
                  experiment_id: Optional[int] = None, 
                  confidence_threshold: float = 0.70,
                  max_parallel_games: int = 3,
+                 cost_budget: Optional[float] = 2.0,
                  llm_factory=None):
         """
         Initialize Arena with either:
@@ -85,6 +86,8 @@ class Arena():
             experiment_name: Name for new experiment
             experiment_id: ID of experiment to resume
             confidence_threshold: Confidence threshold for Elo ratings
+            max_parallel_games: Number of games to run in parallel
+            cost_budget: Maximum cost budget for the experiment in dollars
             llm_factory: Optional function for testing that creates LLM instances
         """
         self.game: Game = game
@@ -93,6 +96,7 @@ class Arena():
         self.confidence_threshold = confidence_threshold
         self.session = db_session
         self.max_parallel_games = max_parallel_games
+        self.cost_budget = cost_budget
         self.ongoing_matches: Set[Tuple[int, int]] = set()
         self._scheduled_games_between: Dict[Tuple[int, int], int] = {}
         self._lock = asyncio.Lock()
@@ -221,7 +225,6 @@ class Arena():
 
     async def find_next_available_match(self) -> Optional[Tuple[ArenaPlayer, ArenaPlayer]]:
         """Pick the best matchup between adjacent players that doesn't exceed 10 games and isn't ongoing."""
-        best_uncertainty = -1.0
         best_pair: Optional[Tuple[ArenaPlayer, ArenaPlayer]] = None
         
         # Sort players by rating
@@ -277,6 +280,8 @@ class Arena():
         """Log current ratings and costs for all players"""
         logger.info("\nCurrent Standings:")
         sorted_players = sorted(self.players, key=lambda p: p.rating.rating, reverse=True)
+        
+        total_cost = 0.0
         for player in sorted_players:
             # Count concessions by this player
             concessions = self.session.query(GameMatch).filter(
@@ -287,11 +292,18 @@ class Arena():
                  (GameMatch.player2_id == player.player_model.id))
             ).count()
             
-            total_cost = self._get_player_cost(player)
+            player_cost = self._get_player_cost(player)
+            total_cost += player_cost
             
             logger.info(f"{player.llm_player.name}: {player.rating.rating:.0f} "
                        f"({player.rating.games_played} games, {concessions} concessions, "
-                       f"${total_cost:.4f} cost)")
+                       f"${player_cost:.4f} cost)")
+        
+        if self.cost_budget:
+            logger.info(f"Total cost: ${total_cost:.4f} / ${self.cost_budget:.4f} " 
+                       f"({total_cost/self.cost_budget*100:.1f}% of budget)")
+        else:
+            logger.info(f"Total cost: ${total_cost:.4f}")
 
     async def run_single_game(self, player_a: ArenaPlayer, player_b: ArenaPlayer):
         """Run a single game and update ratings."""
@@ -436,6 +448,14 @@ class Arena():
         
         # Regular implementation for normal use
         while True:
+            # Check total cost against budget if specified
+            if self.cost_budget is not None:
+                total_cost = sum(self._get_player_cost(player) for player in self.players)
+                logger.info(f"Current total cost: ${total_cost:.6f} / ${self.cost_budget:.6f}")
+                if total_cost >= self.cost_budget:
+                    logger.info(f"Cost budget of ${self.cost_budget:.6f} reached. Stopping evaluation.")
+                    break
+                    
             # Track number of new tasks spawned in this iteration
             new_tasks_spawned = 0
             

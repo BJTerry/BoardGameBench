@@ -214,7 +214,7 @@ class Arena():
         ).count()
         
         # Get the count of scheduled games between these players
-        pair_id = tuple(sorted([player_a.id, player_b.id]))
+        pair_id = (min(player_a.id, player_b.id), max(player_a.id, player_b.id))
         scheduled_count = self._scheduled_games_between.get(pair_id, 0)
         
         return db_count + scheduled_count
@@ -233,7 +233,8 @@ class Arena():
                 player_a = sorted_players[i]
                 player_b = sorted_players[i + 1]
                 
-                pair_ids = tuple(sorted([player_a.player_model.id, player_b.player_model.id]))
+                pair_ids = (min(player_a.player_model.id, player_b.player_model.id), 
+                             max(player_a.player_model.id, player_b.player_model.id))
                 if pair_ids in self.ongoing_matches:
                     continue
                 
@@ -252,7 +253,8 @@ class Arena():
                     best_pair = (player_a, player_b)
 
             if best_pair is not None:
-                pair_ids = tuple(sorted([best_pair[0].player_model.id, best_pair[1].player_model.id]))
+                pair_ids = (min(best_pair[0].player_model.id, best_pair[1].player_model.id),
+                            max(best_pair[0].player_model.id, best_pair[1].player_model.id))
                 self.ongoing_matches.add(pair_ids)
                 
                 # Track this scheduled game
@@ -285,7 +287,7 @@ class Arena():
         # Get database players at the start
         db_player_a = player_a.player_model
         db_player_b = player_b.player_model
-        player_pair = tuple(sorted([db_player_a.id, db_player_b.id]))
+        player_pair = (min(db_player_a.id, db_player_b.id), max(db_player_a.id, db_player_b.id))
         
         try:
             # Randomize player order
@@ -366,7 +368,8 @@ class Arena():
         # For each player pair, ensure we get exactly the max number of games (10)
         if len(self.players) == 2:  # Optimization for the test case with just 2 players
             player_a, player_b = self.players[0], self.players[1]
-            pair_id = tuple(sorted([player_a.player_model.id, player_b.player_model.id]))
+            pair_id = (min(player_a.player_model.id, player_b.player_model.id),
+                       max(player_a.player_model.id, player_b.player_model.id))
             
             # Play exactly 10 games between these two players
             games_to_play = 10

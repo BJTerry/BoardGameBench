@@ -6,6 +6,8 @@ from litellm.utils import register_model
 from litellm.cost_calculator import completion_cost
 from litellm.types.utils import ModelResponse, Choices
 
+litellm._turn_on_debug()
+
 register_model({
     "openrouter/anthropic/claude-3.5-haiku": {
         "max_tokens": 200000,
@@ -141,12 +143,23 @@ async def complete_prompt(llm_config: Union[Dict[str, Any], LLMCompletionProvide
             # Add all prompt messages
             messages.extend(prompt_messages)
             
+            # Prepare kwargs for optional parameters (only non-None values)
+            kwargs = {}
+            
+            if llm_config.get("temperature") is not None:
+                kwargs["temperature"] = llm_config.get("temperature")
+                
+            if llm_config.get("max_tokens") is not None:
+                kwargs["max_tokens"] = llm_config.get("max_tokens")
+                
+            if llm_config.get("provider") is not None:
+                kwargs["provider"] = llm_config.get("provider")
+            
+            # Always pass model and messages as required parameters
             response = await litellm.acompletion(
                 model=llm_config["model"],
                 messages=messages,
-                temperature=llm_config.get("temperature"),
-                max_tokens=llm_config.get("max_tokens"),
-                provider=llm_config.get("provider"),
+                **kwargs
             )
         else:
             # If it's a TestLLM or similar object with completion method

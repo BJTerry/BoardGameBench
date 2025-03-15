@@ -6,8 +6,6 @@ from litellm.utils import register_model
 from litellm.cost_calculator import completion_cost
 from litellm.types.utils import ModelResponse, Choices
 
-litellm._turn_on_debug()
-
 register_model({
     "openrouter/anthropic/claude-3.5-haiku": {
         "max_tokens": 200000,

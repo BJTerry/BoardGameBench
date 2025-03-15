@@ -55,23 +55,6 @@ class PokerState:
                 return self.big_blind
         return None
 
-        statuses = self.internal_state.statuses
-        if self.internal_state.actor_index is None:
-            if not statuses[0]:
-                # Small blind has lost
-                return 1 - self.big_blind
-            elif not statuses[1]:
-                return self.big_blind
-
-
-        if not self.internal_state.status:
-            if self.internal_state.stacks[0] == 0:
-                # Small blind has lost
-                return 1 - self.big_blind
-            elif self.internal_state.stacks[1] == 0:
-                return self.big_blind
-        return None
-
     def current_player(self) -> int:
         if self.internal_state.actor_index is None:
             # Game is over
@@ -80,7 +63,6 @@ class PokerState:
 
 def format_cards(cards: List[Card]):
     return " ".join(str(card) for card in cards)
-
 
 
 class PokerGame(Game[PokerState, str]):

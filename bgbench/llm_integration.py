@@ -67,7 +67,12 @@ class LLMCompletionProvider(Protocol):
 
 NON_SYSTEM_MODELS = ["openai/o1-mini", "openai/o1-preview"]
 # Models that don't support cache_control parameters (strip these out before calling)
-CACHE_DISABLED_MODELS = ["gemini/gemini-2.0-flash-thinking-exp-01-21"]
+CACHE_DISABLED_MODELS = [
+    "gemini/gemini-2.0-flash-thinking-exp-01-21",
+    "openrouter/deepseek/deepseek-r1",
+    "openrouter/openai/o1-mini",
+]
+
 SYSTEM_PROMPT = (
     "You are playing a game. Your goal is to win by making valid moves according to the rules. "
     "Always respond with ONLY your move in the exact format specified - no explanation or other text."

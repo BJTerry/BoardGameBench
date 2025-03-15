@@ -93,15 +93,25 @@ def create_llm(
         # Models that support system role
         messages.append({
             "role": "system", 
-            "content": SYSTEM_PROMPT,
-            "cache_control": {"type": "ephemeral"}
+            "content": [
+                {
+                    "type": "text",
+                    "text": SYSTEM_PROMPT,
+                    "cache_control": {"type": "ephemeral"}
+                }
+            ]
         })
     else:
         # Models that don't support system role, use user role instead
         messages.append({
             "role": "user", 
-            "content": SYSTEM_PROMPT,
-            "cache_control": {"type": "ephemeral"}
+            "content": [
+                {
+                    "type": "text",
+                    "text": SYSTEM_PROMPT,
+                    "cache_control": {"type": "ephemeral"}
+                }
+            ]
         })
 
     return {
@@ -141,8 +151,15 @@ async def complete_prompt(llm_config: Union[Dict[str, Any], LLMCompletionProvide
         else:
             # If it's a TestLLM or similar object with completion method
             # For testing, we flatten the structured prompt to a single message
-            combined_content = "\n\n".join([msg["content"] for msg in prompt_messages])
-            messages = [{"role": "user", "content": combined_content}]
+            # Extract the text content from the nested structure
+            combined_content = "\n\n".join([
+                block["text"] for msg in prompt_messages 
+                for block in msg["content"] if "type" in block and block["type"] == "text"
+            ])
+            messages = [{
+                "role": "user", 
+                "content": [{"type": "text", "text": combined_content}]
+            }]
                 
             response = llm_config.completion(
                 model="test",

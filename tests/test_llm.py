@@ -7,7 +7,14 @@ class TestLLM:
         
     def completion(self, model: str, messages: list, **kwargs) -> ModelResponse:
         """Simple test double that returns predetermined responses"""
-        self.last_prompt = messages[-1]["content"] if messages else None
+        if messages and messages[-1]["content"]:
+            # Extract text from the content array - assuming first text block
+            if isinstance(messages[-1]["content"], list) and messages[-1]["content"][0].get("type") == "text":
+                self.last_prompt = messages[-1]["content"][0]["text"]
+            else:
+                self.last_prompt = messages[-1]["content"]
+        else:
+            self.last_prompt = None
         
         # Create a proper ModelResponse object
         return ModelResponse(

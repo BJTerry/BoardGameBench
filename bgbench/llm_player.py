@@ -55,10 +55,15 @@ class LLMPlayer:
                 f"Please carefully review the invalid moves above and try again. {move_instruction}"
             )
             
-        # Add the move instruction to the prompt messages
+        # Add the move instruction to the prompt messages using correct structure
         prompt_messages.append({
             "role": "user",
-            "content": move_instruction
+            "content": [
+                {
+                    "type": "text",
+                    "text": move_instruction
+                }
+            ]
         })
 
         try:

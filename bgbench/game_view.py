@@ -95,23 +95,38 @@ class GameView:
         if self.rules_explanation:
             messages.append({
                 "role": "user",
-                "content": self.rules_explanation,
-                "cache_control": {"type": "ephemeral"}
+                "content": [
+                    {
+                        "type": "text",
+                        "text": self.rules_explanation,
+                        "cache_control": {"type": "ephemeral"}
+                    }
+                ]
             })
         
         # Move format is cacheable (static)
         if self.move_format_instructions:
             messages.append({
                 "role": "user",
-                "content": self.move_format_instructions,
-                "cache_control": {"type": "ephemeral"}
+                "content": [
+                    {
+                        "type": "text",
+                        "text": self.move_format_instructions,
+                        "cache_control": {"type": "ephemeral"}
+                    }
+                ]
             })
         
         # State changes with each turn (not cacheable)
         # Must come after cached blocks
         messages.append({
             "role": "user", 
-            "content": PromptRenderer._render_state(self.prompt_style, self.visible_state)
+            "content": [
+                {
+                    "type": "text",
+                    "text": PromptRenderer._render_state(self.prompt_style, self.visible_state)
+                }
+            ]
         })
         
         return messages

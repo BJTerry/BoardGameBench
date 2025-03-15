@@ -110,6 +110,7 @@ async def complete_prompt(llm_config: Union[Dict[str, Any], LLMCompletionProvide
                 messages=messages,
                 temperature=llm_config.get("temperature"),
                 max_tokens=llm_config.get("max_tokens"),
+                provider=llm_config.get("provider"),
             )
         else:
             # If it's a TestLLM or similar object with completion method

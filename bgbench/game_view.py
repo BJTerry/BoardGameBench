@@ -80,11 +80,38 @@ class GameView:
     error_message: Optional[str] = None
     prompt_style: PromptStyle = PromptStyle.HEADER
 
-    def format_prompt(self) -> str:
-        """Format the game view according to the configured prompt style."""
-        return PromptRenderer.render(
-            self.prompt_style,
-            self.rules_explanation or "",
-            self.visible_state,
-            self.move_format_instructions or ""
-        )
+    def format_prompt(self) -> List[Dict[str, Any]]:
+        """
+        Format the game view with cacheable and non-cacheable parts.
+        
+        Returns:
+            List of message blocks with appropriate cache_control settings.
+            Cacheable blocks must be at the top for LiteLLM's caching to work.
+        """
+        # Create a list of messages with appropriate caching
+        messages = []
+        
+        # Rules are cacheable (static)
+        if self.rules_explanation:
+            messages.append({
+                "role": "user",
+                "content": self.rules_explanation,
+                "cache_control": {"type": "ephemeral"}
+            })
+        
+        # Move format is cacheable (static)
+        if self.move_format_instructions:
+            messages.append({
+                "role": "user",
+                "content": self.move_format_instructions,
+                "cache_control": {"type": "ephemeral"}
+            })
+        
+        # State changes with each turn (not cacheable)
+        # Must come after cached blocks
+        messages.append({
+            "role": "user", 
+            "content": PromptRenderer._render_state(self.prompt_style, self.visible_state)
+        })
+        
+        return messages

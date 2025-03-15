@@ -84,10 +84,25 @@ def create_llm(
 ) -> Dict[str, Any]:
     """Factory function to create LLM client configuration."""
     
-    # Set up system prompt for models that support it
-    messages: List[Dict[str, str]] = []
+    # Set up system prompt with appropriate role based on model
+    messages: List[Dict[str, Any]] = []
+    
+    # For all models, add the system prompt but with different roles
+    # Always add cache_control to the system prompt
     if model not in NON_SYSTEM_MODELS:
-        messages.append({"role": "system", "content": SYSTEM_PROMPT})
+        # Models that support system role
+        messages.append({
+            "role": "system", 
+            "content": SYSTEM_PROMPT,
+            "cache_control": {"type": "ephemeral"}
+        })
+    else:
+        # Models that don't support system role, use user role instead
+        messages.append({
+            "role": "user", 
+            "content": SYSTEM_PROMPT,
+            "cache_control": {"type": "ephemeral"}
+        })
 
     return {
         "model": model,  # Pass model name exactly as provided
@@ -97,13 +112,24 @@ def create_llm(
         **kwargs
     }
 
-async def complete_prompt(llm_config: Union[Dict[str, Any], LLMCompletionProvider], prompt: str) -> Tuple[str, UsageInfo]:
-    """Helper function to complete a prompt using litellm."""
+async def complete_prompt(llm_config: Union[Dict[str, Any], LLMCompletionProvider], prompt_messages: List[Dict[str, Any]]) -> Tuple[str, UsageInfo, List[Dict[str, Any]]]:
+    """
+    Helper function to complete a prompt using litellm with caching support.
+    
+    Args:
+        llm_config: Configuration for the LLM
+        prompt_messages: List of message blocks with appropriate caching settings
+        
+    Returns:
+        Tuple of (response content, usage info, full message list used)
+    """
     try:
         if isinstance(llm_config, dict):
-            # Original dictionary config case
+            # Get base messages from config (like system message)
             messages = llm_config["messages"].copy()
-            messages.append({"role": "user", "content": prompt})
+            
+            # Add all prompt messages
+            messages.extend(prompt_messages)
             
             response = await litellm.acompletion(
                 model=llm_config["model"],
@@ -114,7 +140,10 @@ async def complete_prompt(llm_config: Union[Dict[str, Any], LLMCompletionProvide
             )
         else:
             # If it's a TestLLM or similar object with completion method
-            messages = [{"role": "user", "content": prompt}]
+            # For testing, we flatten the structured prompt to a single message
+            combined_content = "\n\n".join([msg["content"] for msg in prompt_messages])
+            messages = [{"role": "user", "content": combined_content}]
+                
             response = llm_config.completion(
                 model="test",
                 messages=messages
@@ -145,7 +174,8 @@ async def complete_prompt(llm_config: Union[Dict[str, Any], LLMCompletionProvide
             "cost": cost,
         }
             
-        return content, token_info
+        # Return the content, token info, and the full message list that was used
+        return content, token_info, messages
         
     except Exception as e:
         logger.error(f"Error completing prompt: {str(e)}")

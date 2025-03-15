@@ -36,31 +36,35 @@ class LLMPlayer:
         if self._llm is None:
             raise ValueError("LLM configuration is not initialized")
         
-        # Construct the prompt including system instructions
-        # Format the game view according to the configured style
-        formatted_game_view = game_view.format_prompt()
+        # Get the prompt blocks with cache settings from the game view
+        prompt_messages = game_view.format_prompt()
         
-        if self.model_config['model'] in NON_SYSTEM_MODELS:
-            prompt = SYSTEM_PROMPT + "\n"
-        else:
-            prompt = ""
+        # Create instruction message - this won't be cached as it's different for each move
+        move_instruction = "What is your move? Respond with ONLY your move in the exact format specified."
         
-        prompt += (
-            f"{formatted_game_view}\n\n"
-            "What is your move? Respond with ONLY your move in the exact format specified."
-        )
+        # Add information about invalid moves if needed
         if invalid_moves:
-            prompt += "\n\nPrevious Invalid Moves:\n"
+            invalid_moves_text = "Previous Invalid Moves:\n"
             for i, invalid_move in enumerate(invalid_moves, 1):
-                prompt += (
+                invalid_moves_text += (
                     f"Attempt {i}: {invalid_move['move']}\n"
                     f"Reason: {invalid_move['explanation']}\n\n"
                 )
-            prompt += "Please carefully review the invalid moves above and try again. Respond with ONLY your move in the exact format specified."
+            move_instruction = (
+                f"{invalid_moves_text}"
+                f"Please carefully review the invalid moves above and try again. {move_instruction}"
+            )
+            
+        # Add the move instruction to the prompt messages
+        prompt_messages.append({
+            "role": "user",
+            "content": move_instruction
+        })
 
         try:
-            # Get response from LLM
-            response, token_info = await complete_prompt(self._llm, prompt)
+            # Get response from LLM using the structured prompt messages with caching
+            # Now complete_prompt returns the full list of messages used (including system message)
+            response, token_info, full_messages = await complete_prompt(self._llm, prompt_messages)
             end_time = time.time()
             
             # Add debug logging for token info and cost
@@ -83,17 +87,17 @@ class LLMPlayer:
                     cost = token_info.get('cost', 0) or 0
                 logger.debug(f"Cost from token_info: ${float(cost):.6f}")
             
-                messages = [{"role": "user", "content": prompt}]
+                # Use the full message list from complete_prompt for accurate logging
                 llm_interaction = LLMInteraction(
                     game_id=self.game_id,
                     player_id=self.player_id,
-                    prompt=messages,
+                    prompt=full_messages,  # Use full messages including system message
                     response=move,
                     cost=float(cost),
                 )
                 llm_interaction.log_interaction(
                     self.db_session,
-                    messages,
+                    full_messages,  # Log the complete message list
                     move,
                     start_time,
                     end_time,

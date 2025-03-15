@@ -66,6 +66,8 @@ class LLMCompletionProvider(Protocol):
     def completion(self, model: str, messages: List[Dict[str, str]], **kwargs) -> ModelResponse: ...
 
 NON_SYSTEM_MODELS = ["openai/o1-mini", "openai/o1-preview"]
+# Models that don't support cache_control parameters (strip these out before calling)
+CACHE_DISABLED_MODELS = ["gemini/gemini-2.0-flash-thinking-exp-01-21"]
 SYSTEM_PROMPT = (
     "You are playing a game. Your goal is to win by making valid moves according to the rules. "
     "Always respond with ONLY your move in the exact format specified - no explanation or other text."
@@ -140,6 +142,15 @@ async def complete_prompt(llm_config: Union[Dict[str, Any], LLMCompletionProvide
             
             # Add all prompt messages
             messages.extend(prompt_messages)
+            
+            # For models that don't support cache_control, strip it out
+            if llm_config["model"] in CACHE_DISABLED_MODELS:
+                # Remove cache_control from each message block
+                for msg in messages:
+                    if "content" in msg and isinstance(msg["content"], list):
+                        for content_block in msg["content"]:
+                            if "cache_control" in content_block:
+                                del content_block["cache_control"]
             
             # Prepare kwargs for optional parameters (only non-None values)
             kwargs = {}

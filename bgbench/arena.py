@@ -10,7 +10,7 @@ from bgbench.game import Game
 from bgbench.llm_player import LLMPlayer
 from bgbench.game_view import PromptStyle
 from bgbench.game_runner import GameRunner
-from bgbench.rating import PlayerRating, EloSystem
+from bgbench.bayes_rating import PlayerRating, EloSystem, GameResult
 
 logger = logging.getLogger("bgbench")
 
@@ -92,7 +92,7 @@ class Arena():
         """
         self.game: Game = game
         self.players: List[ArenaPlayer] = []
-        self.elo_system = EloSystem()
+        self.elo_system = EloSystem(confidence_threshold=confidence_threshold)
         self.confidence_threshold = confidence_threshold
         self.session = db_session
         self.max_parallel_games = max_parallel_games
@@ -100,6 +100,9 @@ class Arena():
         self.ongoing_matches: Set[Tuple[int, int]] = set()
         self._scheduled_games_between: Dict[Tuple[int, int], int] = {}
         self._lock = asyncio.Lock()
+        
+        # Store completed matches history for Bayesian rating updates
+        self.match_history: List[GameResult] = []
 
         if experiment_id is not None:
             self._resume_experiment(experiment_id, llm_factory)
@@ -131,6 +134,41 @@ class Arena():
         logger.info(f"Resumed experiment {self.experiment.name} (id: {experiment_id})")
         logger.info(f"Cleaned up {len(incomplete_games)} incomplete games and their states")
         
+        # Load all completed games for the match history
+        completed_games = self.session.query(GameMatch).filter(
+            GameMatch.experiment_id == self.experiment.id,
+            GameMatch.winner_id.isnot(None)
+        ).all()
+        
+        # Create a dictionary to look up player names by ID
+        player_name_map = {}
+        for db_player in self.experiment.players:
+            player_name_map[db_player.id] = db_player.name
+        
+        # Build match history
+        for match in completed_games:
+            if match.player1_id not in player_name_map or match.player2_id not in player_name_map:
+                logger.warning(f"Match {match.id} references player IDs not in experiment")
+                continue
+            
+            player_0 = player_name_map[match.player1_id]
+            player_1 = player_name_map[match.player2_id]
+            winner = player_name_map.get(match.winner_id) if match.winner_id else None
+            
+            self.match_history.append(GameResult(
+                player_0=player_0,
+                player_1=player_1,
+                winner=winner
+            ))
+        
+        # Create ArenaPlayers
+        player_names = [p.name for p in self.experiment.players]
+        player_ratings = {}
+        
+        # If we have match history, update ratings
+        if self.match_history:
+            player_ratings = self.elo_system.update_ratings(self.match_history, player_names)
+        
         for db_player in self.experiment.players:
             if llm_factory:
                 llm_player = LLMPlayer(
@@ -145,19 +183,25 @@ class Arena():
                     logger.error(f"Could not recreate LLM for player {db_player.name}: {e}")
                     continue
             
-            # Count only completed games where player was involved
-            games_played = self.session.query(GameMatch).filter(
-                GameMatch.experiment_id == self.experiment.id,
-                GameMatch.winner_id.isnot(None),
-                (GameMatch.player1_id == db_player.id) | 
-                (GameMatch.player2_id == db_player.id)
-            ).count()
+            # Use the Bayesian rating if available, otherwise create a default
+            if db_player.name in player_ratings:
+                rating = player_ratings[db_player.name]
+            else:
+                # Count games for this player
+                games_played = self.session.query(GameMatch).filter(
+                    GameMatch.experiment_id == self.experiment.id,
+                    GameMatch.winner_id.isnot(None),
+                    (GameMatch.player1_id == db_player.id) | 
+                    (GameMatch.player2_id == db_player.id)
+                ).count()
+                
+                rating = PlayerRating(
+                    name=db_player.name,
+                    rating=db_player.rating,
+                    sigma=400.0,  # Default uncertainty
+                    games_played=games_played
+                )
             
-            rating = PlayerRating(
-                name=db_player.name,
-                rating=db_player.rating,
-                games_played=games_played
-            )
             self.players.append(ArenaPlayer(llm_player, rating, db_player))
 
     def _create_new_experiment(self, experiment_name: Optional[str], 
@@ -202,7 +246,8 @@ class Arena():
             # Create arena player with initial values
             rating = PlayerRating(
                 name=config["name"],
-                rating=self.elo_system.initial_rating,
+                rating=1500.0,  # Default initial rating
+                sigma=400.0,    # Default uncertainty
                 games_played=0
             )
             self.players.append(ArenaPlayer(llm_player, rating, db_player))
@@ -227,6 +272,13 @@ class Arena():
         """Pick the best matchup between adjacent players that doesn't exceed 10 games and isn't ongoing."""
         best_pair: Optional[Tuple[ArenaPlayer, ArenaPlayer]] = None
         
+        # If we don't have any match history yet, we need to initialize the Bayesian system
+        # with a dummy update to avoid RuntimeError in probability calculations
+        if not self.match_history and len(self.players) > 0:
+            player_names = [p.llm_player.name for p in self.players]
+            # This will set initial ratings with defaults (1500 rating, 400 sigma)
+            self.elo_system.update_ratings([], player_names)
+        
         # Sort players by rating
         sorted_players = sorted(self.players, key=lambda p: p.rating.rating, reverse=True)
         
@@ -248,18 +300,50 @@ class Arena():
                 if games >= 10:
                     continue
             
-            if not self.elo_system.is_match_needed(player_a.rating, player_b.rating):
+            # If we don't have enough match history, consider all matches needed
+            match_needed = True
+            if self.match_history:
+                try:
+                    # Use player names with the Bayesian EloSystem
+                    match_needed = self.elo_system.is_match_needed(
+                        player_a.llm_player.name, 
+                        player_b.llm_player.name
+                    )
+                except RuntimeError:
+                    # If error occurs, consider match needed
+                    match_needed = True
+            
+            if not match_needed:
                 continue
             
-            uncertainty = self.elo_system.calculate_match_uncertainty(
-                player_a.rating, player_b.rating
-            )
-            candidates.append((uncertainty, player_a, player_b, pair_ids))
+            # For new experiments without history, prioritize adjacent players
+            if not self.match_history:
+                # Lower rank difference = higher priority (0 = highest priority)
+                rank_diff = i
+                candidates.append((rank_diff, player_a, player_b, pair_ids))
+            else:
+                # Get probability that player_a is stronger than player_b
+                try:
+                    prob = self.elo_system.probability_stronger(
+                        player_a.llm_player.name, 
+                        player_b.llm_player.name
+                    )
+                    # Calculate uncertainty - with 0.5 being most uncertain (50/50 chance)
+                    # and values close to 0 or 1 being more certain
+                    uncertainty = abs(0.5 - prob)
+                    
+                    # We want matches with uncertainty closest to 0 (probability closest to 0.5)
+                    # So we use negative uncertainty for sorting (lowest first)
+                    candidates.append((-uncertainty, player_a, player_b, pair_ids))
+                except RuntimeError:
+                    # If we don't have enough match history for probability calculation
+                    # Consider it high uncertainty
+                    candidates.append((0, player_a, player_b, pair_ids))
         
         # Find best match
         if candidates:
-            # Sort by first element (uncertainty) - highest first
-            candidates.sort(key=lambda x: x[0], reverse=True)
+            # Sort by first element (negative uncertainty or rank difference) - lowest first
+            candidates.sort(key=lambda x: x[0])
             _, player_a, player_b, pair_ids = candidates[0]
             best_pair = (player_a, player_b)
             
@@ -340,23 +424,32 @@ class Arena():
             
             winner, history, concession = await runner.play_game()
             
-            # Calculate new Elo ratings
+            # Update the match history and recalculate all ratings
             if winner:
-                # Determine if player_a won
-                a_wins = winner.name == player_a.llm_player.name
+                # Add the new game to our match history
+                winner_name = winner.name
                 
-                # Update ratings using ELO system
-                new_a_rating, new_b_rating = self.elo_system.update_ratings(
-                    player_a.rating,
-                    player_b.rating,
-                    a_wins
+                # Create a GameResult entry for this match
+                new_game = GameResult(
+                    player_0=player_a.llm_player.name,
+                    player_1=player_b.llm_player.name, 
+                    winner=winner_name
                 )
+                self.match_history.append(new_game)
                 
-                # Update both memory and database ratings
-                player_a.rating = new_a_rating
-                player_b.rating = new_b_rating
-                db_player_a.update_rating(self.session, new_a_rating.rating)
-                db_player_b.update_rating(self.session, new_b_rating.rating)
+                # Get all player names
+                player_names = [p.llm_player.name for p in self.players]
+                
+                # Update all ratings using Bayesian system
+                new_ratings = self.elo_system.update_ratings(self.match_history, player_names)
+                
+                # Update ratings for all players
+                for arena_player in self.players:
+                    name = arena_player.llm_player.name
+                    if name in new_ratings:
+                        # Update both memory and database ratings
+                        arena_player.rating = new_ratings[name]
+                        arena_player.player_model.update_rating(self.session, new_ratings[name].rating)
                 
                 # Update winner in database
                 winner_db_player = db_player_a if winner.name == player_a.llm_player.name else db_player_b
@@ -376,14 +469,22 @@ class Arena():
 
     def _check_confidence_threshold(self) -> bool:
         """Check if all pairwise probabilities are above the threshold."""
-        sorted_players = sorted(self.players, key=lambda p: p.rating.rating, reverse=True)
-        for i in range(len(sorted_players) - 1):
-            player_a = sorted_players[i]
-            player_b = sorted_players[i + 1]
-            prob = self.elo_system.probability_stronger(player_a.rating, player_b.rating)
-            if prob < self.confidence_threshold:
-                return False
-        return True
+        # If we don't have any match history, we're not confident
+        if not self.match_history:
+            return False
+            
+        try:
+            sorted_players = sorted(self.players, key=lambda p: p.rating.rating, reverse=True)
+            for i in range(len(sorted_players) - 1):
+                player_a = sorted_players[i]
+                player_b = sorted_players[i + 1]
+                prob = self.elo_system.probability_stronger(player_a.llm_player.name, player_b.llm_player.name)
+                if prob < self.confidence_threshold:
+                    return False
+            return True
+        except RuntimeError:
+            # If we don't have enough match history yet, return False
+            return False
 
     async def evaluate_all(self) -> Dict[str, float]:
         active_tasks: Set[asyncio.Task] = set()
@@ -544,12 +645,29 @@ class Arena():
         logger.info("\nPairwise Confidences:")
         sorted_players = sorted(self.players, key=lambda p: p.rating.rating, reverse=True)
         
+        # If no match history, initialize the system with default ratings
+        if not self.match_history and len(self.players) > 0:
+            player_names = [p.llm_player.name for p in self.players]
+            self.elo_system.update_ratings([], player_names)
+        
         for i in range(len(sorted_players) - 1):
             player_a = sorted_players[i]
             player_b = sorted_players[i + 1]
-            prob = self.elo_system.probability_stronger(player_a.rating, player_b.rating)
-            logger.info(f"{player_a.llm_player.name} vs {player_b.llm_player.name}: "
-                       f"{prob*100:.1f}% confident")
+            
+            # If we don't have any match history, show default confidence
+            if not self.match_history:
+                logger.info(f"{player_a.llm_player.name} vs {player_b.llm_player.name}: "
+                          f"No match data (default 50% confident)")
+                continue
+                
+            try:
+                prob = self.elo_system.probability_stronger(player_a.llm_player.name, player_b.llm_player.name)
+                logger.info(f"{player_a.llm_player.name} vs {player_b.llm_player.name}: "
+                           f"{prob*100:.1f}% confident")
+            except RuntimeError:
+                # If we don't have match history yet
+                logger.info(f"{player_a.llm_player.name} vs {player_b.llm_player.name}: "
+                          f"Not enough match data")
 
     def get_experiment_results(self) -> Dict[str, Any]:
         """Get summary of experiment results including games played and final ratings."""

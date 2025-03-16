@@ -33,27 +33,42 @@ class PromptRenderer:
                 header_lines.append(f"{key.upper()}\n{value}\n")
             return "\n".join(header_lines)
         raise ValueError(f"Unknown prompt style: {style}")
-
+    
     @staticmethod
-    def render(style: PromptStyle, rules: str, state: Union[str, Dict[str, Any]], move_format: str) -> str:
-        """Render the full prompt according to the specified style."""
-        rendered_state = PromptRenderer._render_state(style, state)
+    def render_rules(style: PromptStyle, rules: str) -> str:
+        """Render the rules according to the specified style."""
+        if style == PromptStyle.XML:
+            return f"<rules>\n{rules}\n</rules>"
+        elif style == PromptStyle.HEADER:
+            return f"RULES:\n{rules}"
+        elif style == PromptStyle.JSON:
+            return json.dumps({"rules": rules})
+        raise ValueError(f"Unknown prompt style: {style}")
+    
+    @staticmethod
+    def render_game_state(style: PromptStyle, state: Union[str, Dict[str, Any]]) -> str:
+        """Render the game state according to the specified style."""
+        state_content = PromptRenderer._render_state(style, state)
         
         if style == PromptStyle.XML:
-            return (f"<rules>\n{rules}\n</rules>\n"
-                   f"<state>\n{rendered_state}\n</state>\n"
-                   f"<move_format>\n{move_format}\n</move_format>")
+            return f"<game_state>\n{state_content}\n</game_state>"
         elif style == PromptStyle.HEADER:
-            return (f"RULES:\n{rules}\n\n"
-                   f"STATE:\n{rendered_state}\n\n"
-                   f"MOVE FORMAT:\n{move_format}")
+            return f"GAME STATE:\n{state_content}"
         elif style == PromptStyle.JSON:
-            return json.dumps({
-                "rules": rules,
-                "state": rendered_state,
-                "move_format": move_format
-            })
+            return json.dumps({"game_state": state})
         raise ValueError(f"Unknown prompt style: {style}")
+    
+    @staticmethod
+    def render_move_format(style: PromptStyle, move_format: str) -> str:
+        """Render the move format instructions according to the specified style."""
+        if style == PromptStyle.XML:
+            return f"<move_format>\n{move_format}\n</move_format>"
+        elif style == PromptStyle.HEADER:
+            return f"MOVE FORMAT:\n{move_format}"
+        elif style == PromptStyle.JSON:
+            return json.dumps({"move_format": move_format})
+        raise ValueError(f"Unknown prompt style: {style}")
+
 
 @dataclass
 class GameView:
@@ -98,7 +113,7 @@ class GameView:
                 "content": [
                     {
                         "type": "text",
-                        "text": self.rules_explanation,
+                        "text": PromptRenderer.render_rules(self.prompt_style, self.rules_explanation),
                         "cache_control": {"type": "ephemeral"}
                     }
                 ]
@@ -111,7 +126,7 @@ class GameView:
                 "content": [
                     {
                         "type": "text",
-                        "text": self.move_format_instructions,
+                        "text": PromptRenderer.render_move_format(self.prompt_style, self.move_format_instructions),
                         "cache_control": {"type": "ephemeral"}
                     }
                 ]
@@ -124,7 +139,7 @@ class GameView:
             "content": [
                 {
                     "type": "text",
-                    "text": PromptRenderer._render_state(self.prompt_style, self.visible_state)
+                    "text": PromptRenderer.render_game_state(self.prompt_style, self.visible_state)
                 }
             ]
         })

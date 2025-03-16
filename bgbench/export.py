@@ -28,7 +28,8 @@ def is_game_complete(game: GameMatch) -> bool:
     Returns:
         True if the game is complete, False otherwise
     """
-    return game.complete
+    # SQLite stores booleans as integers (1 for True, 0 for False)
+    return bool(game.complete)
 
 
 def is_game_draw(game: GameMatch) -> bool:
@@ -42,7 +43,8 @@ def is_game_draw(game: GameMatch) -> bool:
     Returns:
         True if the game ended in a draw, False otherwise
     """
-    return game.complete and game.winner_id is None
+    # SQLite stores booleans as integers (1 for True, 0 for False)
+    return bool(game.complete) and game.winner_id is None
 
 
 def count_complete_games(games: List[GameMatch]) -> int:

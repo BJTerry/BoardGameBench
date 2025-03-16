@@ -82,6 +82,61 @@ class TestArena:
         arena = Arena(nim_game, db_session, experiment_id=exp.id)
         assert arena.experiment.id == exp.id
         assert arena.experiment.name == "test-resume"
+        
+    def test_resume_experiment_with_draws(self, db_session, nim_game, mock_llm_factory):
+        """Test resuming an experiment with completed games including draws"""
+        # Create experiment
+        exp = Experiment().create_experiment(db_session, "test-resume-draws")
+        
+        # Create players
+        player1 = DBPlayer(name="player1", model_config={"model": "test-model"}, experiment_id=exp.id)
+        player2 = DBPlayer(name="player2", model_config={"model": "test-model"}, experiment_id=exp.id)
+        db_session.add_all([player1, player2])
+        db_session.flush()
+        
+        # Create games with different completion states
+        games = [
+            # Complete game with winner
+            GameMatch(
+                experiment_id=exp.id, 
+                player1_id=player1.id, 
+                player2_id=player2.id, 
+                winner_id=player1.id, 
+                complete=True
+            ),
+            # Complete game that ended in a draw
+            GameMatch(
+                experiment_id=exp.id, 
+                player1_id=player1.id, 
+                player2_id=player2.id, 
+                winner_id=None, 
+                complete=True
+            ),
+            # Incomplete game (should be deleted on resume)
+            GameMatch(
+                experiment_id=exp.id, 
+                player1_id=player1.id, 
+                player2_id=player2.id, 
+                winner_id=None, 
+                complete=False
+            )
+        ]
+        db_session.add_all(games)
+        db_session.commit()
+        
+        # Resume the experiment
+        arena = Arena(nim_game, db_session, experiment_id=exp.id, llm_factory=mock_llm_factory)
+        
+        # Verify only complete games were kept
+        remaining_games = db_session.query(GameMatch).filter_by(experiment_id=exp.id).all()
+        assert len(remaining_games) == 2, "Incomplete games should be removed"
+        
+        # Verify match history includes both complete games (win and draw)
+        assert len(arena.match_history) == 2, "Match history should contain both complete games"
+        
+        # Check if one of the games in match history is a draw
+        has_draw = any(match.winner is None for match in arena.match_history)
+        assert has_draw, "Match history should include the draw game"
 
     def test_create_new_experiment_with_players(self, db_session, nim_game, mock_llm, mock_llm_factory):
         """Test creating a new experiment with players"""
@@ -113,8 +168,8 @@ class TestArena:
         assert db_player.experiment_id == arena.experiment.id
         assert db_player in arena.experiment.players
 
-    def test_calculate_match_uncertainty(self, db_session, nim_game, mock_llm, mock_llm_factory):
-        """Test match uncertainty calculation"""
+    def test_bayesian_ratings_confidence(self, db_session, nim_game, mock_llm, mock_llm_factory):
+        """Test Bayesian rating confidence calculation"""
         player_configs = [
             {
                 "name": "player-a",
@@ -142,18 +197,34 @@ class TestArena:
             llm_factory=mock_llm_factory
         )
         
-        # Update player ratings directly
-        arena.players[0].rating.rating = 1500
-        arena.players[0].rating.games_played = 10
-        arena.players[1].rating.rating = 2000
-        arena.players[1].rating.games_played = 10
-    
-        # With significant rating gap and enough games played, uncertainty should be lower
-        uncertainty = arena.elo_system.calculate_match_uncertainty(
-            arena.players[0].rating,
-            arena.players[1].rating
-        )
-        assert uncertainty < 1.0
+        # Create some match history to initialize the rating system
+        from bgbench.bayes_rating import GameResult
+        
+        # Create many artificial game results to force confidence threshold
+        match_history = []
+        # Add 10 games alternating winners to create uncertainty
+        for i in range(5):
+            match_history.append(GameResult(player_0="player-a", player_1="player-b", winner="player-a"))
+            match_history.append(GameResult(player_0="player-a", player_1="player-b", winner="player-b"))
+        
+        # Add to arena's match history
+        arena.match_history = match_history
+        
+        # Update ratings from match history
+        player_names = ["player-a", "player-b"]
+        new_ratings = arena.elo_system.update_ratings(match_history, player_names)
+        
+        # With 10 evenly matched games, the system shouldn't be confident about who's better
+        is_not_confident = arena.elo_system.is_match_needed("player-a", "player-b")
+        
+        # With evenly matched results, we shouldn't be confident
+        assert is_not_confident, "With evenly matched results, we shouldn't be confident"
+        
+        # Test the probability function directly
+        probability = arena.elo_system.probability_stronger("player-a", "player-b")
+        
+        # Probability should be a number between 0 and 1
+        assert 0 <= probability <= 1, "Probability should be between 0 and 1"
 
     @pytest.mark.asyncio
     async def test_find_best_match(self, db_session, nim_game, mock_llm, mock_llm_factory):
@@ -235,6 +306,56 @@ class TestArena:
         # Ensure no more matches are scheduled
         next_match = await arena.find_next_available_match()
         assert next_match is None, "No more matches should be scheduled between the players"
+        
+    @pytest.mark.asyncio
+    async def test_arena_handles_draws(self, db_session, nim_game, mock_llm_factory):
+        """Test that the Arena correctly handles games that end in a draw."""
+        player_configs = [
+            {
+                "name": "player-a",
+                "model_config": {"model": "test-model", "temperature": 0.0}
+            },
+            {
+                "name": "player-b",
+                "model_config": {"model": "test-model", "temperature": 0.0}
+            }
+        ]
+        
+        # Create an arena
+        arena = Arena(
+            nim_game,
+            db_session,
+            player_configs=player_configs,
+            experiment_name="test-draws",
+            llm_factory=mock_llm_factory
+        )
+        
+        # Mock the play_game method to return a draw (None for winner)
+        async def mock_play_game_draw(self):
+            return None, [], None  # No winner (draw), empty history, no concession
+            
+        # Patch the play_game method to return a draw
+        with patch('bgbench.game_runner.GameRunner.play_game', mock_play_game_draw):
+            # Run a single game that will end in a draw
+            player_a, player_b = arena.players[0], arena.players[1]
+            await arena.run_single_game(player_a, player_b)
+            
+            # Get the game from the database
+            game = db_session.query(GameMatch).filter_by(experiment_id=arena.experiment.id).first()
+            
+            # Verify the game was marked as complete but without a winner
+            assert bool(game.complete), "Game should be marked as complete"
+            assert game.winner_id is None, "Game should not have a winner (draw)"
+            
+            # Verify the match history includes the draw
+            assert len(arena.match_history) == 1, "Match history should contain the draw"
+            assert arena.match_history[0].winner is None, "Match history should record the game as a draw"
+            
+            # Get experiment results and verify draws are counted
+            results = arena.get_experiment_results()
+            assert results["draws"] == 1, "Draw should be counted in experiment results"
+            
+    def test_concessions(self, db_session, nim_game, mock_llm, mock_llm_factory):
         """Test tracking of concessions in games"""
         player_configs = [
             {

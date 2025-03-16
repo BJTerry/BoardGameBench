@@ -548,11 +548,30 @@ class Arena():
             return {p.llm_player.name: p.rating.rating for p in self.players}
         
         # Regular implementation for normal use
+        # Initialize cost tracking variables
+        last_log_time = 0
+        last_logged_cost = 0
+        MIN_LOG_INTERVAL = 10  # Only log costs at most every 10 seconds
+        import time
+        
         while True:
-            # Check total cost against budget if specified
+            current_time = time.time()
+            
+            # Check total cost against budget if specified, but don't log on every iteration
             if self.cost_budget is not None:
+                # Calculate current total cost
                 total_cost = sum(self._get_player_cost(player) for player in self.players)
-                logger.info(f"Current total cost: ${total_cost:.6f} / ${self.cost_budget:.6f}")
+                
+                # Log only when cost changes AND enough time has passed
+                cost_changed = abs(total_cost - last_logged_cost) > 0.000001  # Float comparison with small epsilon
+                time_elapsed = current_time - last_log_time > MIN_LOG_INTERVAL
+                
+                if cost_changed and time_elapsed:
+                    logger.info(f"Current total cost: ${total_cost:.6f} / ${self.cost_budget:.6f}")
+                    last_log_time = current_time
+                    last_logged_cost = total_cost
+                
+                # Check if budget is exceeded
                 if total_cost >= self.cost_budget:
                     logger.info(f"Cost budget of ${self.cost_budget:.6f} reached. Stopping evaluation.")
                     break
@@ -603,6 +622,15 @@ class Arena():
             
             # If we spawned new tasks, log current state before waiting
             if new_tasks_spawned > 0:
+                # Update cost tracking when starting new tasks
+                if self.cost_budget is not None:
+                    # Only log if cost changed significantly and enough time passed
+                    cost_changed = abs(total_cost - last_logged_cost) > 0.000001
+                    time_elapsed = current_time - last_log_time > MIN_LOG_INTERVAL
+                    if cost_changed and time_elapsed:
+                        logger.info(f"Current total cost: ${total_cost:.6f} / ${self.cost_budget:.6f}")
+                        last_log_time = current_time
+                        last_logged_cost = total_cost
                 self.log_standings()
                 self.log_pairwise_confidences()
             
@@ -631,6 +659,15 @@ class Arena():
                 
                 # Log current state after games complete
                 if done:
+                    # Update cost tracking when games complete
+                    if self.cost_budget is not None:
+                        # Only log if cost changed significantly and enough time passed
+                        cost_changed = abs(total_cost - last_logged_cost) > 0.000001
+                        time_elapsed = current_time - last_log_time > MIN_LOG_INTERVAL
+                        if cost_changed and time_elapsed:
+                            logger.info(f"Current total cost: ${total_cost:.6f} / ${self.cost_budget:.6f}")
+                            last_log_time = current_time
+                            last_logged_cost = total_cost
                     self.log_standings()
                     self.log_pairwise_confidences()
                     

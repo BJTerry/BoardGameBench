@@ -11,6 +11,7 @@ from bgbench.llm_player import LLMPlayer
 from bgbench.game_view import PromptStyle
 from bgbench.game_runner import GameRunner
 from bgbench.bayes_rating import PlayerRating, EloSystem, GameResult
+from bgbench.export import is_game_complete, is_game_draw, count_complete_games, count_draws, build_match_history
 
 logger = logging.getLogger("bgbench")
 
@@ -118,10 +119,9 @@ class Arena():
             raise ValueError(f"No experiment found with ID {experiment_id}")
         
         # Clean up incomplete games and their states
-        # A game is incomplete if it's not marked as complete
         incomplete_games = self.session.query(GameMatch).filter(
             GameMatch.experiment_id == experiment_id,
-            GameMatch.complete.is_(False)
+            GameMatch.complete.is_(False)  # Using the complete field to determine if a game is completed
         ).all()
         
         for game in incomplete_games:
@@ -135,10 +135,10 @@ class Arena():
         logger.info(f"Resumed experiment {self.experiment.name} (id: {experiment_id})")
         logger.info(f"Cleaned up {len(incomplete_games)} incomplete games and their states")
         
-        # Load all completed games for the match history - including draws (no winner but marked complete)
+        # Load all completed games for the match history - including draws
         completed_games = self.session.query(GameMatch).filter(
             GameMatch.experiment_id == self.experiment.id,
-            GameMatch.complete.is_(True)
+            GameMatch.complete.is_(True)  # Using the complete field from our utility
         ).all()
         
         # Create a dictionary to look up player names by ID
@@ -146,22 +146,9 @@ class Arena():
         for db_player in self.experiment.players:
             player_name_map[db_player.id] = db_player.name
         
-        # Build match history - including draws (where winner_id is None but game is complete)
-        for match in completed_games:
-            if match.player1_id not in player_name_map or match.player2_id not in player_name_map:
-                logger.warning(f"Match {match.id} references player IDs not in experiment")
-                continue
-            
-            player_0 = player_name_map[match.player1_id]
-            player_1 = player_name_map[match.player2_id]
-            # For draws, winner_id will be None but we still include the game since it's complete
-            winner = player_name_map.get(match.winner_id) if match.winner_id else None
-            
-            self.match_history.append(GameResult(
-                player_0=player_0,
-                player_1=player_1,
-                winner=winner  # None indicates a draw in Bayesian rating system
-            ))
+        # Build match history using the utility function
+        players = self.experiment.get_players(self.session)
+        self.match_history = build_match_history(completed_games, players)
         
         # Create ArenaPlayers
         player_names = [p.name for p in self.experiment.players]
@@ -742,14 +729,15 @@ class Arena():
             ).count()
             player_concessions[player.name] = concessions
 
-        # Count draws
-        draws = len([g for g in games if g.complete and g.winner_id is None])
+        # Count draws and completed games using utility functions
+        draws = count_draws(games)
+        completed_games = count_complete_games(games)
         
         results = {
             "experiment_id": self.experiment.id,
             "experiment_name": self.experiment.name,
             "total_games": len(games),
-            "completed_games": len([g for g in games if g.complete]),
+            "completed_games": completed_games,
             "draws": draws,
             "player_ratings": player_ratings,
             "player_concessions": player_concessions,
@@ -757,7 +745,7 @@ class Arena():
         }
         
         for game in games:
-            if game.complete:  # Game is completed (winner or draw)
+            if is_game_complete(game):  # Using the utility function to check if game is complete
                 result_entry = {
                     "game_id": game.id,
                     "final_ratings": {p.name: p.rating for p in db_players}
@@ -767,7 +755,7 @@ class Arena():
                     winner = self.session.query(DBPlayer).filter_by(id=game.winner_id).first()
                     if winner:
                         result_entry["winner"] = winner.name
-                else:  # Draw
+                elif is_game_draw(game):  # Using the utility function to check if it's a draw
                     result_entry["result"] = "draw"
                     
                 results["games"].append(result_entry)

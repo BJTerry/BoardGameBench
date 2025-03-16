@@ -134,3 +134,42 @@ def test_win_condition(game, initial_state):
     view = game.get_player_view(initial_state, 0)
     assert view.is_terminal == True
     assert view.winner == 0
+    
+def test_initial_temp_progress_starts_from_player_progress(game, initial_state):
+    """Test that when a player first selects a column, temp progress starts from their previous progress."""
+    # Set up player progress in columns
+    column_num = 7
+    player_id = 0
+    progress_value = 3
+    
+    # Set existing progress for the player
+    initial_state.columns[column_num].player_positions[player_id] = progress_value
+    initial_state.current_player = player_id
+    
+    # Set specific dice that will allow 7 and 7 as valid column sums
+    # With dice [3, 4, 2, 5], possible combinations are:
+    # (3+4=7, 2+5=7), (3+2=5, 4+5=9), (3+5=8, 2+4=6)
+    initial_state.current_dice = [3, 4, 2, 5]
+    
+    # Make a move that selects column 7 twice (using 3+4 and 2+5)
+    move = CantStopMove("select", [7, 7])
+    
+    # Apply the move
+    new_state = game.apply_move(initial_state, player_id, move)
+    
+    # Output for debugging
+    print(f"Dice: {initial_state.current_dice}")
+    print(f"Possible combinations: {game._get_possible_combinations(initial_state.current_dice)}")
+    print(f"Temp positions: {new_state.temp_positions}")
+    print(f"Active columns: {new_state.active_columns}")
+    
+    # Since we selected 7 twice, temp progress should be previous progress + 2
+    assert new_state.temp_positions[column_num] == progress_value + 2
+    
+    # Verify active columns are properly updated
+    assert column_num in new_state.active_columns
+    
+    # Check that the temp_progress_position shown in the view is correct
+    view = game.get_player_view(new_state, player_id)
+    visible_column = view.visible_state["columns"][column_num]
+    assert visible_column["temp_progress_position"] == progress_value + 2

@@ -210,7 +210,9 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
                          not new_state.columns[sum1].is_claimed and
                          (sum1 in new_state.active_columns or 
                           len(new_state.active_columns) < 3)):
-                current_pos = new_state.temp_positions.get(sum1, 0)
+                # Start from player's current position in the column if it exists
+                player_pos = new_state.columns[sum1].player_positions.get(player_id, 0)
+                current_pos = new_state.temp_positions.get(sum1, player_pos)
                 new_state.temp_positions[sum1] = min(
                     current_pos + 1,
                     new_state.columns[sum1].max_height
@@ -221,7 +223,9 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
                          not new_state.columns[sum2].is_claimed and
                          (sum2 in new_state.active_columns or 
                           len(new_state.active_columns) < 3)):
-                current_pos = new_state.temp_positions.get(sum2, 0)
+                # Start from player's current position in the column if it exists
+                player_pos = new_state.columns[sum2].player_positions.get(player_id, 0)
+                current_pos = new_state.temp_positions.get(sum2, player_pos)
                 new_state.temp_positions[sum2] = min(
                     current_pos + 1,
                     new_state.columns[sum2].max_height

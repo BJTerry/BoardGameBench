@@ -118,9 +118,10 @@ class Arena():
             raise ValueError(f"No experiment found with ID {experiment_id}")
         
         # Clean up incomplete games and their states
+        # A game is incomplete if it's not marked as complete
         incomplete_games = self.session.query(GameMatch).filter(
             GameMatch.experiment_id == experiment_id,
-            GameMatch.winner_id.is_(None)
+            GameMatch.complete.is_(False)
         ).all()
         
         for game in incomplete_games:
@@ -134,10 +135,10 @@ class Arena():
         logger.info(f"Resumed experiment {self.experiment.name} (id: {experiment_id})")
         logger.info(f"Cleaned up {len(incomplete_games)} incomplete games and their states")
         
-        # Load all completed games for the match history
+        # Load all completed games for the match history - including draws (no winner but marked complete)
         completed_games = self.session.query(GameMatch).filter(
             GameMatch.experiment_id == self.experiment.id,
-            GameMatch.winner_id.isnot(None)
+            GameMatch.complete.is_(True)
         ).all()
         
         # Create a dictionary to look up player names by ID
@@ -145,7 +146,7 @@ class Arena():
         for db_player in self.experiment.players:
             player_name_map[db_player.id] = db_player.name
         
-        # Build match history
+        # Build match history - including draws (where winner_id is None but game is complete)
         for match in completed_games:
             if match.player1_id not in player_name_map or match.player2_id not in player_name_map:
                 logger.warning(f"Match {match.id} references player IDs not in experiment")
@@ -153,12 +154,13 @@ class Arena():
             
             player_0 = player_name_map[match.player1_id]
             player_1 = player_name_map[match.player2_id]
+            # For draws, winner_id will be None but we still include the game since it's complete
             winner = player_name_map.get(match.winner_id) if match.winner_id else None
             
             self.match_history.append(GameResult(
                 player_0=player_0,
                 player_1=player_1,
-                winner=winner
+                winner=winner  # None indicates a draw in Bayesian rating system
             ))
         
         # Create ArenaPlayers
@@ -424,9 +426,15 @@ class Arena():
             
             winner, history, concession = await runner.play_game()
             
+            # Mark the game as complete since it finished normally (either with a winner or a draw)
+            db_game.complete = True
+            
             # Update the match history and recalculate all ratings
+            # Get all player names
+            player_names = [p.llm_player.name for p in self.players]
+            
             if winner:
-                # Add the new game to our match history
+                # Game has a winner
                 winner_name = winner.name
                 
                 # Create a GameResult entry for this match
@@ -435,21 +443,6 @@ class Arena():
                     player_1=player_b.llm_player.name, 
                     winner=winner_name
                 )
-                self.match_history.append(new_game)
-                
-                # Get all player names
-                player_names = [p.llm_player.name for p in self.players]
-                
-                # Update all ratings using Bayesian system
-                new_ratings = self.elo_system.update_ratings(self.match_history, player_names)
-                
-                # Update ratings for all players
-                for arena_player in self.players:
-                    name = arena_player.llm_player.name
-                    if name in new_ratings:
-                        # Update both memory and database ratings
-                        arena_player.rating = new_ratings[name]
-                        arena_player.player_model.update_rating(self.session, new_ratings[name].rating)
                 
                 # Update winner in database
                 winner_db_player = db_player_a if winner.name == player_a.llm_player.name else db_player_b
@@ -457,6 +450,29 @@ class Arena():
                 if concession:
                     db_game.conceded = True
                     db_game.concession_reason = concession
+            else:
+                # Game ended in a draw
+                new_game = GameResult(
+                    player_0=player_a.llm_player.name,
+                    player_1=player_b.llm_player.name, 
+                    winner=None  # None indicates a draw
+                )
+                # No winner_id is set, but the game is marked as complete
+            
+            # Add the game to match history
+            self.match_history.append(new_game)
+            
+            # Update all ratings using Bayesian system
+            new_ratings = self.elo_system.update_ratings(self.match_history, player_names)
+            
+            # Update ratings for all players
+            for arena_player in self.players:
+                name = arena_player.llm_player.name
+                if name in new_ratings:
+                    # Update both memory and database ratings
+                    arena_player.rating = new_ratings[name]
+                    arena_player.player_model.update_rating(self.session, new_ratings[name].rating)
+            
             self.session.commit()
 
             logger.info(f"Game {game_id} completed: {winner.name if winner else 'Draw'}")
@@ -726,24 +742,35 @@ class Arena():
             ).count()
             player_concessions[player.name] = concessions
 
+        # Count draws
+        draws = len([g for g in games if g.complete and g.winner_id is None])
+        
         results = {
             "experiment_id": self.experiment.id,
             "experiment_name": self.experiment.name,
             "total_games": len(games),
+            "completed_games": len([g for g in games if g.complete]),
+            "draws": draws,
             "player_ratings": player_ratings,
             "player_concessions": player_concessions,
             "games": []
         }
         
         for game in games:
-            if game.winner_id is not None:  # Winner exists
-                winner = self.session.query(DBPlayer).filter_by(id=game.winner_id).first()
-                if winner:
-                    results["games"].append({
-                        "game_id": game.id,
-                        "winner": winner.name,
+            if game.complete:  # Game is completed (winner or draw)
+                result_entry = {
+                    "game_id": game.id,
                     "final_ratings": {p.name: p.rating for p in db_players}
-                })
+                }
+                
+                if game.winner_id is not None:  # Has winner
+                    winner = self.session.query(DBPlayer).filter_by(id=game.winner_id).first()
+                    if winner:
+                        result_entry["winner"] = winner.name
+                else:  # Draw
+                    result_entry["result"] = "draw"
+                    
+                results["games"].append(result_entry)
         
         return results
 

@@ -159,6 +159,7 @@ class GameMatch(Base):
     winner_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey('players.id'), nullable=True)
     conceded: Mapped[bool] = mapped_column(Integer, default=False)
     concession_reason: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    complete: Mapped[bool] = mapped_column(Integer, default=False)  # Indicates if game finished normally (including draws)
     state: Mapped["GameState"] = relationship("GameState", uselist=False, back_populates="game")
     experiment: Mapped["Experiment"] = relationship("Experiment", back_populates="games")
     player1: Mapped["Player"] = relationship("Player", back_populates="games_as_player1", foreign_keys=[player1_id])

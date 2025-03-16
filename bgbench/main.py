@@ -3,12 +3,12 @@ import logging
 import json
 import os
 import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from config import DATABASE_URL
-from bgbench.models import Experiment, GameMatch, Player
+from bgbench.models import Experiment, GameMatch
 from bgbench.logging_config import setup_logging
 from bgbench.games import AVAILABLE_GAMES
 from bgbench.arena import Arena
@@ -128,6 +128,8 @@ def print_results(results: Dict[str, Any]):
     logger.info("\nExperiment Results:")
     logger.info(f"Name: {results['experiment_name']}")
     logger.info(f"Total Games: {results['total_games']}")
+    logger.info(f"Completed Games: {results.get('completed_games', 0)}")
+    logger.info(f"Draws: {results.get('draws', 0)}")
     logger.info("\nFinal Results:")
     for name, rating in sorted(results['player_ratings'].items(), key=lambda x: x[1], reverse=True):
         concessions = results['player_concessions'][name]
@@ -135,7 +137,10 @@ def print_results(results: Dict[str, Any]):
     
     logger.info("\nGame History:")
     for game in results['games']:
-        logger.info(f"Game {game['game_id']}: Winner - {game['winner']}")
+        if 'winner' in game:
+            logger.info(f"Game {game['game_id']}: Winner - {game['winner']}")
+        else:
+            logger.info(f"Game {game['game_id']}: Draw")
 
 
 def format_for_export(db_session: sessionmaker, experiment_id: int, game_name: str) -> Dict[str, Any]:
@@ -193,12 +198,11 @@ def format_for_export(db_session: sessionmaker, experiment_id: int, game_name: s
     
     # Update ratings using Bayesian system if we have matches
     if match_history:
-        ratings = elo_system.update_ratings(match_history, player_names)
-        # Get confidence intervals
+        # Calculate ratings and get confidence intervals
+        _ = elo_system.update_ratings(match_history, player_names)
         intervals = elo_system.get_credible_intervals(player_names)
     else:
-        # Default ratings and intervals if no match history
-        ratings = {p: {'rating': 1500.0, 'sigma': 400.0, 'games_played': 0} for p in player_names}
+        # Default intervals if no match history
         intervals = {p: (1435, 1565) for p in player_names}  # Default 95% interval
     
     # Count games played and wins for each player

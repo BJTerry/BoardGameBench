@@ -5,3 +5,6 @@ __pycache__/
 .DS_Store
 players/
 data/
+
+# Exports
+/exports

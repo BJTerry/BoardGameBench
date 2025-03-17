@@ -272,7 +272,8 @@ def format_for_export(session: Session, experiment_id: int, game_name: str) -> D
             "generatedAt": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
             "totalGamesPlayed": total_games,
             "completedGames": completed_games,
-            "draws": draws
+            "draws": draws,
+            "experimentId": experiment_id
         }
     }
     

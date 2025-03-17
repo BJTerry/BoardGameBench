@@ -208,6 +208,7 @@ class TestExportFunctionality:
         assert metadata["totalGamesPlayed"] == 4
         assert metadata["completedGames"] == 3
         assert metadata["draws"] == 1
+        assert metadata["experimentId"] == experiment.id
         
         # Verify player results
         results = export_data["results"]

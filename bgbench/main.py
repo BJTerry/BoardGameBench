@@ -32,6 +32,7 @@ async def main():
     # Parallel execution options
     parser.add_argument('--parallel-games', type=int, default=3, help='Number of games to run in parallel')
     parser.add_argument('--cost-budget', type=float, default=2.0, help='Maximum cost budget for the experiment in dollars')
+    parser.add_argument('--confidence-threshold', type=float, default=0.70, help='Confidence threshold for Elo ratings')
     args = parser.parse_args()
 
     setup_logging(debug=args.debug)
@@ -98,7 +99,8 @@ async def main():
             db_session, 
             experiment_id=args.resume,
             max_parallel_games=args.parallel_games,
-            cost_budget=args.cost_budget
+            cost_budget=args.cost_budget,
+            confidence_threshold=args.confidence_threshold
         )
     else:
         arena = Arena(
@@ -107,7 +109,8 @@ async def main():
             player_configs=player_configs,
             experiment_name=args.name,
             max_parallel_games=args.parallel_games,
-            cost_budget=args.cost_budget
+            cost_budget=args.cost_budget,
+            confidence_threshold=args.confidence_threshold
         )
 
     if args.export:

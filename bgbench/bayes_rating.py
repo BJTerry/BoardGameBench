@@ -209,8 +209,8 @@ class EloSystem:
             )
 
             # 5) Sample from the posterior
-            #    Adjust `chains`, `draws`, `tune` as needed for larger data
-            trace = pm.sample(draws=1000, tune=1000, chains=2, target_accept=0.9, progressbar=False)
+            #    Using 4 chains as recommended for robust convergence diagnostics
+            trace = pm.sample(draws=1000, tune=1000, chains=4, target_accept=0.9, progressbar=False)
 
         # Store the trace and indexes for joint queries
         self._trace = trace  # Type already defined in __init__

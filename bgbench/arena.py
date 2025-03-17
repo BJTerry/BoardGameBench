@@ -470,25 +470,6 @@ class Arena():
                 # Remove from ongoing matches
                 self.ongoing_matches.discard(player_pair)
 
-    def _check_confidence_threshold(self) -> bool:
-        """Check if all pairwise probabilities are above the threshold."""
-        # If we don't have any match history, we're not confident
-        if not self.match_history:
-            return False
-            
-        try:
-            sorted_players = sorted(self.players, key=lambda p: p.rating.rating, reverse=True)
-            for i in range(len(sorted_players) - 1):
-                player_a = sorted_players[i]
-                player_b = sorted_players[i + 1]
-                prob = self.elo_system.probability_stronger(player_a.llm_player.name, player_b.llm_player.name)
-                if prob < self.confidence_threshold:
-                    return False
-            return True
-        except RuntimeError:
-            # If we don't have enough match history yet, return False
-            return False
-
     async def evaluate_all(self) -> Dict[str, float]:
         active_tasks: Set[asyncio.Task] = set()
         

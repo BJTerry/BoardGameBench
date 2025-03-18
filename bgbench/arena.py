@@ -418,7 +418,6 @@ class Arena():
                     
             # Track number of new tasks spawned in this iteration
             new_tasks_spawned = 0
-            timeout = 0 
             # Fill all available slots up to max_parallel_games
             while len(active_tasks) < self.max_parallel_games:
                 matchup = await self.find_next_available_match()
@@ -468,15 +467,7 @@ class Arena():
                 self.log_standings()
                 self.log_pairwise_confidences()
             
-            # Wait for at least one task to complete so we can fill its slot
-            # Use a shorter timeout if we have capacity to schedule more games
-            if len(active_tasks) == self.max_parallel_games:
-                timeout = None
-            elif len(active_tasks) < self.max_parallel_games and timeout is None:
-                # If we have capacity but couldn't schedule, wait briefly and retry
-                timeout = 0.1
-            else:
-                timeout = min(timeout * 2, 5)
+            timeout = 1
             
             done, pending = await asyncio.wait(
                 active_tasks,

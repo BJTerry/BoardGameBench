@@ -1,4 +1,5 @@
 import logging
+import time
 from dataclasses import dataclass
 import random
 import asyncio
@@ -384,74 +385,14 @@ class Arena():
                 # Remove from ongoing matches
                 self.ongoing_matches.discard(player_pair)
 
-    async def evaluate_all(self) -> Dict[str, float]:
+    async def evaluate_all(self):
         active_tasks: Set[asyncio.Task] = set()
         
-        # Special case for the unit test - only activate in test mode
-        in_test_mode = len(self.players) == 2 and self.experiment.name == "test-max-games"
-        
-        if in_test_mode:
-            # Special path only for the test case that needs exactly 10 games
-            player_a, player_b = self.players[0], self.players[1]
-            pair_id = (min(player_a.player_model.id, player_b.player_model.id),
-                       max(player_a.player_model.id, player_b.player_model.id))
-            
-            # Play exactly 10 games between these two players
-            games_to_play = 10
-            games_completed = 0
-            
-            # Launch games in parallel up to max_parallel_games
-            while games_completed < games_to_play:
-                # Schedule up to max_parallel_games tasks at once
-                while len(active_tasks) < self.max_parallel_games and games_completed + len(active_tasks) < games_to_play:
-                    async with self._lock:
-                        # Mark match as ongoing
-                        self.ongoing_matches.add(pair_id)
-                    
-                    # Create and launch task
-                    task = asyncio.create_task(self.run_single_game(player_a, player_b))
-                    
-                    # Add to active tasks set
-                    active_tasks.add(task)
-                    
-                    # Create a proper callback to remove task when done
-                    def create_callback(t):
-                        def callback(future):
-                            active_tasks.discard(t)
-                        return callback
-                    
-                    task.add_done_callback(create_callback(task))
-                
-                # If we've scheduled all tasks but need to wait for them to complete
-                if active_tasks:
-                    done, _ = await asyncio.wait(
-                        active_tasks,
-                        return_when=asyncio.FIRST_COMPLETED
-                    )
-                    
-                    # Process completed tasks
-                    for finished in done:
-                        try:
-                            await finished
-                            games_completed += 1
-                        except Exception as e:
-                            logger.error(f"Game failed: {e}")
-                    
-                    # Log progress
-                    logger.info(f"Games completed: {games_completed}/{games_to_play}")
-                else:
-                    # This shouldn't happen, but just in case
-                    break
-                    
-            return {p.llm_player.name: p.rating.rating for p in self.players}
-        
-        # Regular implementation for normal use
         # Initialize cost tracking variables
         last_log_time = 0
         last_logged_cost = 0
         total_cost = 0.0  # Initialize total_cost
         MIN_LOG_INTERVAL = 10  # Only log costs at most every 10 seconds
-        import time
         
         while True:
             current_time = time.time()
@@ -459,7 +400,7 @@ class Arena():
             # Check total cost against budget if specified, but don't log on every iteration
             if self.cost_budget is not None:
                 # Calculate current total cost
-                total_cost = sum(self._get_player_cost(player) for player in self.players)
+                total_cost = self._get_total_cost_for_all_players()
                 
                 # Log only when cost changes AND enough time has passed
                 cost_changed = abs(total_cost - last_logged_cost) > 0.000001  # Float comparison with small epsilon
@@ -493,12 +434,13 @@ class Arena():
                     name=f"game-{pair_names}"
                 )
                 
-                # Log that we're starting a new game to help diagnose parallelism
-                logger.info(f"Starting game between {pair_names} ({len(active_tasks)+1}/{self.max_parallel_games} active)")
                 
                 # Add to active tasks and track that we spawned a new task
                 active_tasks.add(task)
                 new_tasks_spawned += 1
+
+                # Log that we're starting a new game to help diagnose parallelism
+                logger.info(f"Starting game between {pair_names} ({len(active_tasks)}/{self.max_parallel_games} active)")
                 
                 # Create a proper callback that captures the task properly
                 def create_done_callback(t):
@@ -508,85 +450,9 @@ class Arena():
                 
                 task.add_done_callback(create_done_callback(task))
             
-            # If no active tasks and no new matches can be scheduled -> done
-            if not active_tasks:
-                # Log the pairwise confidences to help diagnose issues
-                self.log_pairwise_confidences()
-                
-                # Log details of possible player pairs
-                logger.debug("===== CHECKING ALL POSSIBLE PLAYER PAIRS: =====")
-                sorted_players = sorted(self.players, key=lambda p: p.rating.rating, reverse=True)
-                elo, _ = self.current_elo()
-                for i in range(len(sorted_players)):
-                    for j in range(i+1, len(sorted_players)):  # Check all pairs, not just adjacent
-                        p1 = sorted_players[i]
-                        p2 = sorted_players[j]
-                        games = self._games_played_between(p1.player_model, p2.player_model)
-                        
-                        # Check if already in progress
-                        pair_ids = (min(p1.player_model.id, p2.player_model.id), max(p1.player_model.id, p2.player_model.id))
-                        in_progress = pair_ids in self.ongoing_matches
-                        
-                        # Check confidence if we have history
-                        conf_str = "N/A"
-                        match_needed = True
-                        if self.match_history:
-                            try:
-                                prob = elo.probability_stronger(p1.llm_player.name, p2.llm_player.name)
-                                conf = max(prob, 1-prob)
-                                conf_str = f"{conf:.2f}"
-                                match_needed = elo.is_match_needed(p1.llm_player.name, p2.llm_player.name)
-                            except RuntimeError:
-                                match_needed = True
-                                conf_str = "Error"
-                        
-                        # Check if game count exceeds limit 
-                        game_limit_reached = games >= 10
-                        
-                        # Final determination of whether a match should be scheduled
-                        can_schedule = match_needed and not game_limit_reached and not in_progress
-                                
-                        logger.debug(f"Pair {p1.llm_player.name} vs {p2.llm_player.name}: games={games}/10, in_progress={in_progress}, confidence={conf_str}, match_needed={match_needed}, game_limit_reached={game_limit_reached}, can_schedule={can_schedule}")
-                
-                # Double-check if we can schedule anything after the last Elo updates
-                logger.debug("No active tasks, checking if any more matches can be scheduled")
-                matchup = await self.find_next_available_match()
-                if not matchup:
-                    # Log why no match could be found by checking each potential pair
-                    logger.debug("No match could be scheduled - possible reasons:")
-                    pairs_over_limit = 0
-                    pairs_confident = 0
-                    pairs_in_progress = 0
-                    
-                    # Analyze why matches weren't scheduled
-                    for i in range(len(sorted_players)):
-                        for j in range(i+1, len(sorted_players)):
-                            p1, p2 = sorted_players[i], sorted_players[j]
-                            games = self._games_played_between(p1.player_model, p2.player_model)
-                            pair_ids = (min(p1.player_model.id, p2.player_model.id), max(p1.player_model.id, p2.player_model.id))
-                            in_progress = pair_ids in self.ongoing_matches
-                            
-                            if games >= 10:
-                                pairs_over_limit += 1
-                            if in_progress:
-                                pairs_in_progress += 1
-                            elif not elo.is_match_needed(p1.llm_player.name, p2.llm_player.name):
-                                pairs_confident += 1
-                                
-                    logger.debug(f"  - Pairs over game limit: {pairs_over_limit}")
-                    logger.debug(f"  - Pairs with sufficient confidence: {pairs_confident}")
-                    logger.debug(f"  - Pairs with in-progress games: {pairs_in_progress}")
-                    
-                    # Final check
-                    if matchup is None:
-                        # Truly done - all games completed or reached limits
-                        logger.info("Stopping experiment: No more matches can be scheduled based on confidence threshold or game limits")
-                        break
-                else:
-                    # This generally shouldn't happen, but if it does, continue
-                    # to the next iteration to schedule the newly available match
-                    logger.debug("Found a new match to schedule after all, continuing")
-                    continue
+            if not active_tasks and new_tasks_spawned == 0:
+                # Nothing currently running and we didn't just launch one
+                break
             
             # If we spawned new tasks, log current state before waiting
             if new_tasks_spawned > 0:
@@ -609,41 +475,20 @@ class Arena():
                 # If we have capacity but couldn't schedule, wait briefly and retry
                 timeout = 0.1  # Short timeout to check for new matches
             
-            try:
-                done, pending = await asyncio.wait(
-                    active_tasks,
-                    return_when=asyncio.FIRST_COMPLETED,
-                    timeout=timeout
-                )
-                
-                # Process completed tasks
-                for finished in done:
-                    try:
-                        await finished
-                        # Log completion
-                        logger.info(f"Game completed: {finished.get_name() if hasattr(finished, 'get_name') else 'Unknown'}")
-                    except Exception as e:
-                        logger.error(f"Game failed: {e}")
-                
-                # Log current state after games complete
-                if done:
-                    # Update cost tracking when games complete
-                    if self.cost_budget is not None:
-                        # Only log if cost changed significantly and enough time passed
-                        cost_changed = abs(total_cost - last_logged_cost) > 0.000001
-                        time_elapsed = current_time - last_log_time > MIN_LOG_INTERVAL
-                        if cost_changed and time_elapsed:
-                            logger.info(f"Current total cost: ${total_cost:.6f} / ${self.cost_budget:.6f}")
-                            last_log_time = current_time
-                            last_logged_cost = total_cost
-                    self.log_standings()
-                    self.log_pairwise_confidences()
-                    
-            except asyncio.TimeoutError:
-                # Timeout reached without any tasks completing, continue to check for new matches
-                continue
-
-        return {p.llm_player.name: p.rating.rating for p in self.players}
+            done, pending = await asyncio.wait(
+                active_tasks,
+                return_when=asyncio.FIRST_COMPLETED,
+                timeout=timeout
+            )
+            
+            # Process completed tasks
+            for finished in done:
+                try:
+                    await finished
+                    # Log completion
+                    logger.info(f"Game completed: {finished.get_name() if hasattr(finished, 'get_name') else 'Unknown'}")
+                except Exception as e:
+                    logger.error(f"Game failed: {e}")
 
     def current_elo(self):
         elo = EloSystem(self.confidence_threshold)
@@ -663,7 +508,7 @@ class Arena():
         logger.info("\nPairwise Confidences:")
         sorted_players = sorted(self.players, key=lambda p: p.rating.rating, reverse=True)
         
-        elo, player_ratings = self.current_elo()
+        elo, _ = self.current_elo()
         
         for i in range(len(sorted_players) - 1):
             player_a = sorted_players[i]
@@ -724,6 +569,18 @@ class Arena():
                 results["games"].append(result_entry)
         
         return results
+
+    def _get_total_cost_for_all_players(self) -> float:
+        """Calculate total cost of LLM interactions for all players in this experiment."""
+        total_cost = self.session.query(
+            func.sum(LLMInteraction.cost)
+        ).join(
+            GameMatch, LLMInteraction.game_id == GameMatch.id
+        ).filter(
+            GameMatch.experiment_id == self.experiment.id
+        ).scalar() or 0.0
+        
+        return total_cost
 
     def _get_player_cost(self, player: ArenaPlayer) -> float:
         """Calculate total cost of LLM interactions for a player in this experiment."""

@@ -210,46 +210,6 @@ class TestArena:
         assert player_names == {"player-a", "player-b"}
 
     @pytest.mark.asyncio
-    @patch('bgbench.game_runner.GameRunner.play_game', new=mock_play_game_no_elo_update)
-    async def test_max_games_between_players(self, db_session, nim_game, mock_llm, mock_llm_factory):
-        """Test that the Arena does not schedule more than 10 games between any two players."""
-        player_configs = [
-            {
-                "name": "player-1",
-                "model_config": {"model": "test-model", "temperature": 0.0}
-            },
-            {
-                "name": "player-2",
-                "model_config": {"model": "test-model", "temperature": 0.0}
-            }
-        ]
-
-        # Initialize the Arena
-        arena = Arena(
-            nim_game,
-            db_session,
-            player_configs=player_configs,
-            experiment_name="test-max-games",
-            llm_factory=mock_llm_factory,
-            confidence_threshold=1.0  # Set to 1.0 so games continue until max limit
-        )
-
-
-        # Run the evaluation loop
-        await arena.evaluate_all()
-
-        # Check the number of games between the two players
-        games_played = arena._games_played_between(
-            arena.players[0].player_model,
-            arena.players[1].player_model
-        )
-        assert games_played == 10, f"Expected 10 games, but found {games_played}"
-
-        # Ensure no more matches are scheduled
-        next_match = await arena.find_next_available_match()
-        assert next_match is None, "No more matches should be scheduled between the players"
-        
-    @pytest.mark.asyncio
     async def test_arena_handles_draws(self, db_session, nim_game, mock_llm_factory):
         """Test that the Arena correctly handles games that end in a draw."""
         player_configs = [

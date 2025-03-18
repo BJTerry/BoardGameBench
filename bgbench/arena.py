@@ -418,7 +418,7 @@ class Arena():
                     
             # Track number of new tasks spawned in this iteration
             new_tasks_spawned = 0
-            
+            timeout = 0 
             # Fill all available slots up to max_parallel_games
             while len(active_tasks) < self.max_parallel_games:
                 matchup = await self.find_next_available_match()
@@ -470,10 +470,13 @@ class Arena():
             
             # Wait for at least one task to complete so we can fill its slot
             # Use a shorter timeout if we have capacity to schedule more games
-            timeout = None
-            if len(active_tasks) < self.max_parallel_games:
+            if len(active_tasks) == self.max_parallel_games:
+                timeout = None
+            elif len(active_tasks) < self.max_parallel_games and timeout is None:
                 # If we have capacity but couldn't schedule, wait briefly and retry
-                timeout = 0.1  # Short timeout to check for new matches
+                timeout = 0.1
+            else:
+                timeout = min(timeout * 2, 5)
             
             done, pending = await asyncio.wait(
                 active_tasks,
@@ -490,18 +493,33 @@ class Arena():
                 except Exception as e:
                     logger.error(f"Game failed: {e}")
 
-    def current_elo(self):
-        elo = EloSystem(self.confidence_threshold)
+
+    def current_elo(self) -> Tuple[EloSystem, Dict[str, PlayerRating]]:
         completed_games = self.session.query(GameMatch).filter(
             GameMatch.experiment_id == self.experiment.id,
             GameMatch.complete.is_(True)  # Using the complete field from our utility
         ).all()
         players = self.experiment.get_players(self.session)
         match_history = build_match_history(completed_games, players)
-        ratings = elo.update_ratings(
-            match_history, [p.name for p in players]
-        )
-        return (elo, ratings)
+
+        # Use a cache to store the latest computed ratings
+        if not hasattr(self, '_latest_ratings_cache'):
+            self._latest_ratings_cache = None
+
+        # Create a key based on match_history and sorted player names
+        cache_key = (tuple(sorted(match_history, key=lambda x: (x.player_0, x.player_1, x.winner or "None"))),
+                     tuple(sorted(p.name for p in players)))
+
+        # Check if the result is already cached
+        if self._latest_ratings_cache and self._latest_ratings_cache[0] == cache_key:
+            return self._latest_ratings_cache[1]
+        else:
+            elo = EloSystem(self.confidence_threshold)
+            ratings = elo.update_ratings(
+                match_history, [p.name for p in players]
+            )
+            self._latest_ratings_cache = (cache_key, (elo, ratings))
+            return (elo, ratings)
 
     def log_pairwise_confidences(self):
         """Log confidence levels between adjacent players sorted by rating"""

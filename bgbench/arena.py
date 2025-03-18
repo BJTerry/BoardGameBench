@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import random
 import asyncio
 from typing import Any, Dict, List, Optional, Tuple, Set
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from bgbench.models import Experiment, Player as DBPlayer, GameMatch, LLMInteraction
 from bgbench.llm_integration import ResponseStyle
@@ -29,45 +30,6 @@ class OngoingMatch:
     task: asyncio.Task
 
 class Arena():
-    def _get_player_cost(self, player: ArenaPlayer) -> float:
-        """Calculate total cost of LLM interactions for a player in this experiment."""
-        # Add debug logging
-        logger.debug(f"Getting costs for player {player.llm_player.name} (id: {player.player_model.id}) in experiment {self.experiment.id}")
-        
-        # First, let's check what player_id is actually used in the database
-        player_id_check = self.session.query(LLMInteraction.player_id).filter(
-            LLMInteraction.game_id.in_(
-                self.session.query(GameMatch.id).filter(
-                    GameMatch.experiment_id == self.experiment.id
-                )
-            )
-        ).distinct().all()
-        
-        logger.debug(f"Player IDs found in LLMInteraction for this experiment: {player_id_check}")
-        
-        # Query LLMInteraction joined with GameMatch to filter by experiment
-        query = self.session.query(LLMInteraction.cost).join(
-            GameMatch, LLMInteraction.game_id == GameMatch.id
-        ).filter(
-            GameMatch.experiment_id == self.experiment.id,
-            LLMInteraction.player_id == player.player_model.id  # Use the ID from the player model
-        )
-        
-        # Log the SQL query
-        logger.debug(f"SQL Query: {query}")
-        
-        # Execute the query and get results
-        costs = query.all()
-        
-        # Log the raw results
-        logger.debug(f"Raw cost results: {costs}")
-        
-        # Sum the costs, handling None values
-        total_cost = sum(cost[0] for cost in costs if cost[0] is not None)
-        
-        logger.debug(f"Total cost for player {player.llm_player.name}: ${total_cost:.6f}")
-        
-        return total_cost
     def __init__(self, game: Game, db_session: Session, 
                  player_configs: Optional[List[Dict[str, Any]]] = None,
                  experiment_name: Optional[str] = None,
@@ -753,7 +715,6 @@ class Arena():
             ).count()
             player_concessions[player.name] = concessions
 
-        # Count draws and completed games using utility functions
         draws = count_draws(games)
         completed_games = count_complete_games(games)
         
@@ -769,7 +730,7 @@ class Arena():
         }
         
         for game in games:
-            if is_game_complete(game):  # Using the utility function to check if game is complete
+            if is_game_complete(game):
                 result_entry = {
                     "game_id": game.id,
                     "final_ratings": {p.name: p.rating for p in db_players}
@@ -786,24 +747,15 @@ class Arena():
         
         return results
 
-    def get_player_game_history(self, player_id: int) -> List[Dict[str, Any]]:
-        """Get game history for a specific player."""
-        db_player = self.session.query(DBPlayer).filter_by(id=player_id).first()
-        if not db_player:
-            return []
-            
-        games = self.session.query(GameMatch).filter(
+    def _get_player_cost(self, player: ArenaPlayer) -> float:
+        """Calculate total cost of LLM interactions for a player in this experiment."""
+        total_cost = self.session.query(
+            func.sum(LLMInteraction.cost)
+        ).join(
+            GameMatch, LLMInteraction.game_id == GameMatch.id
+        ).filter(
             GameMatch.experiment_id == self.experiment.id,
-            GameMatch.winner_id == db_player.id
-        ).all()
+            LLMInteraction.player_id == player.player_model.id
+        ).scalar() or 0.0
         
-        history = []
-        for game in games:
-            game_data = {
-                "game_id": game.id,
-                "won": True,  # If player_id matches, they won
-                "state": game.state.state_data if game.state else {}
-            }
-            history.append(game_data)
-                
-        return history
+        return total_cost

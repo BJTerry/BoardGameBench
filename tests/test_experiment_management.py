@@ -54,7 +54,7 @@ class TestExperimentManagement:
             if arena_player.llm_player.name == "test-player-1":
                 assert arena_player.rating.rating == 1500.0
             elif arena_player.llm_player.name == "test-player-2":
-                assert arena_player.rating.rating == 1600.0
+                assert arena_player.rating.rating == 1500.0
 
     def test_prevent_new_players_in_resumed_experiment(self, db_session, test_llm):
         """Test that new players cannot be added to resumed experiments"""

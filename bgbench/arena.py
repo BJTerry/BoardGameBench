@@ -154,7 +154,8 @@ class Arena():
         player_names = [p.name for p in self.experiment.players]
         player_ratings = {}
         
-        # If we have match history, update ratings
+        # Always recalculate ratings from scratch using match history
+        # This ensures we always use a prior of 1500±400 for all players
         if self.match_history:
             player_ratings = self.elo_system.update_ratings(self.match_history, player_names)
         
@@ -172,7 +173,8 @@ class Arena():
                     logger.error(f"Could not recreate LLM for player {db_player.name}: {e}")
                     continue
             
-            # Use the Bayesian rating if available, otherwise create a default
+            # Always use the freshly calculated Bayesian rating for consistency
+            # This ensures we use the same calculation process as in run_single_game
             if db_player.name in player_ratings:
                 rating = player_ratings[db_player.name]
             else:
@@ -184,10 +186,11 @@ class Arena():
                     (GameMatch.player2_id == db_player.id)
                 ).count()
                 
+                # Use default 1500±400 prior for players with no history
                 rating = PlayerRating(
                     name=db_player.name,
-                    rating=db_player.rating,
-                    sigma=400.0,  # Default uncertainty
+                    rating=1500.0,  # Default initial rating
+                    sigma=400.0,    # Default uncertainty
                     games_played=games_played
                 )
             
@@ -283,10 +286,26 @@ class Arena():
             # Check ongoing matches with lock to get accurate state
             async with self._lock:
                 if pair_ids in self.ongoing_matches:
+                    logger.debug(f"Skipping match between {player_a.llm_player.name} and {player_b.llm_player.name} - match already in progress")
                     continue
                 
                 games = self._games_played_between(player_a.player_model, player_b.player_model)
                 if games >= 10:
+                    # Check if we'd need a match based on confidence
+                    match_needed_conf = True
+                    if self.match_history:
+                        try:
+                            match_needed_conf = self.elo_system.is_match_needed(
+                                player_a.llm_player.name, 
+                                player_b.llm_player.name
+                            )
+                        except RuntimeError:
+                            match_needed_conf = True
+                            
+                    if match_needed_conf:
+                        logger.debug(f"Skipping match between {player_a.llm_player.name} and {player_b.llm_player.name} - reached 10 game maximum BUT still need confidence")
+                    else:
+                        logger.debug(f"Skipping match between {player_a.llm_player.name} and {player_b.llm_player.name} - reached 10 game maximum")
                     continue
             
             # If we don't have enough match history, consider all matches needed
@@ -294,15 +313,24 @@ class Arena():
             if self.match_history:
                 try:
                     # Use player names with the Bayesian EloSystem
-                    match_needed = self.elo_system.is_match_needed(
-                        player_a.llm_player.name, 
-                        player_b.llm_player.name
-                    )
-                except RuntimeError:
+                    player_a_name = player_a.llm_player.name
+                    player_b_name = player_b.llm_player.name
+                    
+                    # Get the probability for logging
+                    prob = self.elo_system.probability_stronger(player_a_name, player_b_name)
+                    
+                    match_needed = self.elo_system.is_match_needed(player_a_name, player_b_name)
+                    
+                    logger.debug(f"Pair {player_a_name} vs {player_b_name}: probability={prob:.3f}, confidence={max(prob, 1-prob):.3f}, threshold={self.confidence_threshold}, match_needed={match_needed}")
+                except RuntimeError as e:
                     # If error occurs, consider match needed
+                    logger.debug(f"RuntimeError in is_match_needed for {player_a.llm_player.name} vs {player_b.llm_player.name}: {e}")
                     match_needed = True
+            else:
+                logger.debug(f"No match history, considering match needed for {player_a.llm_player.name} vs {player_b.llm_player.name}")
             
             if not match_needed:
+                logger.debug(f"Skipping match between {player_a.llm_player.name} and {player_b.llm_player.name} - confidence threshold reached")
                 continue
             
             # For new experiments without history, prioritize adjacent players
@@ -346,6 +374,12 @@ class Arena():
                         # Track this scheduled game
                         self._scheduled_games_between[pair_ids] = self._scheduled_games_between.get(pair_ids, 0) + 1
                         return best_pair
+                    else:
+                        logger.debug(f"Candidate match became invalid due to game count: {player_a.llm_player.name} vs {player_b.llm_player.name}")
+                else:
+                    logger.debug(f"Candidate match became invalid due to ongoing match: {player_a.llm_player.name} vs {player_b.llm_player.name}")
+        else:
+            logger.debug("No candidate matches found at all")
         
         return None
 
@@ -567,6 +601,7 @@ class Arena():
             while len(active_tasks) < self.max_parallel_games:
                 matchup = await self.find_next_available_match()
                 if not matchup:
+                    logger.debug("No more matches available to schedule right now")
                     break
                 pA, pB = matchup
                 
@@ -594,14 +629,48 @@ class Arena():
             
             # If no active tasks and no new matches can be scheduled -> done
             if not active_tasks:
+                # Log the pairwise confidences to help diagnose issues
+                self.log_pairwise_confidences()
+                
+                # Log details of possible player pairs
+                logger.debug("===== CHECKING ALL POSSIBLE PLAYER PAIRS: =====")
+                sorted_players = sorted(self.players, key=lambda p: p.rating.rating, reverse=True)
+                for i in range(len(sorted_players)):
+                    for j in range(i+1, len(sorted_players)):  # Check all pairs, not just adjacent
+                        p1 = sorted_players[i]
+                        p2 = sorted_players[j]
+                        games = self._games_played_between(p1.player_model, p2.player_model)
+                        
+                        # Check if already in progress
+                        pair_ids = (min(p1.player_model.id, p2.player_model.id), max(p1.player_model.id, p2.player_model.id))
+                        in_progress = pair_ids in self.ongoing_matches
+                        
+                        # Check confidence if we have history
+                        conf_str = "N/A"
+                        match_needed = True
+                        if self.match_history:
+                            try:
+                                prob = self.elo_system.probability_stronger(p1.llm_player.name, p2.llm_player.name)
+                                conf = max(prob, 1-prob)
+                                conf_str = f"{conf:.2f}"
+                                match_needed = self.elo_system.is_match_needed(p1.llm_player.name, p2.llm_player.name)
+                            except RuntimeError:
+                                match_needed = True
+                                conf_str = "Error"
+                                
+                        logger.debug(f"Pair {p1.llm_player.name} vs {p2.llm_player.name}: games={games}/10, in_progress={in_progress}, confidence={conf_str}, match_needed={match_needed}")
+                
                 # Double-check if we can schedule anything after the last Elo updates
+                logger.debug("No active tasks, checking if any more matches can be scheduled")
                 matchup = await self.find_next_available_match()
                 if not matchup:
                     # Truly done - all games completed or reached limits
+                    logger.info("Stopping experiment: No more matches can be scheduled based on confidence threshold or game limits")
                     break
                 else:
                     # This generally shouldn't happen, but if it does, continue
                     # to the next iteration to schedule the newly available match
+                    logger.debug("Found a new match to schedule after all, continuing")
                     continue
             
             # If we spawned new tasks, log current state before waiting

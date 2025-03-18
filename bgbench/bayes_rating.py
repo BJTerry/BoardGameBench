@@ -281,15 +281,22 @@ class EloSystem:
     def is_match_needed(self, name_a: str, name_b: str) -> bool:
         """
         Determines if more matches between these two players should be played to
-        surpass the confidence threshold. If the probability that one is stronger
-        than the other is under 'confidence_threshold', we want more data.
+        surpass the confidence threshold. If we're not confident enough about which
+        player is stronger, we want more data.
 
         :param name_a: Name of the first player.
         :param name_b: Name of the second player.
         :return: True if an additional match is needed to be more certain who is stronger.
         """
         prob = self.probability_stronger(name_a, name_b)
-        return prob < self.confidence_threshold
+        # Original implementation - this might be the issue
+        # The old version only checks if player_a is likely stronger, but doesn't check the other way
+        # return prob < self.confidence_threshold
+        
+        # We need more games if we're not confident enough about which player is stronger
+        # max(prob, 1-prob) gives us the confidence level of our prediction
+        confidence = max(prob, 1-prob)
+        return confidence < self.confidence_threshold
 
     def get_credible_intervals(self, player_names: Optional[List[str]] = None) -> Dict[str, Tuple[float, float]]:
         """

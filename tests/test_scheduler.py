@@ -75,7 +75,7 @@ class TestSchedulers:
         match_history = []
         
         # Mock that we're starting a new experiment
-        pair = scheduler.find_match(players, match_history, elo_system, set())
+        pair = scheduler.find_match(players, match_history, elo_system, set())  # type: ignore
         
         # For new experiments, we should get player1 vs player2 (adjacent in list)
         assert pair is not None
@@ -111,7 +111,7 @@ class TestSchedulers:
         elo_system.is_match_needed.return_value = True
         
         # This should fall back to FullRankingScheduler behavior
-        pair = scheduler.find_match(players, [], elo_system, set())
+        pair = scheduler.find_match(players, [], elo_system, set())  # type: ignore
         
         # Should return adjacent players (player1 vs player2) since there's no history
         assert pair is not None

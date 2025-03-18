@@ -43,41 +43,6 @@ class Experiment(Base):
         all_players = list(set(direct_players + game_players))
         return all_players
 
-    def get_game_summary(self, session: Session) -> Dict[str, Any]:
-        """Get summary statistics for games in this experiment."""
-        games = session.query(GameMatch).filter_by(experiment_id=self.id).all()
-        total_games = len(games)
-        completed_games = len([g for g in games if g.winner_id is not None and not g.conceded])
-        ongoing_games = len([g for g in games if g.winner_id is None])
-        conceded_games = len([g for g in games if g.conceded])
-        
-        return {
-            "total_games": total_games,
-            "completed_games": completed_games,
-            "ongoing_games": ongoing_games,
-            "conceded_games": conceded_games,
-            "completion_rate": (completed_games + conceded_games) / total_games if total_games > 0 else 0
-        }
-
-    def get_win_matrix(self, session: Session) -> Dict[str, Dict[str, int]]:
-        """Generate a matrix of wins between players."""
-        games = session.query(GameMatch).filter_by(experiment_id=self.id).all()
-        players = self.get_players(session)
-        
-        # Initialize win matrix
-        win_matrix = {p.name: {op.name: 0 for op in players} for p in players}
-        
-        # Count wins
-        for game in games:
-            if game.winner_id is not None:
-                winner = next(p for p in players if p.id == game.winner_id)
-                loser = next(p for p in players if p.id == (
-                    game.player2_id if game.winner_id == game.player1_id else game.player1_id
-                ))
-                win_matrix[winner.name][loser.name] += 1
-                
-        return win_matrix
-    
     __tablename__ = 'experiments'
     
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -87,48 +52,6 @@ class Experiment(Base):
     players: Mapped[list["Player"]] = relationship("Player", back_populates="experiment")
 
 class Player(Base):
-    def update_rating(self, session: Session, new_rating: float):
-        old_rating = self.rating
-        self.rating = new_rating
-        session.commit()
-        logger.info(f"Updated player {self.name} rating: {old_rating} -> {new_rating}")
-
-    def get_statistics(self, session: Session) -> Dict[str, Any]:
-        """Get comprehensive statistics for this player."""
-        # Get all games where this player participated
-        games_as_p1 = session.query(GameMatch).filter_by(player1_id=self.id).all()
-        games_as_p2 = session.query(GameMatch).filter_by(player2_id=self.id).all()
-        
-        total_games = len(games_as_p1) + len(games_as_p2)
-        if total_games == 0:
-            return {
-                "total_games": 0,
-                "games_completed": 0,
-                "wins": 0,
-                "losses": 0,
-                "win_rate": 0.0,
-                "concession_wins": 0,
-                "concession_losses": 0
-            }
-        
-        # Count different game outcomes
-        wins = len([g for g in games_as_p1 + games_as_p2 if g.winner_id == self.id])
-        completed_games = len([g for g in games_as_p1 + games_as_p2 if g.winner_id is not None])
-        concession_wins = len([g for g in games_as_p1 + games_as_p2 
-                             if g.winner_id == self.id and g.conceded])
-        concession_losses = len([g for g in games_as_p1 + games_as_p2 
-                               if g.winner_id is not None and g.winner_id != self.id and g.conceded])
-        
-        return {
-            "total_games": total_games,
-            "games_completed": completed_games,
-            "wins": wins,
-            "losses": completed_games - wins,
-            "win_rate": wins / completed_games if completed_games > 0 else 0.0,
-            "concession_wins": concession_wins,
-            "concession_losses": concession_losses
-        }
-
     @classmethod
     def create_player(cls, session: Session, name: str, model_config: dict, experiment_id: int) -> 'Player':
         """Create a new player with model configuration."""

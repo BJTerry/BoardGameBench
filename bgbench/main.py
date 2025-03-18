@@ -94,6 +94,8 @@ async def main():
         return
 
     if args.resume:
+        if game is None:
+            raise ValueError("--game is required when resuming an experiment")
         arena = Arena(
             game, 
             db_session, 
@@ -103,6 +105,8 @@ async def main():
             confidence_threshold=args.confidence_threshold
         )
     else:
+        if game is None:
+            raise ValueError("--game is required when creating a new experiment")
         arena = Arena(
             game, 
             db_session, 

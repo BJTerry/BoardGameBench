@@ -41,7 +41,7 @@ def test_prompt_renderer_invalid_style():
     PromptStyle.HEADER,
     PromptStyle.JSON
 ])
-def test_game_view_format_prompt(style):
+def test_game_view_format_prompt(style: PromptStyle):
     """Test GameView's format_prompt with different styles"""
     game_view = GameView(
         visible_state={"test": "state"},
@@ -61,7 +61,7 @@ def test_game_view_format_prompt(style):
         expected_rules = "RULES:\nTest rules"
     elif style == PromptStyle.JSON:
         expected_rules = '{"rules": "Test rules"}'
-        
+    
     rules_msg = next((msg for msg in result 
                       if msg["role"] == "user" and 
                       any(content.get("text") == expected_rules for content in msg["content"])), 
@@ -93,7 +93,7 @@ def test_game_view_format_prompt(style):
         expected_format = "MOVE FORMAT:\nTest format"
     elif style == PromptStyle.JSON:
         expected_format = '{"move_format": "Test format"}'
-        
+    
     format_msg = next((msg for msg in result 
                       if msg["role"] == "user" and 
                       any(content.get("text") == expected_format for content in msg["content"])),

@@ -59,7 +59,12 @@ class Player(Base):
         session.add(player)
         session.commit()
         return player
-
+        
+    def update_rating(self, session: Session, new_rating: float) -> None:
+        """Update the player's rating in the database."""
+        self.rating = new_rating
+        session.commit()
+        
     __tablename__ = 'players'
     
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

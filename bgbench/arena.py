@@ -465,7 +465,10 @@ class Arena():
                         last_log_time = current_time
                         last_logged_cost = total_cost
                 self.log_standings()
-                self.log_pairwise_confidences()
+                try:
+                    self.log_pairwise_confidences()
+                except RuntimeError as e:
+                    logger.info(e)
             
             timeout = 1
             

@@ -12,6 +12,7 @@ from bgbench.game_view import PromptStyle
 from bgbench.game_runner import GameRunner
 from bgbench.bayes_rating import PlayerRating, EloSystem, GameResult
 from bgbench.export import is_game_complete, is_game_draw, count_complete_games, count_draws, build_match_history
+from bgbench.scheduler import MatchScheduler, FullRankingScheduler
 
 logger = logging.getLogger("bgbench")
 
@@ -74,7 +75,8 @@ class Arena():
                  confidence_threshold: float = 0.70,
                  max_parallel_games: int = 3,
                  cost_budget: Optional[float] = 2.0,
-                 llm_factory=None):
+                 llm_factory=None,
+                 match_scheduler: Optional[MatchScheduler] = None):
         """
         Initialize Arena with either:
         - experiment_id to resume an existing experiment and its players
@@ -90,6 +92,7 @@ class Arena():
             max_parallel_games: Number of games to run in parallel
             cost_budget: Maximum cost budget for the experiment in dollars
             llm_factory: Optional function for testing that creates LLM instances
+            match_scheduler: Optional scheduler for choosing player matchups (defaults to FullRankingScheduler)
         """
         self.game: Game = game
         self.players: List[ArenaPlayer] = []
@@ -101,6 +104,12 @@ class Arena():
         self.ongoing_matches: Set[Tuple[int, int]] = set()
         self._scheduled_games_between: Dict[Tuple[int, int], int] = {}
         self._lock = asyncio.Lock()
+        
+        # Set up the match scheduler (default to FullRankingScheduler if not provided)
+        if match_scheduler is None:
+            self.match_scheduler = FullRankingScheduler()
+        else:
+            self.match_scheduler = match_scheduler
         
         # Store completed matches history for Bayesian rating updates
         self.match_history: List[GameResult] = []
@@ -261,125 +270,56 @@ class Arena():
         return db_count + scheduled_count
 
     async def find_next_available_match(self) -> Optional[Tuple[ArenaPlayer, ArenaPlayer]]:
-        """Pick the best matchup between adjacent players that doesn't exceed 10 games and isn't ongoing."""
-        best_pair: Optional[Tuple[ArenaPlayer, ArenaPlayer]] = None
+        """
+        Find the next match to run based on the configured match scheduling strategy.
         
+        Uses the scheduler set during initialization (defaults to FullRankingScheduler)
+        to determine the best matchup based on the scheduling strategy.
+        """
         # If we don't have any match history yet, we need to initialize the Bayesian system
         # with a dummy update to avoid RuntimeError in probability calculations
         if not self.match_history and len(self.players) > 0:
             player_names = [p.llm_player.name for p in self.players]
             # This will set initial ratings with defaults (1500 rating, 400 sigma)
             self.elo_system.update_ratings([], player_names)
-        
-        # Sort players by rating
-        sorted_players = sorted(self.players, key=lambda p: p.rating.rating, reverse=True)
-        
-        # Gather candidate pairs without modifying shared state
-        candidates = []
-        for i in range(len(sorted_players) - 1):
-            player_a = sorted_players[i]
-            player_b = sorted_players[i + 1]
             
-            pair_ids = (min(player_a.player_model.id, player_b.player_model.id), 
-                         max(player_a.player_model.id, player_b.player_model.id))
+        # Get a snapshot of ongoing matches for the scheduler
+        async with self._lock:
+            ongoing = self.ongoing_matches.copy()
+        
+        # Use the scheduler to find the next match
+        # This doesn't modify any shared state yet
+        match_pair = self.match_scheduler.find_match(
+            self.players, 
+            self.match_history, 
+            self.elo_system,
+            ongoing,
+            max_games_per_pairing=10
+        )
+        
+        if match_pair is None:
+            logger.debug("No candidate matches found by scheduler")
+            return None
             
-            # Check ongoing matches with lock to get accurate state
-            async with self._lock:
-                if pair_ids in self.ongoing_matches:
-                    logger.debug(f"Skipping match between {player_a.llm_player.name} and {player_b.llm_player.name} - match already in progress")
-                    continue
-                
+        player_a, player_b = match_pair
+        pair_ids = (min(player_a.player_model.id, player_b.player_model.id), 
+                     max(player_a.player_model.id, player_b.player_model.id))
+        
+        # Now lock to update shared state
+        async with self._lock:
+            # Double check match is still valid (could have changed while we were processing)
+            if pair_ids not in self.ongoing_matches:
                 games = self._games_played_between(player_a.player_model, player_b.player_model)
-                if games >= 10:
-                    # Check if we'd need a match based on confidence
-                    match_needed_conf = True
-                    if self.match_history:
-                        try:
-                            match_needed_conf = self.elo_system.is_match_needed(
-                                player_a.llm_player.name, 
-                                player_b.llm_player.name
-                            )
-                        except RuntimeError:
-                            match_needed_conf = True
-                            
-                    if match_needed_conf:
-                        logger.debug(f"Skipping match between {player_a.llm_player.name} and {player_b.llm_player.name} - reached 10 game maximum BUT still need confidence")
-                    else:
-                        logger.debug(f"Skipping match between {player_a.llm_player.name} and {player_b.llm_player.name} - reached 10 game maximum")
-                    continue
-            
-            # If we don't have enough match history, consider all matches needed
-            match_needed = True
-            if self.match_history:
-                try:
-                    # Use player names with the Bayesian EloSystem
-                    player_a_name = player_a.llm_player.name
-                    player_b_name = player_b.llm_player.name
-                    
-                    # Get the probability for logging
-                    prob = self.elo_system.probability_stronger(player_a_name, player_b_name)
-                    
-                    match_needed = self.elo_system.is_match_needed(player_a_name, player_b_name)
-                    
-                    logger.debug(f"Pair {player_a_name} vs {player_b_name}: probability={prob:.3f}, confidence={max(prob, 1-prob):.3f}, threshold={self.confidence_threshold}, match_needed={match_needed}")
-                except RuntimeError as e:
-                    # If error occurs, consider match needed
-                    logger.debug(f"RuntimeError in is_match_needed for {player_a.llm_player.name} vs {player_b.llm_player.name}: {e}")
-                    match_needed = True
-            else:
-                logger.debug(f"No match history, considering match needed for {player_a.llm_player.name} vs {player_b.llm_player.name}")
-            
-            if not match_needed:
-                logger.debug(f"Skipping match between {player_a.llm_player.name} and {player_b.llm_player.name} - confidence threshold reached")
-                continue
-            
-            # For new experiments without history, prioritize adjacent players
-            if not self.match_history:
-                # Lower rank difference = higher priority (0 = highest priority)
-                rank_diff = i
-                candidates.append((rank_diff, player_a, player_b, pair_ids))
-            else:
-                # Get probability that player_a is stronger than player_b
-                try:
-                    prob = self.elo_system.probability_stronger(
-                        player_a.llm_player.name, 
-                        player_b.llm_player.name
-                    )
-                    # Calculate uncertainty - with 0.5 being most uncertain (50/50 chance)
-                    # and values close to 0 or 1 being more certain
-                    uncertainty = abs(0.5 - prob)
-                    
-                    # We want matches with uncertainty closest to 0 (probability closest to 0.5)
-                    # So we use negative uncertainty for sorting (lowest first)
-                    candidates.append((-uncertainty, player_a, player_b, pair_ids))
-                except RuntimeError:
-                    # If we don't have enough match history for probability calculation
-                    # Consider it high uncertainty
-                    candidates.append((0, player_a, player_b, pair_ids))
-        
-        # Find best match
-        if candidates:
-            # Sort by first element (negative uncertainty or rank difference) - lowest first
-            candidates.sort(key=lambda x: x[0])
-            _, player_a, player_b, pair_ids = candidates[0]
-            best_pair = (player_a, player_b)
-            
-            # Now lock to update shared state
-            async with self._lock:
-                # Double check match is still valid (could have changed while we were processing)
-                if pair_ids not in self.ongoing_matches:
-                    games = self._games_played_between(player_a.player_model, player_b.player_model)
-                    if games < 10:
-                        self.ongoing_matches.add(pair_ids)
-                        # Track this scheduled game
-                        self._scheduled_games_between[pair_ids] = self._scheduled_games_between.get(pair_ids, 0) + 1
-                        return best_pair
-                    else:
-                        logger.debug(f"Candidate match became invalid due to game count: {player_a.llm_player.name} vs {player_b.llm_player.name}")
+                if games < 10:
+                    logger.debug(f"Scheduling match between {player_a.llm_player.name} and {player_b.llm_player.name}")
+                    self.ongoing_matches.add(pair_ids)
+                    # Track this scheduled game
+                    self._scheduled_games_between[pair_ids] = self._scheduled_games_between.get(pair_ids, 0) + 1
+                    return match_pair
                 else:
-                    logger.debug(f"Candidate match became invalid due to ongoing match: {player_a.llm_player.name} vs {player_b.llm_player.name}")
-        else:
-            logger.debug("No candidate matches found at all")
+                    logger.debug(f"Candidate match rejected - exceeded game limit ({games}/10): {player_a.llm_player.name} vs {player_b.llm_player.name}")
+            else:
+                logger.debug(f"Candidate match became invalid due to ongoing match: {player_a.llm_player.name} vs {player_b.llm_player.name}")
         
         return None
 
@@ -569,6 +509,7 @@ class Arena():
         # Initialize cost tracking variables
         last_log_time = 0
         last_logged_cost = 0
+        total_cost = 0.0  # Initialize total_cost
         MIN_LOG_INTERVAL = 10  # Only log costs at most every 10 seconds
         import time
         
@@ -657,16 +598,49 @@ class Arena():
                             except RuntimeError:
                                 match_needed = True
                                 conf_str = "Error"
+                        
+                        # Check if game count exceeds limit 
+                        game_limit_reached = games >= 10
+                        
+                        # Final determination of whether a match should be scheduled
+                        can_schedule = match_needed and not game_limit_reached and not in_progress
                                 
-                        logger.debug(f"Pair {p1.llm_player.name} vs {p2.llm_player.name}: games={games}/10, in_progress={in_progress}, confidence={conf_str}, match_needed={match_needed}")
+                        logger.debug(f"Pair {p1.llm_player.name} vs {p2.llm_player.name}: games={games}/10, in_progress={in_progress}, confidence={conf_str}, match_needed={match_needed}, game_limit_reached={game_limit_reached}, can_schedule={can_schedule}")
                 
                 # Double-check if we can schedule anything after the last Elo updates
                 logger.debug("No active tasks, checking if any more matches can be scheduled")
                 matchup = await self.find_next_available_match()
                 if not matchup:
-                    # Truly done - all games completed or reached limits
-                    logger.info("Stopping experiment: No more matches can be scheduled based on confidence threshold or game limits")
-                    break
+                    # Log why no match could be found by checking each potential pair
+                    logger.debug("No match could be scheduled - possible reasons:")
+                    pairs_over_limit = 0
+                    pairs_confident = 0
+                    pairs_in_progress = 0
+                    
+                    # Analyze why matches weren't scheduled
+                    for i in range(len(sorted_players)):
+                        for j in range(i+1, len(sorted_players)):
+                            p1, p2 = sorted_players[i], sorted_players[j]
+                            games = self._games_played_between(p1.player_model, p2.player_model)
+                            pair_ids = (min(p1.player_model.id, p2.player_model.id), max(p1.player_model.id, p2.player_model.id))
+                            in_progress = pair_ids in self.ongoing_matches
+                            
+                            if games >= 10:
+                                pairs_over_limit += 1
+                            if in_progress:
+                                pairs_in_progress += 1
+                            elif not self.elo_system.is_match_needed(p1.llm_player.name, p2.llm_player.name):
+                                pairs_confident += 1
+                                
+                    logger.debug(f"  - Pairs over game limit: {pairs_over_limit}")
+                    logger.debug(f"  - Pairs with sufficient confidence: {pairs_confident}")
+                    logger.debug(f"  - Pairs with in-progress games: {pairs_in_progress}")
+                    
+                    # Final check
+                    if matchup is None:
+                        # Truly done - all games completed or reached limits
+                        logger.info("Stopping experiment: No more matches can be scheduled based on confidence threshold or game limits")
+                        break
                 else:
                     # This generally shouldn't happen, but if it does, continue
                     # to the next iteration to schedule the newly available match

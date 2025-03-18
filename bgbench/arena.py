@@ -58,7 +58,6 @@ class Arena():
         """
         self.game: Game = game
         self.players: List[ArenaPlayer] = []
-        self.elo_system = EloSystem(confidence_threshold=confidence_threshold)
         self.confidence_threshold = confidence_threshold
         self.session = db_session
         self.max_parallel_games = max_parallel_games
@@ -112,23 +111,11 @@ class Arena():
             GameMatch.complete.is_(True)  # Using the complete field from our utility
         ).all()
         
-        # Create a dictionary to look up player names by ID
-        player_name_map = {}
-        for db_player in self.experiment.players:
-            player_name_map[db_player.id] = db_player.name
-        
         # Build match history using the utility function
         players = self.experiment.get_players(self.session)
         self.match_history = build_match_history(completed_games, players)
         
-        # Create ArenaPlayers
-        player_names = [p.name for p in self.experiment.players]
-        player_ratings = {}
-        
-        # Always recalculate ratings from scratch using match history
-        # This ensures we always use a prior of 1500±400 for all players
-        if self.match_history:
-            player_ratings = self.elo_system.update_ratings(self.match_history, player_names)
+        elo, player_ratings = self.current_elo()
         
         for db_player in self.experiment.players:
             if llm_factory:
@@ -238,23 +225,17 @@ class Arena():
         Uses the scheduler set during initialization (defaults to FullRankingScheduler)
         to determine the best matchup based on the scheduling strategy.
         """
-        # If we don't have any match history yet, we need to initialize the Bayesian system
-        # with a dummy update to avoid RuntimeError in probability calculations
-        if not self.match_history and len(self.players) > 0:
-            player_names = [p.llm_player.name for p in self.players]
-            # This will set initial ratings with defaults (1500 rating, 400 sigma)
-            self.elo_system.update_ratings([], player_names)
-            
         # Get a snapshot of ongoing matches for the scheduler
         async with self._lock:
             ongoing = self.ongoing_matches.copy()
         
         # Use the scheduler to find the next match
         # This doesn't modify any shared state yet
+        elo, _ = self.current_elo()
         match_pair = self.match_scheduler.find_match(
             self.players, 
             self.match_history, 
-            self.elo_system,
+            elo,
             ongoing,
             max_games_per_pairing=10
         )
@@ -329,8 +310,8 @@ class Arena():
             db_game = GameMatch(
                 experiment_id=self.experiment.id,
                 winner_id=None,
-                player1_id=db_player_a.id,
-                player2_id=db_player_b.id
+                player1_id=player_a.player_model.id,
+                player2_id=player_b.player_model.id
             )
             self.session.add(db_game)
             self.session.commit()
@@ -347,14 +328,10 @@ class Arena():
                 player_b.player_model.id
             )
             
-            winner, history, concession = await runner.play_game()
+            winner, _, concession = await runner.play_game()
             
             # Mark the game as complete since it finished normally (either with a winner or a draw)
             db_game.complete = True
-            
-            # Update the match history and recalculate all ratings
-            # Get all player names
-            player_names = [p.llm_player.name for p in self.players]
             
             if winner:
                 # Game has a winner
@@ -382,11 +359,11 @@ class Arena():
                 )
                 # No winner_id is set, but the game is marked as complete
             
-            # Add the game to match history
             self.match_history.append(new_game)
+            self.session.commit()
             
-            # Update all ratings using Bayesian system
-            new_ratings = self.elo_system.update_ratings(self.match_history, player_names)
+            # Current Elo looks up completed matches in the database, so you have to commit first
+            _, new_ratings = self.current_elo()
             
             # Update ratings for all players
             for arena_player in self.players:
@@ -396,7 +373,8 @@ class Arena():
                     arena_player.rating = new_ratings[name]
                     arena_player.player_model.update_rating(self.session, new_ratings[name].rating)
             
-            self.session.commit()
+            # Commit updates to player ratings
+            self.session.commit() 
 
             logger.info(f"Game {game_id} completed: {winner.name if winner else 'Draw'}")
             
@@ -538,6 +516,7 @@ class Arena():
                 # Log details of possible player pairs
                 logger.debug("===== CHECKING ALL POSSIBLE PLAYER PAIRS: =====")
                 sorted_players = sorted(self.players, key=lambda p: p.rating.rating, reverse=True)
+                elo, _ = self.current_elo()
                 for i in range(len(sorted_players)):
                     for j in range(i+1, len(sorted_players)):  # Check all pairs, not just adjacent
                         p1 = sorted_players[i]
@@ -553,10 +532,10 @@ class Arena():
                         match_needed = True
                         if self.match_history:
                             try:
-                                prob = self.elo_system.probability_stronger(p1.llm_player.name, p2.llm_player.name)
+                                prob = elo.probability_stronger(p1.llm_player.name, p2.llm_player.name)
                                 conf = max(prob, 1-prob)
                                 conf_str = f"{conf:.2f}"
-                                match_needed = self.elo_system.is_match_needed(p1.llm_player.name, p2.llm_player.name)
+                                match_needed = elo.is_match_needed(p1.llm_player.name, p2.llm_player.name)
                             except RuntimeError:
                                 match_needed = True
                                 conf_str = "Error"
@@ -591,7 +570,7 @@ class Arena():
                                 pairs_over_limit += 1
                             if in_progress:
                                 pairs_in_progress += 1
-                            elif not self.elo_system.is_match_needed(p1.llm_player.name, p2.llm_player.name):
+                            elif not elo.is_match_needed(p1.llm_player.name, p2.llm_player.name):
                                 pairs_confident += 1
                                 
                     logger.debug(f"  - Pairs over game limit: {pairs_over_limit}")
@@ -666,34 +645,33 @@ class Arena():
 
         return {p.llm_player.name: p.rating.rating for p in self.players}
 
+    def current_elo(self):
+        elo = EloSystem(self.confidence_threshold)
+        completed_games = self.session.query(GameMatch).filter(
+            GameMatch.experiment_id == self.experiment.id,
+            GameMatch.complete.is_(True)  # Using the complete field from our utility
+        ).all()
+        players = self.experiment.get_players(self.session)
+        match_history = build_match_history(completed_games, players)
+        ratings = elo.update_ratings(
+            match_history, [p.name for p in players]
+        )
+        return (elo, ratings)
+
     def log_pairwise_confidences(self):
         """Log confidence levels between adjacent players sorted by rating"""
         logger.info("\nPairwise Confidences:")
         sorted_players = sorted(self.players, key=lambda p: p.rating.rating, reverse=True)
         
-        # If no match history, initialize the system with default ratings
-        if not self.match_history and len(self.players) > 0:
-            player_names = [p.llm_player.name for p in self.players]
-            self.elo_system.update_ratings([], player_names)
+        elo, player_ratings = self.current_elo()
         
         for i in range(len(sorted_players) - 1):
             player_a = sorted_players[i]
             player_b = sorted_players[i + 1]
             
-            # If we don't have any match history, show default confidence
-            if not self.match_history:
-                logger.info(f"{player_a.llm_player.name} vs {player_b.llm_player.name}: "
-                          f"No match data (default 50% confident)")
-                continue
-                
-            try:
-                prob = self.elo_system.probability_stronger(player_a.llm_player.name, player_b.llm_player.name)
-                logger.info(f"{player_a.llm_player.name} vs {player_b.llm_player.name}: "
-                           f"{prob*100:.1f}% confident")
-            except RuntimeError:
-                # If we don't have match history yet
-                logger.info(f"{player_a.llm_player.name} vs {player_b.llm_player.name}: "
-                          f"Not enough match data")
+            prob = elo.probability_stronger(player_a.llm_player.name, player_b.llm_player.name)
+            logger.info(f"{player_a.llm_player.name} vs {player_b.llm_player.name}: "
+                        f"{prob*100:.1f}% confident")
 
     def get_experiment_results(self) -> Dict[str, Any]:
         """Get summary of experiment results including games played and final ratings."""

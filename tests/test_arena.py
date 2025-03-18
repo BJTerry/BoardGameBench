@@ -168,64 +168,6 @@ class TestArena:
         assert db_player.experiment_id == arena.experiment.id
         assert db_player in arena.experiment.players
 
-    def test_bayesian_ratings_confidence(self, db_session, nim_game, mock_llm, mock_llm_factory):
-        """Test Bayesian rating confidence calculation"""
-        player_configs = [
-            {
-                "name": "player-a",
-                "model_config": {
-                    "model": "test-model",
-                    "temperature": 0.0,
-                    "max_tokens": 1000
-                }
-            },
-            {
-                "name": "player-b",
-                "model_config": {
-                    "model": "test-model", 
-                    "temperature": 0.0,
-                    "max_tokens": 1000
-                }
-            }
-        ]
-        
-        arena = Arena(
-            nim_game,
-            db_session,
-            player_configs=player_configs,
-            experiment_name="test-uncertainty",
-            llm_factory=mock_llm_factory
-        )
-        
-        # Create some match history to initialize the rating system
-        from bgbench.bayes_rating import GameResult
-        
-        # Create many artificial game results to force confidence threshold
-        match_history = []
-        # Add 10 games alternating winners to create uncertainty
-        for i in range(5):
-            match_history.append(GameResult(player_0="player-a", player_1="player-b", winner="player-a"))
-            match_history.append(GameResult(player_0="player-a", player_1="player-b", winner="player-b"))
-        
-        # Add to arena's match history
-        arena.match_history = match_history
-        
-        # Update ratings from match history
-        player_names = ["player-a", "player-b"]
-        new_ratings = arena.elo_system.update_ratings(match_history, player_names)
-        
-        # With 10 evenly matched games, the system shouldn't be confident about who's better
-        is_not_confident = arena.elo_system.is_match_needed("player-a", "player-b")
-        
-        # With evenly matched results, we shouldn't be confident
-        assert is_not_confident, "With evenly matched results, we shouldn't be confident"
-        
-        # Test the probability function directly
-        probability = arena.elo_system.probability_stronger("player-a", "player-b")
-        
-        # Probability should be a number between 0 and 1
-        assert 0 <= probability <= 1, "Probability should be between 0 and 1"
-
     @pytest.mark.asyncio
     async def test_find_best_match(self, db_session, nim_game, mock_llm, mock_llm_factory):
         """Test finding best match between players"""

@@ -192,11 +192,20 @@ class TestExportFunctionality:
             MagicMock(player_0="Player 1", player_1="Player 2", winner="Player 2")
         ]
         
+        # Set up player ratings manually to guarantee Player 1 > Player 2
+        player1.rating = 1550  # Higher rating
+        player2.rating = 1450  # Lower rating
+        
         # Mock player costs
         mock_get_costs.return_value = {"Player 1": 0.5, "Player 2": 0.3}
         
-        # Format for export
-        export_data = format_for_export(db_session, experiment.id, "Test Game")
+        # Use a real EloSystem with the probability_stronger method patched
+        with patch('bgbench.bayes_rating.EloSystem.probability_stronger') as mock_prob_stronger:
+            # Always return that Player 1 is stronger than Player 2 with >95% probability
+            mock_prob_stronger.return_value = 0.96
+            
+            # Format for export
+            export_data = format_for_export(db_session, experiment.id, "Test Game")
         
         # Verify basic structure
         assert export_data["gameName"] == "Test Game"
@@ -218,11 +227,18 @@ class TestExportFunctionality:
         for player_result in results:
             assert "modelName" in player_result
             assert "score" in player_result
+            assert "rank" in player_result  # New field
             assert "gamesPlayed" in player_result
             assert "winRate" in player_result
             assert "concessions" in player_result
             assert "costPerGame" in player_result
             assert "confidenceInterval" in player_result
+            
+        # Find the results by score to avoid confusion with modelName
+        # Because the sort is by score, the first result should be rank 1
+        results_by_score = sorted(results, key=lambda x: x["score"], reverse=True)
+        assert results_by_score[0]["rank"] == 1
+        assert results_by_score[1]["rank"] == 2
     
     @patch('os.makedirs')
     @patch('bgbench.export.format_for_export')

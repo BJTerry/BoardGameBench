@@ -264,6 +264,47 @@ def format_for_export(session: Session, experiment_id: int, game_name: str) -> D
     # Sort results by score in descending order
     results_list.sort(key=lambda x: x["score"], reverse=True)
     
+    # Assign ranks to players
+    # We'll use the probability_stronger method from EloSystem to compare players
+    # and implement the ranking logic as described
+    if match_history:
+        # Get sorted player names from results_list
+        sorted_player_names = [result["modelName"] for result in results_list]
+        
+        # Initialize the ranks
+        current_rank = 1
+        reference_player = sorted_player_names[0]  # First player is the reference for rank 1
+        
+        # Assign the first player rank 1
+        results_list[0]["rank"] = current_rank
+        
+        # For each remaining player, compare to the reference player of the current rank
+        for i in range(1, len(results_list)):
+            player_name = results_list[i]["modelName"]
+            
+            # Calculate the probability that reference player is stronger than current player
+            try:
+                prob_ref_stronger = elo_system.probability_stronger(reference_player, player_name)
+                
+                # If reference player is stronger with >95% probability, increase rank
+                if prob_ref_stronger > 0.95:
+                    current_rank += 1
+                    # This player becomes the new reference for this rank
+                    reference_player = player_name
+                
+                # Assign the current rank to this player
+                results_list[i]["rank"] = current_rank
+                
+            except RuntimeError:
+                # If we can't calculate the probability (e.g., no games between these players),
+                # assign the same rank as the previous player
+                logger.warning(f"Could not calculate probability for {reference_player} vs {player_name}")
+                results_list[i]["rank"] = results_list[i-1]["rank"]
+    else:
+        # If there are no matches, all players get rank 1
+        for result in results_list:
+            result["rank"] = 1
+    
     # Format the final export data
     export_data = {
         "gameName": game_name,

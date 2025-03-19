@@ -571,6 +571,13 @@ class Arena():
                     "final_ratings": {p.name: p.rating for p in db_players}
                 }
                 
+                # Get player information
+                player1 = self.session.query(DBPlayer).filter_by(id=game.player1_id).first()
+                player2 = self.session.query(DBPlayer).filter_by(id=game.player2_id).first()
+                if player1 and player2:
+                    result_entry["player1"] = player1.name
+                    result_entry["player2"] = player2.name
+                
                 if game.winner_id is not None:  # Has winner
                     winner = self.session.query(DBPlayer).filter_by(id=game.winner_id).first()
                     if winner:

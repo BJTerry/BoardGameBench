@@ -1,7 +1,7 @@
 import argparse
 import logging
 import json
-from typing import Any, Dict
+from typing import Any, Dict, List, Tuple
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -141,6 +141,15 @@ def print_results(results: Dict[str, Any]):
         concessions = results['player_concessions'][name]
         logger.info(f"{name}: {rating:.0f} ({concessions} concessions)")
     
+    # Calculate skill comparison probabilities and records from game history
+    # Sort players by rating (strongest to weakest)
+    player_names = [name for name, _ in sorted(results['player_ratings'].items(), 
+                                              key=lambda x: x[1], 
+                                              reverse=True)]
+    if len(player_names) > 1:
+        skill_data = calculate_skill_probabilities(results['games'], player_names)
+        print_skill_probability_table(skill_data, player_names)
+    
     logger.info("\nGame History:")
     for game in results['games']:
         if 'winner' in game:
@@ -149,6 +158,159 @@ def print_results(results: Dict[str, Any]):
             logger.info(f"Game {game['game_id']}: Draw")
 
 
+def calculate_skill_probabilities(games: List[Dict[str, Any]], player_names: List[str]) -> Tuple[Dict[Tuple[str, str], float], Dict[Tuple[str, str], Tuple[int, ...]]]:
+    """
+    Calculate the probability that one player's skill is higher than another's using Bayesian ratings.
+    Also calculate win-loss-draw records for each player pair.
+    
+    Args:
+        games: List of game result dictionaries
+        player_names: List of player names
+        
+    Returns:
+        Tuple containing:
+            - Dictionary mapping player pairs (p1, p2) to the probability that p1's skill > p2's skill
+            - Dictionary mapping player pairs (p1, p2) to their record as (wins, losses, draws)
+    """
+    from bgbench.bayes_rating import EloSystem, GameResult
+    
+    # Initialize win-loss-draw records for each player pair
+    # (wins, losses, draws) from p1's perspective
+    records = {(p1, p2): [0, 0, 0] for p1 in player_names for p2 in player_names if p1 != p2}
+    
+    # Convert game results to GameResult objects for the EloSystem
+    game_results = []
+    for game in games:
+        # Skip games without player information
+        if not ('player1' in game and 'player2' in game):
+            continue
+            
+        player1 = game['player1']
+        player2 = game['player2']
+        
+        # Skip games with unknown players
+        if player1 not in player_names or player2 not in player_names:
+            continue
+        
+        # Track record for this player pair
+        if 'winner' in game:
+            winner = game['winner']
+            if winner == player1:
+                # p1 won against p2
+                records[(player1, player2)][0] += 1
+                # p2 lost to p1
+                records[(player2, player1)][1] += 1
+            elif winner == player2:
+                # p1 lost to p2
+                records[(player1, player2)][1] += 1
+                # p2 won against p1
+                records[(player2, player1)][0] += 1
+            else:
+                # It's a draw
+                records[(player1, player2)][2] += 1
+                records[(player2, player1)][2] += 1
+        else:
+            # It's a draw
+            records[(player1, player2)][2] += 1
+            records[(player2, player1)][2] += 1
+        
+        # Add this game to the results list for Bayesian rating
+        if 'winner' in game:
+            winner = game['winner']
+            game_results.append(GameResult(
+                player_0=player1,
+                player_1=player2,
+                winner=winner
+            ))
+        else:
+            # It's a draw
+            game_results.append(GameResult(
+                player_0=player1,
+                player_1=player2,
+                winner=None  # None indicates a draw
+            ))
+    
+    # Use the EloSystem to calculate skill probabilities
+    elo_system = EloSystem(confidence_threshold=0.70)
+    
+    # Update player ratings based on game history
+    elo_system.update_ratings(game_results, player_names)
+    
+    # Calculate skill probabilities for each player pair
+    skill_probabilities = {}
+    for p1 in player_names:
+        for p2 in player_names:
+            if p1 != p2:
+                # Calculate probability that p1's skill is higher than p2's skill based on MCMC samples
+                try:
+                    skill_probabilities[(p1, p2)] = elo_system.probability_stronger(p1, p2)
+                except RuntimeError:
+                    # If there's no data for these players, use 0.5 as default
+                    skill_probabilities[(p1, p2)] = 0.5
+    
+    # Convert records lists to tuples for immutability
+    record_tuples = {pair: tuple(record) for pair, record in records.items()}
+    
+    return skill_probabilities, record_tuples
+
+
+def print_skill_probability_table(skill_probabilities_and_records: Tuple[Dict[Tuple[str, str], float], Dict[Tuple[str, str], Tuple[int, ...]]], player_names: List[str]):
+    """
+    Print a formatted table of skill comparison probabilities with win-loss-draw records.
+    
+    Args:
+        skill_probabilities_and_records: Tuple containing skill probabilities and win-loss-draw records
+        player_names: List of player names to include in the table
+    """
+    from tabulate import tabulate
+    
+    skill_probabilities, records = skill_probabilities_and_records
+    
+    # Shorten model names by taking only the part after the slash
+    def shorten_name(name):
+        if '/' in name:
+            return name.split('/', 1)[1]
+        return name
+    
+    short_names = [shorten_name(name) for name in player_names]
+    
+    # Create tabular data
+    table_data = []
+    for i, p1 in enumerate(player_names):
+        row = [shorten_name(p1)]
+        for j, p2 in enumerate(player_names):
+            if p1 == p2:
+                row.append("-")
+            else:
+                prob = skill_probabilities.get((p1, p2), 0.0)
+                
+                # Get record as (W-L-D) from p1's perspective
+                if (p1, p2) in records:
+                    wins, losses, draws = records[(p1, p2)]
+                    
+                    # Format the record, omitting draws if zero
+                    record_parts = []
+                    record_parts.append(f"{wins}")
+                    record_parts.append(f"{losses}")
+                    if draws > 0:
+                        record_parts.append(f"{draws}")
+                    
+                    record_str = "-".join(record_parts)
+                    row.append(f"{prob:.3f}\n({record_str})")
+                else:
+                    row.append(f"{prob:.3f}")
+        table_data.append(row)
+    
+    # Create the formatted table
+    table = tabulate(
+        table_data,
+        headers=["Player"] + short_names,
+        tablefmt="grid"
+    )
+    
+    logger.info("\nSkill Comparison (P(row player skill > column player skill)):")
+    logger.info("Format: probability (W-L-D) from row player's perspective")
+    logger.info("\n" + table)
 
 
 if __name__ == "__main__":

@@ -393,6 +393,7 @@ class Arena():
         last_logged_cost = 0
         total_cost = 0.0  # Initialize total_cost
         MIN_LOG_INTERVAL = 10  # Only log costs at most every 10 seconds
+        tries = 0 # Attempts to schedule
         
         while True:
             current_time = time.time()
@@ -450,8 +451,13 @@ class Arena():
                 task.add_done_callback(create_done_callback(task))
             
             if not active_tasks and new_tasks_spawned == 0:
-                # Nothing currently running and we didn't just launch one
-                break
+                if tries == 0:
+                    tries += 1
+                else:
+                    # Nothing currently running and we didn't just launch one after multiple attempts
+                    break
+            else:
+                tries = 0
             
             # If we spawned new tasks, log current state before waiting
             if new_tasks_spawned > 0:

@@ -453,6 +453,7 @@ class Arena():
             if not active_tasks and new_tasks_spawned == 0:
                 if tries == 0:
                     tries += 1
+                    continue
                 else:
                     # Nothing currently running and we didn't just launch one after multiple attempts
                     break

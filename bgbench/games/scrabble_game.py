@@ -66,7 +66,7 @@ class ScrabbleGame(Game[ScrabbleState, ScrabbleMove]):
             tile_bag=tile_bag
         )
 
-    def parse_move(self, move_str: str) -> ScrabbleMove:
+    def parse_move(self, move_str: str) -> Optional[ScrabbleMove]:
         parts = move_str.split()
         action = parts[0].lower()
 
@@ -80,8 +80,14 @@ class ScrabbleGame(Game[ScrabbleState, ScrabbleMove]):
         # Handle word placement with potential blank tiles
         newly_placed_positions = set()
         raw_word = parts[0].upper()
-        start_position = (int(parts[2]), int(parts[1]))
+        try:
+            start_position = (int(parts[2]), int(parts[1]))
+        except ValueError:
+            return None
         direction = parts[3].lower()
+
+        if direction not in ['horizontal', 'vertical']:
+            return None
         
         move = ScrabbleMove(word="", start_position=(0, 0), direction=direction)
         # Process blanks marked with _
@@ -107,9 +113,6 @@ class ScrabbleGame(Game[ScrabbleState, ScrabbleMove]):
                 word += raw_word[i]
                 i += 1
 
-        if direction not in ['horizontal', 'vertical']:
-            raise ValueError("Invalid direction")
-        
         return ScrabbleMove(word, start_position, direction, blank_assignments=blank_assignments)
 
 

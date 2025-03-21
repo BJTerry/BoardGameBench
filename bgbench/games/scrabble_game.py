@@ -612,6 +612,8 @@ class ScrabbleGame(Game[ScrabbleState, ScrabbleMove]):
         move_format_instructions = (
             "To make a move, you can:\n"
             "1. Place a word: specify the word, starting position (row, column), and direction (horizontal or vertical).\n"
+            "   Note: Board positions are 0-indexed, with (0,0) at the top-left corner and (14,14) at the bottom-right.\n"
+            "   The center square is at position (7,7).\n"
             "   For blank tiles, use _X where X is the letter you want the blank to represent. Example:\n"
             "   - Regular word: 'WORD 7 7 horizontal'\n"
             "   - With blank tile: 'W_ORD 7 7 horizontal' (blank used as O)\n"

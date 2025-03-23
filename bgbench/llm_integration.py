@@ -71,6 +71,8 @@ CACHE_DISABLED_MODELS = [
     "gemini/gemini-2.0-flash-thinking-exp-01-21",
     "openrouter/deepseek/deepseek-r1",
     "openrouter/openai/o1-mini",
+    "openrouter/qwen/qwq-32b",
+    "openrouter/qwen/qwq-32b:free",
 ]
 
 SYSTEM_PROMPT = (

@@ -4,23 +4,21 @@ from bgbench.game import Game
 from bgbench.game_view import GameView, PromptStyle
 import random
 
+
 @dataclass
 class Card:
     rank: int  # 2-14 (2-Ace)
     suit: int  # 0-3 (Hearts, Diamonds, Clubs, Spades)
 
     def __str__(self):
-        ranks = {11: 'J', 12: 'Q', 13: 'K', 14: 'A'}
-        suits = ['♥', '♦', '♣', '♠']
+        ranks = {11: "J", 12: "Q", 13: "K", 14: "A"}
+        suits = ["♥", "♦", "♣", "♠"]
         rank_str = ranks.get(self.rank, str(self.rank))
         return f"{rank_str}{suits[self.suit]}"
 
     def to_dict(self) -> dict:
         """Convert card to JSON-serializable dictionary."""
-        return {
-            "rank": self.rank,
-            "suit": self.suit
-        }
+        return {"rank": self.rank, "suit": self.suit}
 
     def __eq__(self, other):
         if not isinstance(other, Card):
@@ -31,6 +29,7 @@ class Card:
         if not isinstance(other, Card):
             return NotImplemented
         return self.rank < other.rank
+
 
 @dataclass
 class WarState:
@@ -44,13 +43,16 @@ class WarState:
     def to_dict(self) -> dict:
         """Convert state to JSON-serializable dictionary."""
         return {
-            "player_hands": [[card.to_dict() for card in hand] for hand in self.player_hands],
+            "player_hands": [
+                [card.to_dict() for card in hand] for hand in self.player_hands
+            ],
             "board": [card.to_dict() for card in self.board],
             "current_player": self.current_player,
             "war_state": self.war_state,
             "cards_needed": self.cards_needed,
-            "face_down_count": self.face_down_count
+            "face_down_count": self.face_down_count,
         }
+
 
 class WarGame(Game):
     def __init__(self):
@@ -89,33 +91,36 @@ class WarGame(Game):
             current_player=0,
             war_state=False,
             cards_needed=1,
-            face_down_count=0
+            face_down_count=0,
         )
 
-    def get_player_view(self, state: WarState, player_id: int, 
-                       history: Optional[List[Dict[str, Any]]] = None,
-                       prompt_style: PromptStyle = PromptStyle.HEADER) -> GameView:
+    def get_player_view(
+        self,
+        state: WarState,
+        player_id: int,
+        history: Optional[List[Dict[str, Any]]] = None,
+        prompt_style: PromptStyle = PromptStyle.HEADER,
+    ) -> GameView:
         visible_state = {
             "your_cards": len(state.player_hands[player_id]),
             "opponent_cards": len(state.player_hands[1 - player_id]),
             "board": state.board,
             "war_state": state.war_state,
             "cards_needed": state.cards_needed,
-            "face_down_count": state.face_down_count
+            "face_down_count": state.face_down_count,
         }
-        
+
         # During normal play or when it's time for face-up card in war
-        can_play = (
-            len(state.player_hands[player_id]) >= state.cards_needed and
-            (not state.war_state or state.face_down_count >= 3)
+        can_play = len(state.player_hands[player_id]) >= state.cards_needed and (
+            not state.war_state or state.face_down_count >= 3
         )
-        
+
         # Game is terminal if one player has all cards
         is_terminal = len(state.player_hands[0]) == 0 or len(state.player_hands[1]) == 0
         winner = None
         if is_terminal:
             winner = 1 if len(state.player_hands[0]) == 0 else 0
-        
+
         return GameView(
             visible_state=visible_state,
             valid_moves=["play"] if can_play else [],
@@ -130,19 +135,24 @@ class WarGame(Game):
         # Any non-empty string is valid as we just need acknowledgment
         return move_str.strip() if move_str.strip() else None
 
-    def validate_move(self, state: WarState, player_id: int, move: str) -> Tuple[bool, str]:
+    def validate_move(
+        self, state: WarState, player_id: int, move: str
+    ) -> Tuple[bool, str]:
         if state.current_player != player_id:
             return False, "It's not your turn."
         if not state.player_hands[player_id]:
             return False, "You have no cards left."
-            
+
         cards_required = state.cards_needed
         if len(state.player_hands[player_id]) < cards_required:
             if state.war_state:
                 # Not enough cards for war, must forfeit
                 return True, "Not enough cards for war - must forfeit"
-            return False, f"You need {cards_required} cards for this play but only have {len(state.player_hands[player_id])}."
-            
+            return (
+                False,
+                f"You need {cards_required} cards for this play but only have {len(state.player_hands[player_id])}.",
+            )
+
         return True, ""
 
     def apply_move(self, state: WarState, player_id: int, move: str) -> WarState:
@@ -156,7 +166,7 @@ class WarGame(Game):
                 face_down = state.player_hands[player_id].pop(0)
                 state.board.append(face_down)
                 state.face_down_count += 1
-            
+
             # Then play face up card if we have enough cards
             if len(state.player_hands[player_id]) > 0:
                 face_up = state.player_hands[player_id].pop(0)
@@ -165,11 +175,11 @@ class WarGame(Game):
             # Normal play - just one card
             top_card = state.player_hands[player_id].pop(0)
             state.board.append(top_card)
-        
+
         # Check if both players have played
         if len(state.board) >= 2 and len(state.board) % 2 == 0:
             card1, card2 = state.board[-2:]  # Last two cards
-            
+
             if not state.war_state:
                 if card1.rank > card2.rank:
                     state.player_hands[0].extend(state.board)
@@ -194,13 +204,13 @@ class WarGame(Game):
                     state.war_state = True
                     state.cards_needed = 4
                     state.face_down_count = 0  # Reset for next war round
-        
+
         # Shuffle collected cards when adding to hand
         if not state.board:
             for hand in state.player_hands:
                 if hand:
                     random.shuffle(hand)
-                    
+
         return state
 
     def get_current_player(self, state: WarState) -> int:

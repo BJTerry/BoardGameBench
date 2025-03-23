@@ -1,9 +1,11 @@
 from typing import List, Any, Protocol
 from dataclasses import dataclass
 
+
 @dataclass
 class Pot:
     amount: int
+
 
 class NoLimitTexasHoldem(Protocol):
     player_indices: List[int]

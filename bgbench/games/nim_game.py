@@ -3,6 +3,7 @@ from typing import List, Optional, Tuple, Dict, Any
 from bgbench.game import Game
 from bgbench.game_view import GameView, PromptStyle
 
+
 @dataclass
 class NimState:
     remaining: int
@@ -18,14 +19,16 @@ class NimState:
 @dataclass
 class NimMove:
     """Represents a move in Nim game."""
+
     count: int
-    
+
     def to_dict(self) -> dict:
         """Convert move to dictionary for serialization."""
         return {"count": self.count}
-    
+
     def __str__(self) -> str:
         return str(self.count)
+
 
 class NimGame(Game[NimState, NimMove]):
     def get_rules_explanation(self) -> str:
@@ -34,30 +37,31 @@ class NimGame(Game[NimState, NimMove]):
             f"Players take turns removing 1 to {self.max_take} objects. "
             "The player who takes the last object wins. "
         )
-    
+
     def get_move_format_instructions(self) -> str:
         return (
             "On your turn, respond with only a number indicating how many objects "
             "you want to take. For example: '2' to take 2 objects."
         )
-    
+
     def get_initial_state(self) -> NimState:
-        return NimState(
-            remaining=self.starting_count,
-            current_player=0
-        )
-    
-    def get_player_view(self, state: NimState, player_id: int, 
-                       history: Optional[List[Dict[str, Any]]] = None,
-                       prompt_style: Optional[PromptStyle] = None) -> GameView:
+        return NimState(remaining=self.starting_count, current_player=0)
+
+    def get_player_view(
+        self,
+        state: NimState,
+        player_id: int,
+        history: Optional[List[Dict[str, Any]]] = None,
+        prompt_style: Optional[PromptStyle] = None,
+    ) -> GameView:
         """Get the player's view of the game state.
-        
+
         Args:
             state: Current game state
             player_id: ID of the player viewing the state
             history: Optional list of previous moves and their results
             prompt_style: Optional PromptStyle to use for formatting
-            
+
         Returns:
             GameView object containing all information visible to this player
         """
@@ -69,15 +73,15 @@ class NimGame(Game[NimState, NimMove]):
             valid_moves=valid_moves,
             is_terminal=state.remaining == 0,
             winner=state.current_player if state.remaining == 0 else None,
-            prompt_style=prompt_style or PromptStyle.HEADER
+            prompt_style=prompt_style or PromptStyle.HEADER,
         )
-    
+
     def parse_move(self, move_str: str) -> Optional[NimMove]:
         """Parse move from LLM response string.
-        
+
         Args:
             move_str: The raw string from the LLM containing a number
-            
+
         Returns:
             NimMove object if valid, None if parsing failed
         """
@@ -88,15 +92,17 @@ class NimGame(Game[NimState, NimMove]):
             return NimMove(count=numbers[0])
         except (ValueError, IndexError):
             return None
-    
-    def validate_move(self, state: NimState, player_id: int, move: NimMove) -> Tuple[bool, str]:
+
+    def validate_move(
+        self, state: NimState, player_id: int, move: NimMove
+    ) -> Tuple[bool, str]:
         """Validate if a move is legal in the current state.
-        
+
         Args:
             state: Current game state
             player_id: ID of player making the move
             move: The NimMove to validate
-            
+
         Returns:
             Tuple of (is_valid, explanation_string)
         """
@@ -109,28 +115,27 @@ class NimGame(Game[NimState, NimMove]):
         if move.count > state.remaining:
             return False, f"There are only {state.remaining} objects remaining."
         return True, ""
-    
+
     def apply_move(self, state: NimState, player_id: int, move: NimMove) -> NimState:
         """Apply move to state and return new state.
-        
+
         Args:
             state: Current game state
             player_id: ID of player making the move
             move: The NimMove to apply
-            
+
         Returns:
             New game state after applying the move
-            
+
         Raises:
             ValueError: If the move is invalid
         """
         valid, reason = self.validate_move(state, player_id, move)
         if not valid:
             raise ValueError(reason)
-            
+
         return NimState(
-            remaining=state.remaining - move.count,
-            current_player=1 - player_id
+            remaining=state.remaining - move.count, current_player=1 - player_id
         )
 
     def get_current_player(self, state: NimState) -> int:
@@ -138,17 +143,17 @@ class NimGame(Game[NimState, NimMove]):
 
     def get_next_state(self, state: NimState, move: NimMove) -> NimState:
         """Return the next state after applying the move.
-        
+
         Args:
             state: Current game state
             move: The NimMove to apply
-            
+
         Returns:
             New game state
         """
         return NimState(
             remaining=state.remaining - move.count,
-            current_player=1 - state.current_player
+            current_player=1 - state.current_player,
         )
 
     def is_terminal(self, state: NimState) -> bool:

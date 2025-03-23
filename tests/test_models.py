@@ -1,13 +1,26 @@
+import os
 import pytest
 from typing import cast
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from bgbench.models import Base, Experiment, Player, GameMatch, GameState, LLMInteraction
+from bgbench.models import (
+    Base,
+    Experiment,
+    Player,
+    GameMatch,
+    GameState,
+    LLMInteraction,
+)
+
 
 @pytest.fixture
 def db_session():
     """Provide a database session for testing"""
-    engine = create_engine('sqlite:///:memory:')
+    # Use in-memory SQLite for tests by default
+    # Test-specific PostgreSQL connection can be set with TEST_DATABASE_URL env var
+    test_db_url = os.getenv("TEST_DATABASE_URL", "sqlite:///:memory:")
+
+    engine = create_engine(test_db_url)
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
     session = Session()
@@ -15,10 +28,13 @@ def db_session():
     session.close()
     Base.metadata.drop_all(engine)
 
+
 class TestExperiment:
     def test_create_experiment(self, db_session):
         """Test creating a new experiment"""
-        experiment = Experiment().create_experiment(db_session, "Test Experiment", "Test Description")
+        experiment = Experiment().create_experiment(
+            db_session, "Test Experiment", "Test Description"
+        )
         assert experiment.id is not None
         assert experiment.name == "Test Experiment"
         assert experiment.description == "Test Description"
@@ -28,7 +44,7 @@ class TestExperiment:
         # Create experiment
         experiment = Experiment().create_experiment(db_session, "Test Experiment")
         exp_id = experiment.id
-        
+
         # Resume experiment
         resumed = Experiment.resume_experiment(db_session, exp_id)
         assert resumed.id == exp_id
@@ -39,6 +55,7 @@ class TestExperiment:
         with pytest.raises(Exception):
             Experiment.resume_experiment(db_session, 999)
 
+
 class TestGameState:
     def test_game_state_lifecycle(self, db_session):
         """Test complete game state lifecycle"""
@@ -48,12 +65,10 @@ class TestGameState:
         player2 = Player(name="Player 2", model_config={}, experiment_id=experiment.id)
         db_session.add_all([player1, player2])
         db_session.flush()  # Get IDs without committing
-        
+
         # Create game with required player relationships
         game = GameMatch(
-            experiment_id=experiment.id,
-            player1_id=player1.id,
-            player2_id=player2.id
+            experiment_id=experiment.id, player1_id=player1.id, player2_id=player2.id
         )
         db_session.add(game)
         db_session.commit()
@@ -80,24 +95,23 @@ class TestGameState:
         player2 = Player(name="Player 2", model_config={}, experiment_id=experiment.id)
         db_session.add_all([player1, player2])
         db_session.flush()
-        
+
         game = GameMatch(
-            experiment_id=experiment.id,
-            player1_id=player1.id,
-            player2_id=player2.id
+            experiment_id=experiment.id, player1_id=player1.id, player2_id=player2.id
         )
         db_session.add(game)
         db_session.commit()
 
         game_state = GameState(game_id=game.id, state_data={})
-        
+
         # Create a class that doesn't implement to_dict
         class Unserializable:
             pass
-        
+
         invalid_state = Unserializable()
         with pytest.raises(ValueError, match="State data must be JSON-serializable"):
             game_state.update_state(db_session, cast(dict, invalid_state))  # type: ignore
+
 
 class TestGame:
     def test_game_player_validation(self, db_session):
@@ -110,9 +124,7 @@ class TestGame:
         # Test creating game with missing player2
         with pytest.raises(Exception):  # Should fail due to NOT NULL constraint
             game = GameMatch(
-                experiment_id=experiment.id,
-                player1_id=player1.id,
-                player2_id=None
+                experiment_id=experiment.id, player1_id=player1.id, player2_id=None
             )
             db_session.add(game)
             try:
@@ -125,13 +137,13 @@ class TestGame:
         player2 = Player(name="Player 2", model_config={}, experiment_id=experiment.id)
         db_session.add(player2)
         db_session.commit()
-        
+
         # Test creating game with same player for both positions
         with pytest.raises(ValueError):
             game = GameMatch(
                 experiment_id=experiment.id,
                 player1_id=player1.id,
-                player2_id=player1.id
+                player2_id=player1.id,
             )
             db_session.add(game)
             try:
@@ -147,7 +159,7 @@ class TestGame:
         # Create two experiments
         exp1 = Experiment().create_experiment(db_session, "Experiment 1")
         exp2 = Experiment().create_experiment(db_session, "Experiment 2")
-        
+
         # Create players in different experiments
         player1 = Player(name="Player 1", model_config={}, experiment_id=exp1.id)
         player2 = Player(name="Player 2", model_config={}, experiment_id=exp1.id)
@@ -157,9 +169,7 @@ class TestGame:
 
         # Create game in experiment 1
         game1 = GameMatch(
-            experiment_id=exp1.id,
-            player1_id=player1.id,
-            player2_id=player2.id
+            experiment_id=exp1.id, player1_id=player1.id, player2_id=player2.id
         )
         db_session.add(game1)
         db_session.commit()
@@ -170,6 +180,7 @@ class TestGame:
         assert len(exp1_games) == 1
         assert len(exp2_games) == 0
 
+
 class TestPlayerExperiment:
     def test_player_experiment_constraints(self, db_session):
         """Test player creation and experiment constraints"""
@@ -179,13 +190,15 @@ class TestPlayerExperiment:
         with pytest.raises(Exception) as exc_info:
             db_session.commit()
         db_session.rollback()
-        
+
         # Test creating player with valid experiment (should succeed)
         experiment = Experiment().create_experiment(db_session, "Test Experiment")
-        player = Player(name="Test Player", model_config={}, experiment_id=experiment.id)
+        player = Player(
+            name="Test Player", model_config={}, experiment_id=experiment.id
+        )
         db_session.add(player)
         db_session.commit()
-        
+
         # Verify player was created with correct experiment
         saved_player = db_session.query(Player).filter_by(id=player.id).first()
         assert saved_player is not None
@@ -194,7 +207,7 @@ class TestPlayerExperiment:
     def test_experiment_player_lookup(self, db_session):
         """Test player lookup methods in experiment"""
         experiment = Experiment().create_experiment(db_session, "Test Experiment")
-        
+
         # Create players
         players = [
             Player(name=f"Player {i}", model_config={}, experiment_id=experiment.id)
@@ -207,12 +220,12 @@ class TestPlayerExperiment:
         game1 = GameMatch(
             experiment_id=experiment.id,
             player1_id=players[0].id,
-            player2_id=players[1].id
+            player2_id=players[1].id,
         )
         game2 = GameMatch(
             experiment_id=experiment.id,
             player1_id=players[1].id,
-            player2_id=players[2].id
+            player2_id=players[2].id,
         )
         db_session.add_all([game1, game2])
         db_session.commit()
@@ -223,6 +236,7 @@ class TestPlayerExperiment:
         player_names = {p.name for p in exp_players}
         assert player_names == {"Player 0", "Player 1", "Player 2"}
 
+
 class TestLLMInteraction:
     def test_log_interaction(self, db_session):
         """Test logging LLM interactions"""
@@ -232,11 +246,9 @@ class TestLLMInteraction:
         player2 = Player(name="Player 2", model_config={}, experiment_id=experiment.id)
         db_session.add_all([player1, player2])
         db_session.flush()
-        
+
         game = GameMatch(
-            experiment_id=experiment.id,
-            player1_id=player1.id,
-            player2_id=player2.id
+            experiment_id=experiment.id, player1_id=player1.id, player2_id=player2.id
         )
         db_session.add(game)
         db_session.commit()
@@ -250,7 +262,7 @@ class TestLLMInteraction:
             prompt,
             response,
             start_time=1234567890.0,  # Example timestamp
-            end_time=1234567891.0  # Example timestamp
+            end_time=1234567891.0,  # Example timestamp
         )
 
         # Verify
@@ -265,11 +277,9 @@ class TestLLMInteraction:
         player2 = Player(name="Player 2", model_config={}, experiment_id=experiment.id)
         db_session.add_all([player1, player2])
         db_session.flush()
-        
+
         game = GameMatch(
-            experiment_id=experiment.id,
-            player1_id=player1.id,
-            player2_id=player2.id
+            experiment_id=experiment.id, player1_id=player1.id, player2_id=player2.id
         )
         db_session.add(game)
         db_session.commit()
@@ -282,12 +292,13 @@ class TestLLMInteraction:
                 [{"turn": i}],
                 f"Response {i}",
                 start_time=1234567890.0 + i,  # Different timestamp for each interaction
-                end_time=1234567891.0 + i
+                end_time=1234567891.0 + i,
             )
 
         # Verify all interactions saved
         interactions = db_session.query(LLMInteraction).filter_by(game_id=game.id).all()
         assert len(interactions) == 3
+
 
 class TestGameOutcomes:
     def test_game_winner(self, db_session):
@@ -297,11 +308,9 @@ class TestGameOutcomes:
         player2 = Player(name="Player 2", model_config={}, experiment_id=experiment.id)
         db_session.add_all([player1, player2])
         db_session.flush()
-        
+
         game = GameMatch(
-            experiment_id=experiment.id,
-            player1_id=player1.id,
-            player2_id=player2.id
+            experiment_id=experiment.id, player1_id=player1.id, player2_id=player2.id
         )
         db_session.add(game)
         db_session.commit()
@@ -323,11 +332,9 @@ class TestGameOutcomes:
         player2 = Player(name="Player 2", model_config={}, experiment_id=experiment.id)
         db_session.add_all([player1, player2])
         db_session.flush()
-        
+
         game = GameMatch(
-            experiment_id=experiment.id,
-            player1_id=player1.id,
-            player2_id=player2.id
+            experiment_id=experiment.id, player1_id=player1.id, player2_id=player2.id
         )
         db_session.add(game)
         db_session.commit()

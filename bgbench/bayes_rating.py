@@ -42,6 +42,7 @@ class PlayerRating:
     :param sigma: Standard deviation (uncertainty) of the player's skill posterior.
     :param games_played: Number of games the player has participated in.
     """
+
     name: str
     rating: float
     sigma: float
@@ -57,6 +58,7 @@ class GameResult:
     :param player_1: Name of the second player.
     :param winner: Name of the winning player, or None if the game was a draw.
     """
+
     player_0: str
     player_1: str
     winner: Optional[str]
@@ -83,7 +85,9 @@ class EloSystem:
     posterior means and standard deviations for each player's skill parameter.
     """
 
-    def __init__(self, confidence_threshold: float = 0.70, draws_parameter_prior: float = 10.0):
+    def __init__(
+        self, confidence_threshold: float = 0.70, draws_parameter_prior: float = 10.0
+    ):
         """
         Initialize the EloSystem with a given confidence threshold for comparisons
         and a prior scale for the draw parameter.
@@ -102,10 +106,9 @@ class EloSystem:
         self._player_index_map: Optional[Dict[str, int]] = None
         self._all_players: Optional[List[str]] = None
 
-
-    def update_ratings(self,
-                       history: List[GameResult],
-                       player_names: List[str]) -> Dict[str, PlayerRating]:
+    def update_ratings(
+        self, history: List[GameResult], player_names: List[str]
+    ) -> Dict[str, PlayerRating]:
         """
         Runs an MCMC procedure over all players who have appeared in the provided
         match history, then returns a dictionary mapping each requested player name
@@ -120,9 +123,11 @@ class EloSystem:
         # Check if history is empty
         if not history:
             # Return default values for all requested players
-            return {p: PlayerRating(name=p, rating=1500.0, sigma=400.0, games_played=0)
-                   for p in player_names}
-        
+            return {
+                p: PlayerRating(name=p, rating=1500.0, sigma=400.0, games_played=0)
+                for p in player_names
+            }
+
         # 1) Gather all unique players from the match history
         players_set = set()
         for g in history:
@@ -162,9 +167,11 @@ class EloSystem:
         if not outcome_list:
             # If the history was not empty but we somehow have no outcomes,
             # return default values
-            return {p: PlayerRating(name=p, rating=1500.0, sigma=400.0, games_played=0)
-                   for p in player_names}
-            
+            return {
+                p: PlayerRating(name=p, rating=1500.0, sigma=400.0, games_played=0)
+                for p in player_names
+            }
+
         outcome_array = np.array(outcome_list, dtype=int)
         p0_array = np.array(p0_idx_list, dtype=int)
         p1_array = np.array(p1_idx_list, dtype=int)
@@ -197,20 +204,23 @@ class EloSystem:
 
             p_win0 = p0_ / denom
             p_win1 = p1_ / denom
-            p_draw = c   / denom
+            p_draw = c / denom
 
             # Observed outcomes: these are 0,1,2
             # Use proper stacking for PyMC 5.x (replacing pm.stack with pytensor.tensor.stack)
             import pytensor.tensor as pt
+
             outcome = pm.Categorical(
                 "outcome",
                 p=pt.stack([p_win0, p_win1, p_draw], axis=1),
-                observed=outcome_array
+                observed=outcome_array,
             )
 
             # 5) Sample from the posterior
             #    Using 4 chains as recommended for robust convergence diagnostics
-            trace = pm.sample(draws=1000, tune=1000, chains=4, target_accept=0.9, progressbar=False)
+            trace = pm.sample(
+                draws=1000, tune=1000, chains=4, target_accept=0.9, progressbar=False
+            )
 
         # Store the trace and indexes for joint queries
         self._trace = trace  # Type already defined in __init__
@@ -228,7 +238,9 @@ class EloSystem:
             if p not in player_index_map:
                 # This player had no matches in the history
                 # We'll set them to some default
-                result[p] = PlayerRating(name=p, rating=1500.0, sigma=400.0, games_played=0)
+                result[p] = PlayerRating(
+                    name=p, rating=1500.0, sigma=400.0, games_played=0
+                )
             else:
                 i = player_index_map[p]
                 # The "skill" summary row for skill[i]
@@ -236,10 +248,12 @@ class EloSystem:
                 mean_skill = row["mean"]
                 std_skill = row["sd"]
                 gp = games_played[p]
-                result[p] = PlayerRating(name=p,
-                                         rating=float(mean_skill),
-                                         sigma=float(std_skill),
-                                         games_played=gp)
+                result[p] = PlayerRating(
+                    name=p,
+                    rating=float(mean_skill),
+                    sigma=float(std_skill),
+                    games_played=gp,
+                )
 
         return result
 
@@ -277,7 +291,7 @@ class EloSystem:
 
         # Probability that A is stronger is fraction of draws where skill_A > skill_B
         return float(np.mean(skill_A > skill_B))
-        
+
     def is_match_needed(self, name_a: str, name_b: str) -> bool:
         """
         Determines if more matches between these two players should be played to
@@ -292,13 +306,15 @@ class EloSystem:
         # Original implementation - this might be the issue
         # The old version only checks if player_a is likely stronger, but doesn't check the other way
         # return prob < self.confidence_threshold
-        
+
         # We need more games if we're not confident enough about which player is stronger
         # max(prob, 1-prob) gives us the confidence level of our prediction
-        confidence = max(prob, 1-prob)
+        confidence = max(prob, 1 - prob)
         return confidence < self.confidence_threshold
 
-    def get_credible_intervals(self, player_names: Optional[List[str]] = None) -> Dict[str, Tuple[float, float]]:
+    def get_credible_intervals(
+        self, player_names: Optional[List[str]] = None
+    ) -> Dict[str, Tuple[float, float]]:
         """
         Returns a dictionary of 95% credible intervals for each player's skill, based
         on the joint posterior samples from the most recent MCMC run.
@@ -322,7 +338,9 @@ class EloSystem:
         intervals = {}
         # Cast to Any to avoid type checking issues, as InferenceData's structure is dynamic
         trace_data = cast(Any, self._trace)
-        skill_posterior = trace_data.posterior["skill"]  # shape = (chain, draw, player_index)
+        skill_posterior = trace_data.posterior[
+            "skill"
+        ]  # shape = (chain, draw, player_index)
 
         # Flatten chain and draw dimensions into a single dimension for easy quantile calculation
         # skill_samples.shape will then be (total_samples, n_players)

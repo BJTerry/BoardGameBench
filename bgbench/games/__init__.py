@@ -10,16 +10,23 @@ from .scrabble_game import ScrabbleGame
 from .azul_game import AzulGame
 
 AVAILABLE_GAMES = {
-    'nim': NimGame,
-    'battleship': BattleshipGame,
-    'war': WarGame,
-    'guess_who': GuessWhoGame,
-    'love_letter': LoveLetterGame,
-    'chess': ChessGame,
-    'cant_stop': CantStopGame,
-    'poker': PokerGame,
-    'scrabble': ScrabbleGame,
-    'azul': AzulGame,
+    "nim": NimGame,
+    "battleship": BattleshipGame,
+    "war": WarGame,
+    "guess_who": GuessWhoGame,
+    "love_letter": LoveLetterGame,
+    "chess": ChessGame,
+    "cant_stop": CantStopGame,
+    "poker": PokerGame,
+    "scrabble": ScrabbleGame,
+    "azul": AzulGame,
 }
 
-__all__ = ['NimGame', 'BattleshipGame', 'WarGame', 'GuessWhoGame', 'AzulGame', 'AVAILABLE_GAMES']
+__all__ = [
+    "NimGame",
+    "BattleshipGame",
+    "WarGame",
+    "GuessWhoGame",
+    "AzulGame",
+    "AVAILABLE_GAMES",
+]

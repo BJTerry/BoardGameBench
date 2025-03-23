@@ -29,9 +29,29 @@ poetry install
 2. Configure your LLM providers:
 - Copy .env.example to .env and set your keys
 
-3. Run a sample game:
+3. Database Setup:
+   - **SQLite** (default): No additional setup required
+   - **PostgreSQL** (recommended for production):
+     - Install PostgreSQL (see docs/POSTGRES.md for details)
+     - Set up database and user:
+       ```sql
+       CREATE DATABASE bgbench;
+       CREATE USER bgbench_user WITH PASSWORD 'bgbench_password';
+       GRANT ALL PRIVILEGES ON DATABASE bgbench TO bgbench_user;
+       ```
+     - Configure .env with PostgreSQL connection details
+     - Initialize the database:
+       ```bash
+       poetry run python -m bgbench.init_db
+       ```
+     - Migrate existing data (optional):
+       ```bash
+       poetry run python -m bgbench.migrate_db
+       ```
+
+4. Run a sample game:
 ```bash
-poetry run -m bgbench.main --game nim
+poetry run python -m bgbench.main --game nim
 ```
 
 ## Implementing New Games

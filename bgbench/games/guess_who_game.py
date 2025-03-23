@@ -5,25 +5,28 @@ from bgbench.game_view import GameView, PromptStyle
 import random
 import copy
 
+
 @dataclass
 class Character:
     """Represents a character in Guess Who with their traits."""
+
     name: str
     traits: Dict[str, Any]
 
     def to_dict(self) -> dict:
         """Convert character to JSON-serializable dictionary."""
-        return {
-            "name": self.name,
-            "traits": self.traits
-        }
+        return {"name": self.name, "traits": self.traits}
+
 
 @dataclass
 class GuessWhoState:
     """Represents the current state of a Guess Who game."""
+
     characters: List[Character]  # All available characters
     target_characters: List[Character]  # One per player - their assigned character
-    possible_characters: List[List[Character]]  # List per player of their remaining possibilities
+    possible_characters: List[
+        List[Character]
+    ]  # List per player of their remaining possibilities
     current_player: int
 
     def to_dict(self) -> dict:
@@ -32,11 +35,11 @@ class GuessWhoState:
             "characters": [char.to_dict() for char in self.characters],
             "target_characters": [char.to_dict() for char in self.target_characters],
             "possible_characters": [
-                [char.to_dict() for char in chars]
-                for chars in self.possible_characters
+                [char.to_dict() for char in chars] for chars in self.possible_characters
             ],
-            "current_player": self.current_player
+            "current_player": self.current_player,
         }
+
 
 class GuessWhoGame(Game):
     """Implementation of Guess Who game."""
@@ -48,7 +51,7 @@ class GuessWhoGame(Game):
         "eye_color": ["blue", "brown", "green"],
         "facial_hair": ["beard", "mustache", "clean"],
         "gender": ["male", "female"],
-        "accessories": ["glasses", "hat", "earrings", "none"]
+        "accessories": ["glasses", "hat", "earrings", "none"],
     }
 
     def __init__(self, num_characters: int = 24):
@@ -63,12 +66,12 @@ class GuessWhoGame(Game):
         target_characters = random.sample(characters, 2)
         # Initially, all characters are possible for both players
         possible_characters = [copy.deepcopy(characters) for _ in range(2)]
-        
+
         return GuessWhoState(
             characters=characters,
             target_characters=target_characters,
             possible_characters=possible_characters,
-            current_player=0
+            current_player=0,
         )
 
     def _generate_characters(self) -> List[Character]:
@@ -78,17 +81,15 @@ class GuessWhoGame(Game):
 
         while len(characters) < self.num_characters:
             traits = {
-                trait: random.choice(values)
-                for trait, values in self.TRAITS.items()
+                trait: random.choice(values) for trait, values in self.TRAITS.items()
             }
             # Create a hashable representation of traits
             trait_tuple = tuple(sorted(traits.items()))
             if trait_tuple not in used_combinations:
                 used_combinations.add(trait_tuple)
-                characters.append(Character(
-                    name=f"Character_{len(characters) + 1}",
-                    traits=traits
-                ))
+                characters.append(
+                    Character(name=f"Character_{len(characters) + 1}", traits=traits)
+                )
 
         return characters
 
@@ -106,26 +107,34 @@ class GuessWhoGame(Game):
         """Return instructions for how to format moves."""
         return (
             "'<trait> <value>' or 'NOT <trait> <value>'\n"
-            "Valid traits and values:\n" + 
-            "\n".join(f"- {trait}: {', '.join(values)}" 
-                     for trait, values in self.TRAITS.items()) +
-            "\nExamples:\n"
+            "Valid traits and values:\n"
+            + "\n".join(
+                f"- {trait}: {', '.join(values)}"
+                for trait, values in self.TRAITS.items()
+            )
+            + "\nExamples:\n"
             "- 'hair_color black'\n"
             "- 'NOT eye_color blue'\n"
             "Remember to respond with ONLY your move in the exact format specified."
         )
 
-    def get_player_view(self, state: GuessWhoState, player_id: int,
-                       history: Optional[List[Dict[str, Any]]] = None,
-                       prompt_style: PromptStyle = PromptStyle.HEADER) -> GameView:
+    def get_player_view(
+        self,
+        state: GuessWhoState,
+        player_id: int,
+        history: Optional[List[Dict[str, Any]]] = None,
+        prompt_style: PromptStyle = PromptStyle.HEADER,
+    ) -> GameView:
         """Return the game state from a player's perspective."""
-        
+
         # Structure the visible state based on the prompt style
         visible_state = {
             "all_characters": [char.to_dict() for char in state.characters],
-            "possible_characters": [char.to_dict() for char in state.possible_characters[player_id]],
+            "possible_characters": [
+                char.to_dict() for char in state.possible_characters[player_id]
+            ],
             "remaining_count": len(state.possible_characters[player_id]),
-            "traits": self.TRAITS  # Include trait definitions for reference
+            "traits": self.TRAITS,  # Include trait definitions for reference
         }
 
         # Create the GameView with the specified prompt style
@@ -137,7 +146,7 @@ class GuessWhoGame(Game):
             winner=self.get_winner(state),
             history=history if history else [],
             move_format_instructions=self.get_move_format_instructions(),
-            prompt_style=prompt_style
+            prompt_style=prompt_style,
         )
 
     def _get_valid_moves(self) -> List[str]:
@@ -154,62 +163,65 @@ class GuessWhoGame(Game):
         try:
             parts = move_str.strip().split()
             is_negation = False
-            
+
             if parts[0].upper() == "NOT":
                 is_negation = True
                 parts = parts[1:]
-                
+
             if len(parts) != 2:
                 return None
-                
+
             trait, value = parts
             trait = trait.lower()
             value = value.lower()
-            
+
             if trait not in self.TRAITS or value not in self.TRAITS[trait]:
                 return None
-                
+
             return (trait, value, is_negation)
         except (IndexError, AttributeError):
             return None
 
-    def validate_move(self, state: GuessWhoState, player_id: int,
-                     move: Tuple[str, str, bool]) -> Tuple[bool, str]:
+    def validate_move(
+        self, state: GuessWhoState, player_id: int, move: Tuple[str, str, bool]
+    ) -> Tuple[bool, str]:
         """Validate if a move is legal."""
         if state.current_player != player_id:
             return False, "It's not your turn."
-            
+
         if move is None:
             return False, "Invalid move format."
-            
+
         trait, value, _ = move
         if trait not in self.TRAITS or value not in self.TRAITS[trait]:
             return False, f"Invalid trait or value: {trait} {value}"
-            
+
         return True, ""
 
-    def apply_move(self, state: GuessWhoState, player_id: int,
-                  move: Tuple[str, str, bool]) -> GuessWhoState:
+    def apply_move(
+        self, state: GuessWhoState, player_id: int, move: Tuple[str, str, bool]
+    ) -> GuessWhoState:
         """Apply a move to the game state."""
         state = copy.deepcopy(state)
         opponent_id = 1 - player_id
         trait, value, is_negation = move
-        
+
         # Get opponent's character's trait value
         opponent_value = state.target_characters[opponent_id].traits[trait]
-        
+
         # Determine if the guess matches
         is_match = (opponent_value == value) != is_negation
-        
+
         # Update possible characters based on the answer
         state.possible_characters[player_id] = [
-            char for char in state.possible_characters[player_id]
+            char
+            for char in state.possible_characters[player_id]
             if (char.traits[trait] == value) == is_match
         ]
-        
+
         # Switch to other player
         state.current_player = opponent_id
-        
+
         return state
 
     def get_current_player(self, state: GuessWhoState) -> int:
@@ -230,11 +242,11 @@ class GuessWhoGame(Game):
         """Return the winner if game is over, None otherwise."""
         if not self.is_terminal(state):
             return None
-        
+
         # Winner is the player who has narrowed down to one possibility
         for player_id, chars in enumerate(state.possible_characters):
             if len(chars) == 1:
                 # Verify they found the correct character
-                if chars[0].name == state.target_characters[1-player_id].name:
+                if chars[0].name == state.target_characters[1 - player_id].name:
                     return player_id
         return None

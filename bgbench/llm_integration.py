@@ -7,6 +7,13 @@ from litellm.cost_calculator import completion_cost
 from litellm.types.utils import ModelResponse, Choices
 
 register_model({
+    "openrouter/qwen/qwq-32b": {
+        "max_tokens": 131000,
+        "input_cost_per_token": 0.0000009,
+        "output_cost_per_token": 0.0000009,
+        "litellm_provider": "openrouter",
+        "mode": "chat",
+    },
     "openrouter/anthropic/claude-3.5-haiku": {
         "max_tokens": 200000,
         "input_cost_per_token": 0.000001,

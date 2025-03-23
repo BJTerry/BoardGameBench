@@ -190,7 +190,7 @@ class FullRankingScheduler(MatchScheduler):
         
         # For brand new experiments with no history, use adjacent players in ratings
         if not match_history:
-            logger.info("No game history yet, starting with adjacent players")
+            logger.debug("No game history yet, starting with adjacent players")
             for i in range(len(sorted_players) - 1):
                 player_a = sorted_players[i]
                 player_b = sorted_players[i + 1]

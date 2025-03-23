@@ -87,7 +87,7 @@ class ResponseStyle(Enum):
 def create_llm(
     model: str,
     temperature: float = 0.0,
-    max_tokens: int = 1000,
+    max_tokens: int = 10000,
     response_style: ResponseStyle = ResponseStyle.DIRECT,
     **kwargs
 ) -> Dict[str, Any]:

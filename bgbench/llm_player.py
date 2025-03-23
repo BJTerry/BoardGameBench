@@ -51,10 +51,18 @@ class LLMPlayer:
         if invalid_moves:
             invalid_moves_text = "Previous Invalid Moves:\n"
             for i, invalid_move in enumerate(invalid_moves, 1):
-                invalid_moves_text += (
-                    f"Attempt {i}: {invalid_move['move']}\n"
-                    f"Reason: {invalid_move['explanation']}\n\n"
-                )
+                move_text = invalid_move['move']
+                if len(move_text) > 100:
+                    move_text = move_text[:100]
+                    invalid_moves_text += (
+                        f"Attempt {i} (truncated to 100 characters): {move_text}\n"
+                        f"Reason: {invalid_move['explanation']}\n\n"
+                    )
+                else:
+                    invalid_moves_text += (
+                        f"Attempt {i}: {move_text}\n"
+                        f"Reason: {invalid_move['explanation']}\n\n"
+                    )
             move_instruction = (
                 f"{invalid_moves_text}"
                 f"Please carefully review the invalid moves above and try again. {move_instruction}"

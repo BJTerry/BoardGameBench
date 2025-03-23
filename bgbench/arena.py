@@ -90,14 +90,109 @@ class Arena:
         self.match_history: List[GameResult] = []
 
         if experiment_id is not None:
-            self._resume_experiment(experiment_id, llm_factory)
+            self._resume_experiment(experiment_id, llm_factory, player_configs)
         else:
             if player_configs is None:
                 raise ValueError("player_configs required when creating new experiment")
             self._create_new_experiment(experiment_name, player_configs, llm_factory)
 
-    def _resume_experiment(self, experiment_id: int, llm_factory=None):
-        """Resume an existing experiment and its players."""
+    def _create_llm_player(
+        self, name: str, model_config: Dict[str, Any], llm_factory=None, **kwargs
+    ) -> LLMPlayer:
+        """Create an LLM player with the specified configuration."""
+        if llm_factory:
+            # For testing purposes
+            mock_llm = llm_factory(name)
+            return LLMPlayer(
+                name,
+                model_config,
+                prompt_style=PromptStyle[kwargs.get("prompt_style", "header").upper()],
+                response_style=ResponseStyle[
+                    kwargs.get("response_style", "direct").upper()
+                ],
+                _llm=mock_llm,
+            )
+        else:
+            return LLMPlayer(
+                name,
+                model_config,
+                prompt_style=PromptStyle[kwargs.get("prompt_style", "header").upper()],
+                response_style=ResponseStyle[
+                    kwargs.get("response_style", "direct").upper()
+                ],
+            )
+
+    def _create_player_rating(
+        self,
+        name: str,
+        player_ratings: Optional[Dict[str, PlayerRating]] = None,
+        db_player: Optional[DBPlayer] = None,
+        games_played: int = 0,
+    ) -> PlayerRating:
+        """Create a player rating object, either from existing ratings or as a new rating."""
+        if player_ratings and name in player_ratings:
+            return player_ratings[name]
+
+        # For new players or players without ratings
+        if db_player and not games_played:
+            # Count games for this player if we have a db_player but no count
+            games_played = (
+                self.session.query(GameMatch)
+                .filter(
+                    GameMatch.experiment_id == self.experiment.id,
+                    GameMatch.winner_id.isnot(None),
+                    (GameMatch.player1_id == db_player.id)
+                    | (GameMatch.player2_id == db_player.id),
+                )
+                .count()
+            )
+
+        # Use default 1500±400 prior for players with no history
+        return PlayerRating(
+            name=name,
+            rating=1500.0,  # Default initial rating
+            sigma=400.0,  # Default uncertainty
+            games_played=games_played,
+        )
+
+    def _create_player_from_config(
+        self,
+        config: Dict[str, Any],
+        llm_factory=None,
+        experiment_id: Optional[int] = None,
+    ) -> ArenaPlayer:
+        """Create a complete arena player from a configuration dictionary."""
+        # Extract config values
+        name = config["name"]
+        model_config = config["model_config"]
+
+        # Create LLM player
+        llm_player = self._create_llm_player(
+            name,
+            model_config,
+            llm_factory,
+            prompt_style=config.get("prompt_style", "header"),
+            response_style=config.get("response_style", "direct"),
+        )
+
+        # Create database player
+        exp_id = experiment_id or self.experiment.id
+        db_player = DBPlayer().create_player(self.session, name, model_config, exp_id)
+
+        # Create player rating
+        rating = self._create_player_rating(name, games_played=0)
+
+        # Return the complete ArenaPlayer
+        return ArenaPlayer(llm_player, rating, db_player)
+
+    def _resume_experiment(
+        self, experiment_id: int, llm_factory=None, player_configs=None
+    ):
+        """
+        Resume an existing experiment and its players.
+
+        If player_configs is provided, also add any new players not already in the experiment.
+        """
         self.experiment = Experiment.resume_experiment(self.session, experiment_id)
         if not self.experiment:
             raise ValueError(f"No experiment found with ID {experiment_id}")
@@ -140,53 +235,58 @@ class Arena:
         )
 
         # Build match history using the utility function
-        players = self.experiment.get_players(self.session)
-        self.match_history = build_match_history(completed_games, players)
+        db_players = self.experiment.get_players(self.session)
+        self.match_history = build_match_history(completed_games, db_players)
 
         elo, player_ratings = self.current_elo()
 
-        for db_player in self.experiment.players:
-            if llm_factory:
-                llm_player = LLMPlayer(
-                    db_player.name,
-                    db_player.model_config,
-                    _llm=llm_factory(db_player.name),
-                )
-            else:
-                try:
-                    llm_player = LLMPlayer(db_player.name, db_player.model_config)
-                except Exception as e:
-                    logger.error(
-                        f"Could not recreate LLM for player {db_player.name}: {e}"
-                    )
-                    continue
+        # Track existing player names to later check for missing players
+        existing_player_names = set()
 
-            # Always use the freshly calculated Bayesian rating for consistency
-            # This ensures we use the same calculation process as in run_single_game
-            if db_player.name in player_ratings:
-                rating = player_ratings[db_player.name]
-            else:
-                # Count games for this player
-                games_played = (
-                    self.session.query(GameMatch)
-                    .filter(
-                        GameMatch.experiment_id == self.experiment.id,
-                        GameMatch.winner_id.isnot(None),
-                        (GameMatch.player1_id == db_player.id)
-                        | (GameMatch.player2_id == db_player.id),
-                    )
-                    .count()
+        for db_player in db_players:
+            existing_player_names.add(db_player.name)
+
+            try:
+                # Create LLM player
+                llm_player = self._create_llm_player(
+                    db_player.name, db_player.model_config, llm_factory
                 )
 
-                # Use default 1500±400 prior for players with no history
-                rating = PlayerRating(
-                    name=db_player.name,
-                    rating=1500.0,  # Default initial rating
-                    sigma=400.0,  # Default uncertainty
-                    games_played=games_played,
+                # Create player rating
+                rating = self._create_player_rating(
+                    db_player.name, player_ratings, db_player
                 )
 
-            self.players.append(ArenaPlayer(llm_player, rating, db_player))
+                self.players.append(ArenaPlayer(llm_player, rating, db_player))
+            except Exception as e:
+                logger.error(f"Could not recreate LLM for player {db_player.name}: {e}")
+                continue
+
+        # If player_configs is provided, check for and add new players
+        if player_configs:
+            new_player_configs = [
+                config
+                for config in player_configs
+                if config["name"] not in existing_player_names
+            ]
+
+            if new_player_configs:
+                logger.info(
+                    f"Adding {len(new_player_configs)} new players to existing experiment"
+                )
+
+                for config in new_player_configs:
+                    arena_player = self._create_player_from_config(config, llm_factory)
+                    self.players.append(arena_player)
+
+            # Check for players in database but not in configs and log a warning
+            config_player_names = {config["name"] for config in player_configs}
+            missing_players = existing_player_names - config_player_names
+
+            if missing_players:
+                logger.warning(
+                    f"Players in database missing from provided configs: {', '.join(missing_players)}"
+                )
 
     def _create_new_experiment(
         self,
@@ -203,46 +303,8 @@ class Arena:
         )
 
         for config in player_configs:
-            if llm_factory:
-                # For testing purposes
-                # Create LLM player with mock for testing
-                mock_llm = llm_factory(config["name"])
-                llm_player = LLMPlayer(
-                    config["name"],
-                    config["model_config"],
-                    prompt_style=PromptStyle[
-                        config.get("prompt_style", "header").upper()
-                    ],
-                    response_style=ResponseStyle[
-                        config.get("response_style", "direct").upper()
-                    ],
-                    _llm=mock_llm,
-                )
-            else:
-                llm_player = LLMPlayer(
-                    config["name"],
-                    config["model_config"],
-                    prompt_style=PromptStyle[
-                        config.get("prompt_style", "header").upper()
-                    ],
-                    response_style=ResponseStyle[
-                        config.get("response_style", "direct").upper()
-                    ],
-                )
-
-            # Create database player
-            db_player = DBPlayer().create_player(
-                self.session, config["name"], config["model_config"], self.experiment.id
-            )
-
-            # Create arena player with initial values
-            rating = PlayerRating(
-                name=config["name"],
-                rating=1500.0,  # Default initial rating
-                sigma=400.0,  # Default uncertainty
-                games_played=0,
-            )
-            self.players.append(ArenaPlayer(llm_player, rating, db_player))
+            arena_player = self._create_player_from_config(config, llm_factory)
+            self.players.append(arena_player)
 
     def _games_played_between(self, player_a: DBPlayer, player_b: DBPlayer) -> int:
         """Return the number of games played between two players in this experiment."""

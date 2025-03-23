@@ -142,6 +142,7 @@ async def main():
             game,
             db_session,
             experiment_id=args.resume,
+            player_configs=player_configs,  # Pass player_configs when resuming an experiment
             max_parallel_games=args.parallel_games,
             cost_budget=args.cost_budget,
             confidence_threshold=args.confidence_threshold,

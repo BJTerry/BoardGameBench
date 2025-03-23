@@ -74,10 +74,10 @@ class TestExperimentManagement:
             elif arena_player.llm_player.name == "test-player-2":
                 assert arena_player.rating.rating == 1500.0
 
-    def test_prevent_new_players_in_resumed_experiment(self, db_session, test_llm):
-        """Test that new players cannot be added to resumed experiments"""
+    def test_allow_new_players_in_resumed_experiment(self, db_session, test_llm):
+        """Test that new players can be added to resumed experiments"""
         # Create initial experiment
-        exp = Experiment().create_experiment(db_session, "no-new-players-test")
+        exp = Experiment().create_experiment(db_session, "add-new-players-test")
 
         # Add initial player
         initial_player = Player(
@@ -103,7 +103,11 @@ class TestExperimentManagement:
             llm_factory=mock_llm_factory,
         )
 
-        # Try to create new arena with additional player config
+        # Verify only the initial player exists
+        assert len(arena.players) == 1
+        assert arena.players[0].llm_player.name == "initial-player"
+
+        # Create new arena with additional player config
         new_player_config = {
             "name": "new-player",
             "model_config": {
@@ -113,7 +117,7 @@ class TestExperimentManagement:
             },
         }
 
-        # This should not add the new player since we're using an existing experiment
+        # This should now add the new player when resuming an experiment
         arena = Arena(
             NimGame(12, 3),
             db_session,
@@ -122,9 +126,18 @@ class TestExperimentManagement:
             llm_factory=mock_llm_factory,
         )
 
-        # Verify only original player exists
-        assert len(arena.players) == 1
-        assert arena.players[0].llm_player.name == "initial-player"
+        # Verify both the initial and new player exist
+        assert len(arena.players) == 2
+        player_names = {p.llm_player.name for p in arena.players}
+        assert "initial-player" in player_names
+        assert "new-player" in player_names
+
+        # Check that the new player was added to the database
+        exp_players = exp.get_players(db_session)
+        assert len(exp_players) == 2
+        db_player_names = {p.name for p in exp_players}
+        assert "initial-player" in db_player_names
+        assert "new-player" in db_player_names
 
     def test_new_experiment_player_addition(self, db_session, test_llm):
         """Test adding players to a new experiment"""

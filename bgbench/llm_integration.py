@@ -24,6 +24,22 @@ register_model(
             "supports_function_calling": True,
             "supports_tool_choice": True,
         },
+        "openrouter/anthropic/o3-mini": {
+            "max_tokens": 100000,
+            "max_input_tokens": 200000,
+            "max_output_tokens": 100000,
+            "input_cost_per_token": 0.0000011,
+            "output_cost_per_token": 0.0000044,
+            "cache_read_input_token_cost": 0.00000055,
+            "litellm_provider": "openai",
+            "mode": "chat",
+            "supports_function_calling": True,
+            "supports_parallel_function_calling": False,
+            "supports_vision": False,
+            "supports_prompt_caching": True,
+            "supports_response_schema": True,
+            "supports_tool_choice": True
+        },
         "gemini/gemini-2.0-flash-thinking-exp-01-21": {
             "max_tokens": 8192,
             "max_input_tokens": 1048576,

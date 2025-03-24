@@ -1,6 +1,8 @@
 import argparse
 import logging
 import json
+import signal
+import sys
 from typing import Any, Dict, List, Tuple
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
@@ -169,6 +171,13 @@ async def main():
         print_results(arena.get_experiment_results())
         return
 
+    # Set up signal handlers for graceful termination
+    def signal_handler(sig, frame):
+        arena.handle_sigint()
+    
+    # Register signal handler for SIGINT (Ctrl+C)
+    signal.signal(signal.SIGINT, signal_handler)
+    
     # Run the experiment and print final standings
     await arena.evaluate_all()
     print_results(arena.get_experiment_results())

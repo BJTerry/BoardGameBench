@@ -79,6 +79,11 @@ class Arena:
         self.ongoing_matches: Set[Tuple[int, int]] = set()
         self._scheduled_games_between: Dict[Tuple[int, int], int] = {}
         self._lock = asyncio.Lock()
+        
+        # For graceful termination
+        self._stop_scheduling = False
+        self._force_stop = False
+        self._active_tasks: Set[asyncio.Task] = set()
 
         # Set up the match scheduler (default to FullRankingScheduler if not provided)
         if match_scheduler is None:
@@ -545,20 +550,38 @@ class Arena:
                 # Remove from ongoing matches
                 self.ongoing_matches.discard(player_pair)
 
-    async def evaluate_all(self):
-        active_tasks: Set[asyncio.Task] = set()
+    def handle_sigint(self):
+        """Handle SIGINT (Ctrl+C) signal"""
+        if self._stop_scheduling:
+            # Second Ctrl+C: Force immediate stop
+            logger.warning("Second interrupt received. Stopping all tasks immediately.")
+            self._force_stop = True
+            
+            # Cancel all active tasks
+            for task in self._active_tasks:
+                if not task.done():
+                    task.cancel()
+        else:
+            # First Ctrl+C: Stop scheduling new games, complete ongoing ones
+            self._stop_scheduling = True
+            logger.warning(
+                "Scheduling stopped, completing ongoing games. Press Ctrl+C again to exit immediately."
+            )
 
-        # Initialize cost tracking variables
+    async def evaluate_all(self):
+        """Run the experiment by scheduling and executing games"""
+        # Initialize tracking variables
         last_log_time = 0
         last_logged_cost = 0
         total_cost = 0.0  # Initialize total_cost
         MIN_LOG_INTERVAL = 10  # Only log costs at most every 10 seconds
         tries = 0  # Attempts to schedule
 
-        while True:
+        # Main evaluation loop
+        while not self._force_stop:
             current_time = time.time()
 
-            # Check total cost against budget if specified, but don't log on every iteration
+            # Check total cost against budget if specified
             if self.cost_budget is not None:
                 # Calculate current total cost
                 total_cost = self._get_total_cost_for_all_players()
@@ -585,47 +608,53 @@ class Arena:
 
             # Track number of new tasks spawned in this iteration
             new_tasks_spawned = 0
-            # Fill all available slots up to max_parallel_games
-            while len(active_tasks) < self.max_parallel_games:
-                matchup = await self.find_next_available_match()
-                if not matchup:
-                    logger.debug("No more matches available to schedule right now")
-                    break
-                pA, pB = matchup
+            
+            # Schedule new games only if not in stop mode
+            if not self._stop_scheduling:
+                # Fill all available slots up to max_parallel_games
+                while len(self._active_tasks) < self.max_parallel_games:
+                    matchup = await self.find_next_available_match()
+                    if not matchup:
+                        logger.debug("No more matches available to schedule right now")
+                        break
+                    pA, pB = matchup
 
-                # Create a task for this match - using unique name for better logging
-                pair_names = f"{pA.llm_player.name}-vs-{pB.llm_player.name}"
-                task = asyncio.create_task(
-                    self.run_single_game(pA, pB), name=f"game-{pair_names}"
-                )
+                    # Create a task for this match - using unique name for better logging
+                    pair_names = f"{pA.llm_player.name}-vs-{pB.llm_player.name}"
+                    task = asyncio.create_task(
+                        self.run_single_game(pA, pB), name=f"game-{pair_names}"
+                    )
 
-                # Add to active tasks and track that we spawned a new task
-                active_tasks.add(task)
-                new_tasks_spawned += 1
+                    # Add to active tasks and track that we spawned a new task
+                    self._active_tasks.add(task)
+                    new_tasks_spawned += 1
 
-                # Log that we're starting a new game to help diagnose parallelism
-                logger.info(
-                    f"Starting game between {pair_names} ({len(active_tasks)}/{self.max_parallel_games} active)"
-                )
+                    # Log that we're starting a new game to help diagnose parallelism
+                    logger.info(
+                        f"Starting game between {pair_names} ({len(self._active_tasks)}/{self.max_parallel_games} active)"
+                    )
 
-                # Create a proper callback that captures the task properly
-                def create_done_callback(t):
-                    def callback(future):
-                        active_tasks.discard(t)
+                    # Create a proper callback that captures the task properly
+                    def create_done_callback(t):
+                        def callback(future):
+                            self._active_tasks.discard(t)
 
-                    return callback
+                        return callback
 
-                task.add_done_callback(create_done_callback(task))
+                    task.add_done_callback(create_done_callback(task))
 
-            if not active_tasks and new_tasks_spawned == 0:
-                if tries == 0:
-                    tries += 1
-                    continue
+            # Check if we should exit the loop - no active tasks and either in stop mode or unable to schedule
+            if not self._active_tasks:
+                if self._stop_scheduling or new_tasks_spawned == 0:
+                    if tries == 0:
+                        tries += 1
+                        continue
+                    else:
+                        # Nothing currently running and we didn't just launch one after multiple attempts
+                        logger.info("No more games to run. Exiting.")
+                        break
                 else:
-                    # Nothing currently running and we didn't just launch one after multiple attempts
-                    break
-            else:
-                tries = 0
+                    tries = 0
 
             # If we spawned new tasks, log current state before waiting
             if new_tasks_spawned > 0:
@@ -648,20 +677,26 @@ class Arena:
 
             timeout = 1
 
-            done, pending = await asyncio.wait(
-                active_tasks, return_when=asyncio.FIRST_COMPLETED, timeout=timeout
-            )
+            if self._active_tasks:
+                done, pending = await asyncio.wait(
+                    self._active_tasks, return_when=asyncio.FIRST_COMPLETED, timeout=timeout
+                )
 
-            # Process completed tasks
-            for finished in done:
-                try:
-                    await finished
-                    # Log completion
-                    logger.info(
-                        f"Game completed: {finished.get_name() if hasattr(finished, 'get_name') else 'Unknown'}"
-                    )
-                except Exception as e:
-                    logger.error(f"Game failed: {e}")
+                # Process completed tasks
+                for finished in done:
+                    try:
+                        await finished
+                        # Log completion
+                        logger.info(
+                            f"Game completed: {finished.get_name() if hasattr(finished, 'get_name') else 'Unknown'}"
+                        )
+                    except asyncio.CancelledError:
+                        logger.warning(f"Game cancelled: {finished.get_name() if hasattr(finished, 'get_name') else 'Unknown'}")
+                    except Exception as e:
+                        logger.error(f"Game failed: {e}")
+            else:
+                # No active tasks, just wait a bit
+                await asyncio.sleep(timeout)
 
     def current_elo(self) -> Tuple[EloSystem, Dict[str, PlayerRating]]:
         completed_games = (

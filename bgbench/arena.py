@@ -363,7 +363,7 @@ class Arena:
             elo,
             ongoing,
             max_games_per_pairing=10,
-            limit=10,
+            limit=100,
         )
 
         if not match_pairs:

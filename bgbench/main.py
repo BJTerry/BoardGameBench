@@ -84,6 +84,16 @@ async def main():
     Session = sessionmaker(bind=engine)
     db_session = Session()
 
+    # Check if we're resuming and can get game info from experiment
+    game = None
+    use_experiment_game = False
+    
+    if args.resume:
+        # Try to get experiment info early to check for game_name
+        experiment = Experiment.resume_experiment(db_session, args.resume)
+        if experiment and experiment.game_name and experiment.game_name in AVAILABLE_GAMES:
+            use_experiment_game = True
+    
     # Only load player configs if not using export-experiment or list flags
     player_configs = []
     if not args.export_experiment and not args.list:
@@ -92,8 +102,8 @@ async def main():
                 "--players is required unless using --export-experiment or --list"
             )
 
-        if not args.game:
-            parser.error("--game is required unless using --list or --export-experiment")
+        if not args.game and not use_experiment_game:
+            parser.error("--game is required unless using --list, --export-experiment, or resuming an experiment with stored game_name")
 
         if args.players:
             with open(args.players, "r") as f:
@@ -105,12 +115,8 @@ async def main():
                     f"Player: {entry.get('name')} - Model: {model_conf.get('model')}, Temperature: {model_conf.get('temperature')}, Max Tokens: {model_conf.get('max_tokens')}, Response Style: {model_conf.get('response_style')}, Prompt Style: {entry.get('prompt_style')}"
                 )
 
-    # Get game information if needed (not for --list or --export-experiment)
-    game = None
-    if not args.list and not args.export_experiment:
-        if not args.game:
-            parser.error("--game is required except when using --list or --export-experiment")
-
+    # Get game information from args if provided
+    if args.game:
         # Get the game class from our available games
         game_class = AVAILABLE_GAMES[args.game]
         game = game_class()

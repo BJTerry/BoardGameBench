@@ -307,11 +307,13 @@ class Arena:
         llm_factory=None,
     ):
         """Create a new experiment with the specified players."""
-        name = experiment_name or f"{self.game.__class__.__name__}_evaluation"
+        game_class_name = self.game.__class__.__name__
+        name = experiment_name or f"{game_class_name}_evaluation"
         self.experiment = Experiment().create_experiment(
             self.session,
             name=name,
-            description=f"Evaluation of LLMs playing {self.game.__class__.__name__}",
+            description=f"Evaluation of LLMs playing {game_class_name}",
+            game_name=game_class_name,
         )
 
         for config in player_configs:

@@ -38,7 +38,7 @@ Base = declarative_base()
 
 class Experiment(Base):
     def create_experiment(
-        self, session: Session, name: str, description: str = ""
+        self, session: Session, name: str, description: str = "", game_name: str = ""
     ) -> "Experiment":
         # Check if we need to adjust the sequence for PostgreSQL
         if session.bind is not None and session.bind.dialect.name == 'postgresql':
@@ -51,7 +51,7 @@ class Experiment(Base):
                 session.execute(text(f"SELECT setval('experiments_id_seq', {max_id}, true)"))
                 logger.debug(f"Adjusted PostgreSQL sequence to start after ID {max_id}")
                 
-        new_experiment = Experiment(name=name, description=description)
+        new_experiment = Experiment(name=name, description=description, game_name=game_name)
         session.add(new_experiment)
         session.commit()
         logger.info(f"Created new experiment: {name} (id: {new_experiment.id})")
@@ -92,6 +92,7 @@ class Experiment(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[Optional[str]] = mapped_column(String)
+    game_name: Mapped[Optional[str]] = mapped_column(String)
     games: Mapped[list["GameMatch"]] = relationship(
         "GameMatch", back_populates="experiment"
     )

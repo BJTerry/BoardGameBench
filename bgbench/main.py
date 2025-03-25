@@ -134,8 +134,8 @@ async def main():
             logger.error(f"No experiment found with ID {args.export_experiment}")
             return
 
-        # Determine game name - use the one from args if provided, otherwise try to infer from experiment name
-        game_name = args.game if args.game else experiment.name.split("_")[0]
+        # Use game_name from experiment if available, otherwise fall back to args.game or infer from name
+        game_name = experiment.game_name or args.game or experiment.name.split("_")[0]
 
         # Export the experiment data in schema format
         export_experiment(db_session, args.export_experiment, game_name)
@@ -150,8 +150,30 @@ async def main():
         )
 
     if args.resume:
-        if game is None:
-            raise ValueError("--game is required when resuming an experiment")
+        # Retrieve the experiment to get its game name
+        experiment = Experiment.resume_experiment(db_session, args.resume)
+        if not experiment:
+            logger.error(f"No experiment found with ID {args.resume}")
+            return
+            
+        # Use game from args if specified, otherwise try to load game from experiment's game_name
+        if game is None and experiment.game_name:
+            # Get the game class from stored game_name
+            if experiment.game_name in AVAILABLE_GAMES:
+                game_class = AVAILABLE_GAMES[experiment.game_name]
+                game = game_class()
+                logger.info(f"Using game '{experiment.game_name}' from experiment")
+            else:
+                logger.warning(f"Stored game name '{experiment.game_name}' not found in available games")
+                if args.game:
+                    game_class = AVAILABLE_GAMES[args.game]
+                    game = game_class()
+                else:
+                    # Still need a game
+                    raise ValueError("Cannot determine game type from experiment. Please specify with --game")
+        elif game is None:
+            raise ValueError("--game is required when resuming an experiment without stored game name")
+            
         arena = Arena(
             game,
             db_session,
@@ -182,7 +204,36 @@ async def main():
             logger.error(f"No experiment found with ID {args.export}")
             return
 
-        print_results(arena.get_experiment_results())
+        # If we're exporting via args.export and used the Arena, just print results
+        if 'arena' in locals():
+            print_results(arena.get_experiment_results())
+        else:
+            # We need to create an Arena to export results
+            game_name = experiment.game_name
+            if game_name and game_name in AVAILABLE_GAMES:
+                game_class = AVAILABLE_GAMES[game_name]
+                game = game_class()
+                arena = Arena(
+                    game,
+                    db_session,
+                    experiment_id=args.export,
+                    max_parallel_games=1,  # Doesn't matter for export
+                )
+                print_results(arena.get_experiment_results())
+            else:
+                # If game_name isn't available, we still need args.game
+                if not args.game:
+                    logger.error("Cannot determine game type. Please specify with --game")
+                    return
+                game_class = AVAILABLE_GAMES[args.game]
+                game = game_class()
+                arena = Arena(
+                    game,
+                    db_session,
+                    experiment_id=args.export,
+                    max_parallel_games=1,  # Doesn't matter for export
+                )
+                print_results(arena.get_experiment_results())
         return
 
     # Set up signal handlers for graceful termination

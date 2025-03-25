@@ -9,6 +9,9 @@
 - **Format code**: `poetry run ruff format .`
 - **Run application**: `poetry run python -m bgbench.main`
 
+## IMPORTANT
+- **NEVER run**: `bgbench.migrate_db` - This command should not be run directly
+
 ## Code Style Guidelines
 - **Simplicity over cleverness**: Write readable code, avoid clever one-liners
 - **Types**: Use type hints for all function parameters and return values

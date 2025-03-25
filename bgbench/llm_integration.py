@@ -98,13 +98,9 @@ class LLMCompletionProvider(Protocol):
 
 NON_SYSTEM_MODELS = ["openai/o1-mini", "openai/o1-preview"]
 # Models that don't support cache_control parameters (strip these out before calling)
-CACHE_DISABLED_MODELS = [
-    "gemini/gemini-2.0-flash-thinking-exp-01-21",
-    "openrouter/deepseek/deepseek-r1",
-    "openrouter/openai/o1-mini",
-    "openrouter/openai/o3-mini",
-    "openrouter/qwen/qwq-32b",
-    "openrouter/qwen/qwq-32b:free",
+CACHE_ENABLED_MODELS = [
+    "openrouter/anthropic/claude-3.7-sonnet",
+    "openrouter/anthropic/claude-3.5-haiku",
 ]
 
 SYSTEM_PROMPT = (
@@ -193,7 +189,7 @@ async def complete_prompt(
             messages.extend(prompt_messages)
 
             # For models that don't support cache_control, strip it out
-            if llm_config["model"] in CACHE_DISABLED_MODELS:
+            if llm_config["model"] not in CACHE_ENABLED_MODELS:
                 # Remove cache_control from each message block
                 for msg in messages:
                     if "content" in msg and isinstance(msg["content"], list):

@@ -269,5 +269,5 @@ async def complete_prompt(
         return content, token_info, messages
 
     except Exception as e:
-        logger.error(f"Error completing prompt: {str(e)}")
+        logger.error(f"Error completing prompt {llm_config["model"]}: {str(e)}")
         raise

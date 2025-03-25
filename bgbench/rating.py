@@ -28,6 +28,11 @@ import numpy as np
 import pymc as pm
 import arviz as az
 
+# Disable diagnostic warnings from PyMC and ArviZ
+import logging
+logging.getLogger('pymc').setLevel(logging.ERROR)
+logging.getLogger('arviz').setLevel(logging.ERROR)
+
 
 @dataclass
 class PlayerRating:

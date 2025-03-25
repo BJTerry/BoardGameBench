@@ -2,7 +2,6 @@ import argparse
 import logging
 import json
 import signal
-import sys
 from typing import Any, Dict, List, Tuple
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
@@ -39,6 +38,11 @@ async def main():
         "--players", type=str, help="Path to player configuration JSON file"
     )
     parser.add_argument("--list", action="store_true", help="List all experiments")
+    parser.add_argument(
+        "--selected-players",
+        type=str,
+        help="Comma-separated list of player names to focus matches on (games will only be played if they involve these players)",
+    )
 
     # Parallel execution options
     parser.add_argument(
@@ -137,6 +141,14 @@ async def main():
         export_experiment(db_session, args.export_experiment, game_name)
         return
 
+    # Process selected players if provided
+    selected_players = None
+    if args.selected_players:
+        selected_players = [name.strip() for name in args.selected_players.split(",")]
+        logger.info(
+            f"Focusing on games involving these players: {', '.join(selected_players)}"
+        )
+
     if args.resume:
         if game is None:
             raise ValueError("--game is required when resuming an experiment")
@@ -148,6 +160,7 @@ async def main():
             max_parallel_games=args.parallel_games,
             cost_budget=args.cost_budget,
             confidence_threshold=args.confidence_threshold,
+            selected_players=selected_players,
         )
     else:
         if game is None:
@@ -160,6 +173,7 @@ async def main():
             max_parallel_games=args.parallel_games,
             cost_budget=args.cost_budget,
             confidence_threshold=args.confidence_threshold,
+            selected_players=selected_players,
         )
 
     if args.export:
@@ -174,10 +188,10 @@ async def main():
     # Set up signal handlers for graceful termination
     def signal_handler(sig, frame):
         arena.handle_sigint()
-    
+
     # Register signal handler for SIGINT (Ctrl+C)
     signal.signal(signal.SIGINT, signal_handler)
-    
+
     # Run the experiment and print final standings
     await arena.evaluate_all()
     print_results(arena.get_experiment_results())

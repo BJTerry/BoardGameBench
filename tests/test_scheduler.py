@@ -16,7 +16,7 @@ class TestSchedulers:
 
         # Should raise NotImplementedError since we haven't overridden methods
         with pytest.raises(NotImplementedError):
-            scheduler.find_match([], [], EloSystem())
+            scheduler.find_matches([], [], EloSystem())
 
         with pytest.raises(NotImplementedError):
             scheduler._calculate_pair_relevance(Mock(), Mock(), Mock())
@@ -75,10 +75,11 @@ class TestSchedulers:
         match_history = []
 
         # Mock that we're starting a new experiment
-        pair = scheduler.find_match(players, match_history, elo_system, set())  # type: ignore
+        pairs = scheduler.find_matches(players, match_history, elo_system, set(), limit=1)  # type: ignore
 
-        # For new experiments, we should get player1 vs player2 (adjacent in list)
-        assert pair is not None
+        # For new experiments, we should get player1, player2 as the first pair (adjacent in list)
+        assert len(pairs) > 0
+        pair = pairs[0]
         assert (pair[0].player_model.id == 1 and pair[1].player_model.id == 2) or (
             pair[0].player_model.id == 2 and pair[1].player_model.id == 1
         )
@@ -112,10 +113,11 @@ class TestSchedulers:
         elo_system.is_match_needed.return_value = True
 
         # This should fall back to FullRankingScheduler behavior
-        pair = scheduler.find_match(players, [], elo_system, set())  # type: ignore
+        pairs = scheduler.find_matches(players, [], elo_system, set(), limit=1)  # type: ignore
 
         # Should return adjacent players (player1 vs player2) since there's no history
-        assert pair is not None
+        assert len(pairs) > 0
+        pair = pairs[0]
         assert (pair[0].player_model.id == 1 and pair[1].player_model.id == 2) or (
             pair[0].player_model.id == 2 and pair[1].player_model.id == 1
         )

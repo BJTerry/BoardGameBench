@@ -52,6 +52,7 @@ class Arena:
         cost_budget: Optional[float] = 2.0,
         llm_factory=None,
         match_scheduler: Optional[MatchScheduler] = None,
+        selected_players: Optional[List[str]] = None,
     ):
         """
         Initialize Arena with either:
@@ -69,6 +70,7 @@ class Arena:
             cost_budget: Maximum cost budget for the experiment in dollars
             llm_factory: Optional function for testing that creates LLM instances
             match_scheduler: Optional scheduler for choosing player matchups (defaults to SigmaMinimizationScheduler)
+            selected_players: Optional list of player names to focus on (only matches involving these players will be scheduled)
         """
         self.game: Game = game
         self.players: List[ArenaPlayer] = []
@@ -79,7 +81,8 @@ class Arena:
         self.ongoing_matches: Set[Tuple[int, int]] = set()
         self._scheduled_games_between: Dict[Tuple[int, int], int] = {}
         self._lock = asyncio.Lock()
-        
+        self.selected_players = selected_players
+
         # For graceful termination
         self._stop_scheduling = False
         self._force_stop = False
@@ -344,54 +347,85 @@ class Arena:
 
         Uses the scheduler set during initialization (defaults to FullRankingScheduler)
         to determine the best matchup based on the scheduling strategy.
+
+        If selected_players is set, only matches involving at least one of the selected players will be considered.
         """
         # Get a snapshot of ongoing matches for the scheduler
         async with self._lock:
             ongoing = self.ongoing_matches.copy()
 
-        # Use the scheduler to find the next match
+        # Use the scheduler to find potential matches
         # This doesn't modify any shared state yet
         elo, _ = self.current_elo()
-        match_pair = self.match_scheduler.find_match(
-            self.players, self.match_history, elo, ongoing, max_games_per_pairing=10
+        match_pairs = self.match_scheduler.find_matches(
+            self.players,
+            self.match_history,
+            elo,
+            ongoing,
+            max_games_per_pairing=10,
+            limit=10,
         )
 
-        if match_pair is None:
+        if not match_pairs:
             logger.debug("No candidate matches found by scheduler")
             return None
 
-        player_a, player_b = match_pair
-        pair_ids = (
-            min(player_a.player_model.id, player_b.player_model.id),
-            max(player_a.player_model.id, player_b.player_model.id),
-        )
-
-        # Now lock to update shared state
-        async with self._lock:
-            # Double check match is still valid (could have changed while we were processing)
-            if pair_ids not in self.ongoing_matches:
-                games = self._games_played_between(
-                    player_a.player_model, player_b.player_model
-                )
-                if games < 10:
-                    logger.debug(
-                        f"Scheduling match between {player_a.llm_player.name} and {player_b.llm_player.name}"
-                    )
-                    self.ongoing_matches.add(pair_ids)
-                    # Track this scheduled game
-                    self._scheduled_games_between[pair_ids] = (
-                        self._scheduled_games_between.get(pair_ids, 0) + 1
-                    )
-                    return match_pair
+        # Filter matches based on selected players if needed
+        filtered_pairs = match_pairs
+        if self.selected_players:
+            filtered_pairs = []
+            for player_a, player_b in match_pairs:
+                player_a_name = player_a.llm_player.name
+                player_b_name = player_b.llm_player.name
+                # Only include if at least one of the players is in the selected players list
+                if (
+                    player_a_name in self.selected_players
+                    or player_b_name in self.selected_players
+                ):
+                    filtered_pairs.append((player_a, player_b))
                 else:
                     logger.debug(
-                        f"Candidate match rejected - exceeded game limit ({games}/10): {player_a.llm_player.name} vs {player_b.llm_player.name}"
+                        f"Match filtered out - neither player in selected players list: {player_a_name} vs {player_b_name}"
                     )
-            else:
-                logger.debug(
-                    f"Candidate match became invalid due to ongoing match: {player_a.llm_player.name} vs {player_b.llm_player.name}"
-                )
 
+            if not filtered_pairs:
+                logger.debug("No matches remain after filtering for selected players")
+                return None
+
+        # Try each match pair in order until we find a valid one
+        for player_a, player_b in filtered_pairs:
+            pair_ids = (
+                min(player_a.player_model.id, player_b.player_model.id),
+                max(player_a.player_model.id, player_b.player_model.id),
+            )
+
+            # Lock to update shared state
+            async with self._lock:
+                # Double check match is still valid (could have changed while we were processing)
+                if pair_ids not in self.ongoing_matches:
+                    games = self._games_played_between(
+                        player_a.player_model, player_b.player_model
+                    )
+                    if games < 10:
+                        logger.debug(
+                            f"Scheduling match between {player_a.llm_player.name} and {player_b.llm_player.name}"
+                        )
+                        self.ongoing_matches.add(pair_ids)
+                        # Track this scheduled game
+                        self._scheduled_games_between[pair_ids] = (
+                            self._scheduled_games_between.get(pair_ids, 0) + 1
+                        )
+                        return player_a, player_b
+                    else:
+                        logger.debug(
+                            f"Candidate match rejected - exceeded game limit ({games}/10): {player_a.llm_player.name} vs {player_b.llm_player.name}"
+                        )
+                else:
+                    logger.debug(
+                        f"Candidate match became invalid due to ongoing match: {player_a.llm_player.name} vs {player_b.llm_player.name}"
+                    )
+
+        logger.debug("No valid matches found among candidates")
         return None
 
     def log_standings(self):
@@ -556,7 +590,7 @@ class Arena:
             # Second Ctrl+C: Force immediate stop
             logger.warning("Second interrupt received. Stopping all tasks immediately.")
             self._force_stop = True
-            
+
             # Cancel all active tasks
             for task in self._active_tasks:
                 if not task.done():
@@ -608,7 +642,7 @@ class Arena:
 
             # Track number of new tasks spawned in this iteration
             new_tasks_spawned = 0
-            
+
             # Schedule new games only if not in stop mode
             if not self._stop_scheduling:
                 # Fill all available slots up to max_parallel_games
@@ -679,7 +713,9 @@ class Arena:
 
             if self._active_tasks:
                 done, pending = await asyncio.wait(
-                    self._active_tasks, return_when=asyncio.FIRST_COMPLETED, timeout=timeout
+                    self._active_tasks,
+                    return_when=asyncio.FIRST_COMPLETED,
+                    timeout=timeout,
                 )
 
                 # Process completed tasks
@@ -691,7 +727,9 @@ class Arena:
                             f"Game completed: {finished.get_name() if hasattr(finished, 'get_name') else 'Unknown'}"
                         )
                     except asyncio.CancelledError:
-                        logger.warning(f"Game cancelled: {finished.get_name() if hasattr(finished, 'get_name') else 'Unknown'}")
+                        logger.warning(
+                            f"Game cancelled: {finished.get_name() if hasattr(finished, 'get_name') else 'Unknown'}"
+                        )
                     except Exception as e:
                         logger.error(f"Game failed: {e}")
             else:

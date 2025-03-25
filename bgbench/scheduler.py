@@ -23,16 +23,18 @@ logger = logging.getLogger(__name__)
 class MatchScheduler:
     """Base class for match scheduling strategies."""
 
-    def find_match(
+    def find_matches(
         self,
         players: List["ArenaPlayer"],
         match_history: List[GameResult],
         elo_system: EloSystem,
         ongoing_matches: Optional[Set[Tuple[int, int]]] = None,
         max_games_per_pairing: int = 10,
-    ) -> Optional[Tuple["ArenaPlayer", "ArenaPlayer"]]:
+        limit: int = 5,
+    ) -> List[Tuple["ArenaPlayer", "ArenaPlayer"]]:
         """
-        Return a tuple (playerA, playerB) for the next match, or None if no match is needed.
+        Return a list of (playerA, playerB) tuples for potential matches,
+        ordered by relevance according to the scheduling strategy.
 
         Args:
             players: List of all players in the arena
@@ -40,9 +42,10 @@ class MatchScheduler:
             elo_system: The EloSystem used for computing probabilities
             ongoing_matches: Set of (player_id1, player_id2) tuples for matches currently in progress
             max_games_per_pairing: Maximum number of games allowed between any two players
+            limit: Maximum number of matches to return
 
         Returns:
-            A tuple of (playerA, playerB) for the next match, or None if no match is needed
+            A list of (playerA, playerB) tuples for potential matches, ordered by relevance
         """
         raise NotImplementedError()
 
@@ -171,16 +174,17 @@ class FullRankingScheduler(MatchScheduler):
     which is the current default behavior in Arena.
     """
 
-    def find_match(
+    def find_matches(
         self,
         players: List["ArenaPlayer"],
         match_history: List[GameResult],
         elo_system: EloSystem,
         ongoing_matches: Optional[Set[Tuple[int, int]]] = None,
         max_games_per_pairing: int = 10,
-    ) -> Optional[Tuple["ArenaPlayer", "ArenaPlayer"]]:
+        limit: int = 5,
+    ) -> List[Tuple["ArenaPlayer", "ArenaPlayer"]]:
         """
-        Find the match that will most reduce overall pairwise uncertainty.
+        Find matches that will most reduce overall pairwise uncertainty.
 
         Args:
             players: List of all players in the arena
@@ -188,9 +192,10 @@ class FullRankingScheduler(MatchScheduler):
             elo_system: The EloSystem used for computing probabilities
             ongoing_matches: Set of (player_id1, player_id2) tuples for matches currently in progress
             max_games_per_pairing: Maximum number of games allowed between any two players
+            limit: Maximum number of matches to return
 
         Returns:
-            A tuple of (playerA, playerB) for the next match, or None if no match is needed
+            A list of (playerA, playerB) tuples for potential matches, ordered by relevance
         """
         if ongoing_matches is None:
             ongoing_matches = set()
@@ -201,15 +206,19 @@ class FullRankingScheduler(MatchScheduler):
         # For brand new experiments with no history, use adjacent players in ratings
         if not match_history:
             logger.debug("No game history yet, starting with adjacent players")
+            result = []
             for i in range(len(sorted_players) - 1):
+                if len(result) >= limit:
+                    break
+
                 player_a = sorted_players[i]
                 player_b = sorted_players[i + 1]
                 pair_tuple = self._get_canonical_pair(
                     player_a.player_model.id, player_b.player_model.id
                 )
                 if pair_tuple not in ongoing_matches:
-                    return player_a, player_b
-            return None
+                    result.append((player_a, player_b))
+            return result
 
         # Otherwise, get candidates and sort by relevance score (uncertainty)
         candidates = self._get_candidate_pairs(
@@ -217,11 +226,13 @@ class FullRankingScheduler(MatchScheduler):
         )
 
         if not candidates:
-            return None
+            return []
 
         # Sort by relevance score (higher is more important)
         candidates.sort(key=lambda x: x[2], reverse=True)
-        return candidates[0][0], candidates[0][1]
+
+        # Return top matches up to the limit
+        return [(pair[0], pair[1]) for pair in candidates[:limit]]
 
     def _calculate_pair_relevance(
         self, player_a: "ArenaPlayer", player_b: "ArenaPlayer", elo_system: EloSystem
@@ -268,16 +279,17 @@ class TopIdentificationScheduler(MatchScheduler):
         """
         self.samples_per_outcome = samples_per_outcome
 
-    def find_match(
+    def find_matches(
         self,
         players: List["ArenaPlayer"],
         match_history: List[GameResult],
         elo_system: EloSystem,
         ongoing_matches: Optional[Set[Tuple[int, int]]] = None,
         max_games_per_pairing: int = 10,
-    ) -> Optional[Tuple["ArenaPlayer", "ArenaPlayer"]]:
+        limit: int = 5,
+    ) -> List[Tuple["ArenaPlayer", "ArenaPlayer"]]:
         """
-        Find the match that will most reduce uncertainty about which model is best.
+        Find matches that will most reduce uncertainty about which model is best.
 
         Args:
             players: List of all players in the arena
@@ -285,9 +297,10 @@ class TopIdentificationScheduler(MatchScheduler):
             elo_system: The EloSystem used for computing probabilities
             ongoing_matches: Set of (player_id1, player_id2) tuples for matches currently in progress
             max_games_per_pairing: Maximum number of games allowed between any two players
+            limit: Maximum number of matches to return
 
         Returns:
-            A tuple of (playerA, playerB) for the next match, or None if no match is needed
+            A list of (playerA, playerB) tuples for potential matches, ordered by relevance
         """
         if ongoing_matches is None:
             ongoing_matches = set()
@@ -295,12 +308,13 @@ class TopIdentificationScheduler(MatchScheduler):
         # If no games have been played yet, default to the same strategy as FullRankingScheduler
         if not match_history:
             # Delegate to FullRankingScheduler for initial matches
-            return FullRankingScheduler().find_match(
+            return FullRankingScheduler().find_matches(
                 players,
                 match_history,
                 elo_system,
                 ongoing_matches,
                 max_games_per_pairing,
+                limit,
             )
 
         # Get candidate pairs
@@ -309,11 +323,13 @@ class TopIdentificationScheduler(MatchScheduler):
         )
 
         if not candidates:
-            return None
+            return []
 
         # Sort by relevance score (higher is more important)
         candidates.sort(key=lambda x: x[2], reverse=True)
-        return candidates[0][0], candidates[0][1]
+
+        # Return top matches up to the limit
+        return [(pair[0], pair[1]) for pair in candidates[:limit]]
 
     def _calculate_pair_relevance(
         self, player_a: "ArenaPlayer", player_b: "ArenaPlayer", elo_system: EloSystem
@@ -451,98 +467,106 @@ class TopIdentificationScheduler(MatchScheduler):
 class SigmaMinimizationScheduler(MatchScheduler):
     """
     A scheduler that focuses on reducing uncertainty (sigma) for players with highest uncertainty.
-    
-    This scheduler prioritizes matches that will most likely reduce the sigma value for 
-    players with high uncertainty in their skill rating. It targets the players with the 
+
+    This scheduler prioritizes matches that will most likely reduce the sigma value for
+    players with high uncertainty in their skill rating. It targets the players with the
     highest sigma values and schedules matches that will provide the most information about
     their true skill level.
     """
-    
-    def find_match(
+
+    def find_matches(
         self,
         players: List["ArenaPlayer"],
         match_history: List[GameResult],
         elo_system: EloSystem,
         ongoing_matches: Optional[Set[Tuple[int, int]]] = None,
         max_games_per_pairing: int = 10,
-    ) -> Optional[Tuple["ArenaPlayer", "ArenaPlayer"]]:
+        limit: int = 5,
+    ) -> List[Tuple["ArenaPlayer", "ArenaPlayer"]]:
         """
-        Find the match that will most reduce uncertainty (sigma) for high-uncertainty players.
-        
+        Find matches that will most reduce uncertainty (sigma) for high-uncertainty players.
+
         Args:
             players: List of all players in the arena
             match_history: List of all previous game results
             elo_system: The EloSystem used for computing probabilities
             ongoing_matches: Set of (player_id1, player_id2) tuples for matches currently in progress
             max_games_per_pairing: Maximum number of games allowed between any two players
-            
+            limit: Maximum number of matches to return
+
         Returns:
-            A tuple of (playerA, playerB) for the next match, or None if no match is needed
+            A list of (playerA, playerB) tuples for potential matches, ordered by relevance
         """
         if ongoing_matches is None:
             ongoing_matches = set()
-            
+
         # Sort players by rating for default tie-breaking
         sorted_players = sorted(players, key=lambda p: p.rating.rating, reverse=True)
-        
+
         # For brand new experiments with no history, use adjacent players in ratings
         if not match_history:
             logger.debug("No game history yet, starting with adjacent players")
+            result = []
             for i in range(len(sorted_players) - 1):
+                if len(result) >= limit:
+                    break
+
                 player_a = sorted_players[i]
                 player_b = sorted_players[i + 1]
                 pair_tuple = self._get_canonical_pair(
                     player_a.player_model.id, player_b.player_model.id
                 )
                 if pair_tuple not in ongoing_matches:
-                    return player_a, player_b
-            return None
-        
+                    result.append((player_a, player_b))
+            return result
+
         # Otherwise, get candidates and sort by relevance score
         candidates = self._get_candidate_pairs(
             players, ongoing_matches, max_games_per_pairing, elo_system, match_history
         )
-        
+
         if not candidates:
-            return None
-            
+            return []
+
         # Sort by relevance score (higher is more important)
         candidates.sort(key=lambda x: x[2], reverse=True)
-        return candidates[0][0], candidates[0][1]
-        
+
+        # Return top matches up to the limit
+        return [(pair[0], pair[1]) for pair in candidates[:limit]]
+
     def _calculate_pair_relevance(
         self, player_a: "ArenaPlayer", player_b: "ArenaPlayer", elo_system: EloSystem
     ) -> float:
         """
         Calculate the relevance score based on potential sigma reduction.
-        
+
         The score is based on:
         1. The maximum sigma value between the two players (prioritizing high uncertainty players)
-        2. The closeness of their skill ratings (matches between similarly skilled players 
+        2. The closeness of their skill ratings (matches between similarly skilled players
            provide more information)
-        
+
         Args:
             player_a: First player
             player_b: Second player
             elo_system: The EloSystem used for computing probabilities
-            
+
         Returns:
             Relevance score for sigma reduction potential
         """
         # Get sigma values for both players
         sigma_a = player_a.rating.sigma
         sigma_b = player_b.rating.sigma
-        
+
         # Prioritize matches involving players with high sigma
         max_sigma = max(sigma_a, sigma_b)
-        
+
         # Calculate probability that player_a is stronger than player_b
         # Matches closer to 0.5 provide more information (50/50 matches are most informative)
         prob = elo_system.probability_stronger(
             player_a.llm_player.name, player_b.llm_player.name
         )
         uncertainty = 0.5 - abs(prob - 0.5)
-        
+
         # Combine both factors:
         # - Higher max_sigma means we want to reduce uncertainty for a high-uncertainty player
         # - Higher uncertainty (closer to 0.5 probability) means the match will be more informative

@@ -20,7 +20,11 @@ from bgbench.export import (
     count_draws,
     build_match_history,
 )
-from bgbench.scheduler import MatchScheduler, SigmaMinimizationScheduler
+from bgbench.scheduler import (
+    MatchScheduler,
+    SigmaMinimizationScheduler,
+    MatchFilterSpec,
+)
 
 logger = logging.getLogger("bgbench")
 
@@ -354,7 +358,14 @@ class Arena:
         async with self._lock:
             ongoing = self.ongoing_matches.copy()
 
-        # Use the scheduler to find potential matches
+        # Create filter specification with all filtering criteria
+        filter_spec = MatchFilterSpec(
+            selected_player_names=self.selected_players,
+            max_games_per_pairing=10,
+            confidence_threshold=self.confidence_threshold,
+        )
+
+        # Use the scheduler to find potential matches with filtering applied
         # This doesn't modify any shared state yet
         elo, _ = self.current_elo()
         match_pairs = self.match_scheduler.find_matches(
@@ -362,7 +373,7 @@ class Arena:
             self.match_history,
             elo,
             ongoing,
-            max_games_per_pairing=10,
+            filter_spec=filter_spec,
             limit=100,
         )
 
@@ -370,30 +381,8 @@ class Arena:
             logger.debug("No candidate matches found by scheduler")
             return None
 
-        # Filter matches based on selected players if needed
-        filtered_pairs = match_pairs
-        if self.selected_players:
-            filtered_pairs = []
-            for player_a, player_b in match_pairs:
-                player_a_name = player_a.llm_player.name
-                player_b_name = player_b.llm_player.name
-                # Only include if at least one of the players is in the selected players list
-                if (
-                    player_a_name in self.selected_players
-                    or player_b_name in self.selected_players
-                ):
-                    filtered_pairs.append((player_a, player_b))
-                else:
-                    logger.debug(
-                        f"Match filtered out - neither player in selected players list: {player_a_name} vs {player_b_name}"
-                    )
-
-            if not filtered_pairs:
-                logger.debug("No matches remain after filtering for selected players")
-                return None
-
         # Try each match pair in order until we find a valid one
-        for player_a, player_b in filtered_pairs:
+        for player_a, player_b in match_pairs:
             pair_ids = (
                 min(player_a.player_model.id, player_b.player_model.id),
                 max(player_a.player_model.id, player_b.player_model.id),

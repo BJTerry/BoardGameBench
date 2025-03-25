@@ -198,7 +198,7 @@ class EloSystem:
             if draw_rate < 1.0:  # Prevent division by zero
                 base_term = 2 * (10 ** (1500 / 400))
                 draw_parameter = (draw_rate * base_term) / (1 - draw_rate)
-        
+
         with pm.Model():
             # skill for each player
             skill = pm.Normal("skill", mu=1500.0, sigma=400.0, shape=n_players)
@@ -304,7 +304,9 @@ class EloSystem:
         # Probability that A is stronger is fraction of draws where skill_A > skill_B
         return float(np.mean(skill_A > skill_B))
 
-    def is_match_needed(self, name_a: str, name_b: str) -> bool:
+    def is_match_needed(
+        self, name_a: str, name_b: str, confidence_threshold: Optional[float] = None
+    ) -> bool:
         """
         Determines if more matches between these two players should be played to
         surpass the confidence threshold. If we're not confident enough about which
@@ -312,17 +314,23 @@ class EloSystem:
 
         :param name_a: Name of the first player.
         :param name_b: Name of the second player.
+        :param confidence_threshold: Optional specific threshold to use for this check.
+                                     If not provided, uses the system's default threshold.
         :return: True if an additional match is needed to be more certain who is stronger.
         """
+        # Use the provided threshold if available, otherwise use the default
+        threshold = (
+            confidence_threshold
+            if confidence_threshold is not None
+            else self.confidence_threshold
+        )
+
         prob = self.probability_stronger(name_a, name_b)
-        # Original implementation - this might be the issue
-        # The old version only checks if player_a is likely stronger, but doesn't check the other way
-        # return prob < self.confidence_threshold
 
         # We need more games if we're not confident enough about which player is stronger
         # max(prob, 1-prob) gives us the confidence level of our prediction
         confidence = max(prob, 1 - prob)
-        return confidence < self.confidence_threshold
+        return confidence < threshold
 
     def get_credible_intervals(
         self, player_names: Optional[List[str]] = None

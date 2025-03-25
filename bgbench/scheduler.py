@@ -8,6 +8,7 @@ with different implementations optimizing for different goals:
 3. Sigma Minimization Strategy: focuses on reducing uncertainty (sigma) for players with highest uncertainty
 """
 
+from dataclasses import dataclass
 from typing import List, Optional, Tuple, Dict, Set, cast, Any, TYPE_CHECKING
 import numpy as np
 import logging
@@ -20,6 +21,20 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class MatchFilterSpec:
+    """Filter specification for match scheduling."""
+
+    # Experiment design filters
+    selected_player_names: Optional[List[str]] = None
+
+    # Match dynamics filters
+    max_games_per_pairing: int = 10
+
+    # Statistical filters
+    confidence_threshold: float = 0.70
+
+
 class MatchScheduler:
     """Base class for match scheduling strategies."""
 
@@ -29,7 +44,7 @@ class MatchScheduler:
         match_history: List[GameResult],
         elo_system: EloSystem,
         ongoing_matches: Optional[Set[Tuple[int, int]]] = None,
-        max_games_per_pairing: int = 10,
+        filter_spec: Optional[MatchFilterSpec] = None,
         limit: int = 5,
     ) -> List[Tuple["ArenaPlayer", "ArenaPlayer"]]:
         """
@@ -41,19 +56,23 @@ class MatchScheduler:
             match_history: List of all previous game results
             elo_system: The EloSystem used for computing probabilities
             ongoing_matches: Set of (player_id1, player_id2) tuples for matches currently in progress
-            max_games_per_pairing: Maximum number of games allowed between any two players
+            filter_spec: Filter specification for match constraints
             limit: Maximum number of matches to return
 
         Returns:
             A list of (playerA, playerB) tuples for potential matches, ordered by relevance
         """
+        # Use default filter spec if none provided
+        if filter_spec is None:
+            filter_spec = MatchFilterSpec()
+
         raise NotImplementedError()
 
     def _get_candidate_pairs(
         self,
         players: List["ArenaPlayer"],
         ongoing_matches: Set[Tuple[int, int]],
-        max_games_per_pairing: int,
+        filter_spec: MatchFilterSpec,
         elo_system: EloSystem,
         match_history: Optional[List[GameResult]] = None,
     ) -> List[Tuple["ArenaPlayer", "ArenaPlayer", float]]:
@@ -63,7 +82,7 @@ class MatchScheduler:
         Args:
             players: List of all players in the arena
             ongoing_matches: Set of (player_id1, player_id2) tuples for matches currently in progress
-            max_games_per_pairing: Maximum number of games allowed between any two players
+            filter_spec: Filter specification with match constraints
             elo_system: The EloSystem used for computing probabilities
             match_history: Optional list of game results to consider
 
@@ -115,6 +134,16 @@ class MatchScheduler:
                 if player_a.player_model.id == player_b.player_model.id:
                     continue  # Skip same player
 
+                # Skip if we have selected player filter and neither player is selected
+                if filter_spec.selected_player_names:
+                    if (
+                        player_a.llm_player.name
+                        not in filter_spec.selected_player_names
+                        and player_b.llm_player.name
+                        not in filter_spec.selected_player_names
+                    ):
+                        continue
+
                 # Create a canonical ordering of player IDs for the pair
                 player_ids_tuple = self._get_canonical_pair(
                     player_a.player_model.id, player_b.player_model.id
@@ -125,12 +154,17 @@ class MatchScheduler:
                     continue
 
                 # Skip if they've already played too many games
-                if games_per_pair.get(player_ids_tuple, 0) >= max_games_per_pairing:
+                if (
+                    games_per_pair.get(player_ids_tuple, 0)
+                    >= filter_spec.max_games_per_pairing
+                ):
                     continue
 
                 # Skip if we don't need a match based on confidence
                 if not elo_system.is_match_needed(
-                    player_a.llm_player.name, player_b.llm_player.name
+                    player_a.llm_player.name,
+                    player_b.llm_player.name,
+                    filter_spec.confidence_threshold,
                 ):
                     continue
 
@@ -180,7 +214,7 @@ class FullRankingScheduler(MatchScheduler):
         match_history: List[GameResult],
         elo_system: EloSystem,
         ongoing_matches: Optional[Set[Tuple[int, int]]] = None,
-        max_games_per_pairing: int = 10,
+        filter_spec: Optional[MatchFilterSpec] = None,
         limit: int = 5,
     ) -> List[Tuple["ArenaPlayer", "ArenaPlayer"]]:
         """
@@ -191,7 +225,7 @@ class FullRankingScheduler(MatchScheduler):
             match_history: List of all previous game results
             elo_system: The EloSystem used for computing probabilities
             ongoing_matches: Set of (player_id1, player_id2) tuples for matches currently in progress
-            max_games_per_pairing: Maximum number of games allowed between any two players
+            filter_spec: Filter specification with match constraints
             limit: Maximum number of matches to return
 
         Returns:
@@ -199,6 +233,9 @@ class FullRankingScheduler(MatchScheduler):
         """
         if ongoing_matches is None:
             ongoing_matches = set()
+
+        if filter_spec is None:
+            filter_spec = MatchFilterSpec()
 
         # Sort players by rating for default tie-breaking
         sorted_players = sorted(players, key=lambda p: p.rating.rating, reverse=True)
@@ -213,6 +250,17 @@ class FullRankingScheduler(MatchScheduler):
 
                 player_a = sorted_players[i]
                 player_b = sorted_players[i + 1]
+
+                # Apply selected player filter
+                if filter_spec.selected_player_names:
+                    if (
+                        player_a.llm_player.name
+                        not in filter_spec.selected_player_names
+                        and player_b.llm_player.name
+                        not in filter_spec.selected_player_names
+                    ):
+                        continue
+
                 pair_tuple = self._get_canonical_pair(
                     player_a.player_model.id, player_b.player_model.id
                 )
@@ -222,7 +270,7 @@ class FullRankingScheduler(MatchScheduler):
 
         # Otherwise, get candidates and sort by relevance score (uncertainty)
         candidates = self._get_candidate_pairs(
-            players, ongoing_matches, max_games_per_pairing, elo_system, match_history
+            players, ongoing_matches, filter_spec, elo_system, match_history
         )
 
         if not candidates:
@@ -285,7 +333,7 @@ class TopIdentificationScheduler(MatchScheduler):
         match_history: List[GameResult],
         elo_system: EloSystem,
         ongoing_matches: Optional[Set[Tuple[int, int]]] = None,
-        max_games_per_pairing: int = 10,
+        filter_spec: Optional[MatchFilterSpec] = None,
         limit: int = 5,
     ) -> List[Tuple["ArenaPlayer", "ArenaPlayer"]]:
         """
@@ -296,7 +344,7 @@ class TopIdentificationScheduler(MatchScheduler):
             match_history: List of all previous game results
             elo_system: The EloSystem used for computing probabilities
             ongoing_matches: Set of (player_id1, player_id2) tuples for matches currently in progress
-            max_games_per_pairing: Maximum number of games allowed between any two players
+            filter_spec: Filter specification with match constraints
             limit: Maximum number of matches to return
 
         Returns:
@@ -304,6 +352,9 @@ class TopIdentificationScheduler(MatchScheduler):
         """
         if ongoing_matches is None:
             ongoing_matches = set()
+
+        if filter_spec is None:
+            filter_spec = MatchFilterSpec()
 
         # If no games have been played yet, default to the same strategy as FullRankingScheduler
         if not match_history:
@@ -313,13 +364,13 @@ class TopIdentificationScheduler(MatchScheduler):
                 match_history,
                 elo_system,
                 ongoing_matches,
-                max_games_per_pairing,
+                filter_spec,
                 limit,
             )
 
         # Get candidate pairs
         candidates = self._get_candidate_pairs(
-            players, ongoing_matches, max_games_per_pairing, elo_system, match_history
+            players, ongoing_matches, filter_spec, elo_system, match_history
         )
 
         if not candidates:
@@ -480,7 +531,7 @@ class SigmaMinimizationScheduler(MatchScheduler):
         match_history: List[GameResult],
         elo_system: EloSystem,
         ongoing_matches: Optional[Set[Tuple[int, int]]] = None,
-        max_games_per_pairing: int = 10,
+        filter_spec: Optional[MatchFilterSpec] = None,
         limit: int = 5,
     ) -> List[Tuple["ArenaPlayer", "ArenaPlayer"]]:
         """
@@ -491,7 +542,7 @@ class SigmaMinimizationScheduler(MatchScheduler):
             match_history: List of all previous game results
             elo_system: The EloSystem used for computing probabilities
             ongoing_matches: Set of (player_id1, player_id2) tuples for matches currently in progress
-            max_games_per_pairing: Maximum number of games allowed between any two players
+            filter_spec: Filter specification with match constraints
             limit: Maximum number of matches to return
 
         Returns:
@@ -499,6 +550,9 @@ class SigmaMinimizationScheduler(MatchScheduler):
         """
         if ongoing_matches is None:
             ongoing_matches = set()
+
+        if filter_spec is None:
+            filter_spec = MatchFilterSpec()
 
         # Sort players by rating for default tie-breaking
         sorted_players = sorted(players, key=lambda p: p.rating.rating, reverse=True)
@@ -513,6 +567,17 @@ class SigmaMinimizationScheduler(MatchScheduler):
 
                 player_a = sorted_players[i]
                 player_b = sorted_players[i + 1]
+
+                # Apply selected player filter
+                if filter_spec.selected_player_names:
+                    if (
+                        player_a.llm_player.name
+                        not in filter_spec.selected_player_names
+                        and player_b.llm_player.name
+                        not in filter_spec.selected_player_names
+                    ):
+                        continue
+
                 pair_tuple = self._get_canonical_pair(
                     player_a.player_model.id, player_b.player_model.id
                 )
@@ -522,7 +587,7 @@ class SigmaMinimizationScheduler(MatchScheduler):
 
         # Otherwise, get candidates and sort by relevance score
         candidates = self._get_candidate_pairs(
-            players, ongoing_matches, max_games_per_pairing, elo_system, match_history
+            players, ongoing_matches, filter_spec, elo_system, match_history
         )
 
         if not candidates:

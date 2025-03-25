@@ -1,12 +1,11 @@
 import pytest
-import numpy as np
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, MagicMock
 from bgbench.scheduler import (
     MatchScheduler,
     FullRankingScheduler,
     TopIdentificationScheduler,
 )
-from bgbench.bayes_rating import EloSystem, GameResult
+from bgbench.bayes_rating import EloSystem
 
 
 class TestSchedulers:

@@ -187,7 +187,7 @@ class TestPlayerExperiment:
         # Test creating player without experiment_id (should fail NOT NULL constraint)
         player = Player(name="Test Player", model_config={})
         db_session.add(player)
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(Exception):
             db_session.commit()
         db_session.rollback()
 

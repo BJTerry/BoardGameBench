@@ -1,7 +1,6 @@
 import pytest
 import numpy as np
-from collections import defaultdict
-from bgbench.bayes_rating import EloSystem, PlayerRating, GameResult
+from bgbench.bayes_rating import EloSystem, GameResult
 
 
 class TestBayesRating:
@@ -138,7 +137,7 @@ class TestBayesRating:
         player_names = ["A", "B"]
 
         # Update ratings to create the trace
-        ratings = elo.update_ratings(history, player_names)
+        elo.update_ratings(history, player_names)
 
         # Get probability using posterior samples
         prob_a_stronger = elo.probability_stronger("A", "B")

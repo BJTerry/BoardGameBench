@@ -17,7 +17,7 @@ def test_initial_state(initial_state):
     assert len(initial_state.temp_positions) == 0
     assert len(initial_state.active_columns) == 0
     assert len(initial_state.current_dice) == 4
-    assert initial_state.awaiting_selection == True
+    assert initial_state.awaiting_selection
 
     # Check column setup
     assert len(initial_state.columns) == 11  # columns 2-12
@@ -45,18 +45,18 @@ def test_validate_move(game, initial_state):
 
     # Test valid moves
     valid_move = CantStopMove("select", [5, 9])  # Valid sum combination
-    assert game.validate_move(initial_state, 0, valid_move)[0] == True
+    assert game.validate_move(initial_state, 0, valid_move)[0]
 
     # Test invalid sum combination
     invalid_move = CantStopMove("select", [3, 11])  # Impossible with these dice
-    assert game.validate_move(initial_state, 0, invalid_move)[0] == False
+    assert not game.validate_move(initial_state, 0, invalid_move)[0]
 
     # Test wrong player
-    assert game.validate_move(initial_state, 1, valid_move)[0] == False
+    assert not game.validate_move(initial_state, 1, valid_move)[0]
 
     # Test wrong action when selection expected
     wrong_action = CantStopMove("roll", [])
-    assert game.validate_move(initial_state, 0, wrong_action)[0] == False
+    assert not game.validate_move(initial_state, 0, wrong_action)[0]
 
 
 def test_dice_combinations(game):
@@ -69,13 +69,13 @@ def test_dice_combinations(game):
 def test_has_valid_move(game, initial_state):
     # Test with dice that allow valid moves
     initial_state.current_dice = [2, 3, 4, 5]  # Sums: 5,9 or 6,8 or 7,7
-    assert game._has_valid_move(initial_state) == True
+    assert game._has_valid_move(initial_state)
 
     # Test with dice that have no valid moves
     # Mark all possible columns as claimed
     for i in range(2, 13):
         initial_state.columns[i].is_claimed = True
-    assert game._has_valid_move(initial_state) == False
+    assert not game._has_valid_move(initial_state)
 
 
 def test_apply_move_selection(game, initial_state):
@@ -87,7 +87,7 @@ def test_apply_move_selection(game, initial_state):
     assert new_state.temp_positions.get(9) == 1  # Advanced in column 9
     assert 5 in new_state.active_columns
     assert 9 in new_state.active_columns
-    assert new_state.awaiting_selection == False
+    assert not new_state.awaiting_selection
 
 
 def test_apply_move_stop(game, initial_state):
@@ -107,7 +107,7 @@ def test_apply_move_stop(game, initial_state):
     assert new_state.current_player == 1
     assert len(new_state.temp_positions) == 0
     assert len(new_state.active_columns) == 0
-    assert new_state.awaiting_selection == True
+    assert new_state.awaiting_selection
 
 
 def test_apply_move_bust(game, initial_state):
@@ -143,7 +143,7 @@ def test_win_condition(game, initial_state):
     initial_state.columns[4].claimed_by = 0
 
     view = game.get_player_view(initial_state, 0)
-    assert view.is_terminal == True
+    assert view.is_terminal
     assert view.winner == 0
 
 

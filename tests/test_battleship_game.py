@@ -38,14 +38,14 @@ def test_validate_move_during_play(game, empty_state):
     assert game.validate_move(empty_state, 0, (9, 9)) == (True, "")
 
     # Test invalid moves
-    assert game.validate_move(empty_state, 0, (10, 0))[0] == False  # Out of bounds
+    assert not game.validate_move(empty_state, 0, (10, 0))[0]  # Out of bounds
     assert (
-        game.validate_move(empty_state, 0, (-1, 0))[0] == False
+        not game.validate_move(empty_state, 0, (-1, 0))[0]
     )  # Negative coordinate
 
     # Test repeated move
     empty_state.boards[1].hits.add((0, 0))
-    assert game.validate_move(empty_state, 0, (0, 0))[0] == False  # Already hit
+    assert not game.validate_move(empty_state, 0, (0, 0))[0]  # Already hit
 
 
 def test_apply_move_during_play(game, empty_state, sample_board):

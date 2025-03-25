@@ -1,8 +1,7 @@
 import json
 import logging
-from typing import Optional, List, Dict, Any, cast, Union
+from typing import Optional, List, Dict, Any
 from sqlalchemy import Integer, String, ForeignKey, JSON, Float, select, event, Boolean, func, text
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import (
     relationship,
     Session,
@@ -10,7 +9,6 @@ from sqlalchemy.orm import (
     mapped_column,
     declarative_base,
 )
-from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.types import TypeDecorator
 from bgbench.serialization import serialize_value
 
@@ -43,7 +41,7 @@ class Experiment(Base):
         self, session: Session, name: str, description: str = ""
     ) -> "Experiment":
         # Check if we need to adjust the sequence for PostgreSQL
-        if session.bind.dialect.name == 'postgresql':
+        if session.bind is not None and session.bind.dialect.name == 'postgresql':
             # Get the highest experiment ID to ensure proper sequence
             stmt = select(func.max(Experiment.id))
             max_id = session.execute(stmt).scalar()
@@ -109,7 +107,7 @@ class Player(Base):
     ) -> "Player":
         """Create a new player with model configuration."""
         # Check if we need to adjust the sequence for PostgreSQL
-        if session.bind.dialect.name == 'postgresql':
+        if session.bind is not None and session.bind.dialect.name == 'postgresql':
             # Get the highest player ID to ensure proper sequence
             stmt = select(func.max(Player.id))
             max_id = session.execute(stmt).scalar()

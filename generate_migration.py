@@ -42,7 +42,7 @@ def generate_migration():
     command.revision(
         alembic_cfg, message="Initial PostgreSQL schema", autogenerate=True
     )
-    print(f"Migration generated successfully.")
+    print("Migration generated successfully.")
 
 
 if __name__ == "__main__":

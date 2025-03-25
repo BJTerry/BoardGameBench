@@ -1,18 +1,16 @@
 import pytest
 import logging
-from unittest.mock import MagicMock, patch
 import random
+from unittest.mock import MagicMock, patch
+from bgbench.arena import Arena
+from bgbench.games.nim_game import NimGame
+from bgbench.models import Experiment, Player as DBPlayer, GameMatch
 
 
 async def mock_play_game_no_elo_update(self):
     # Pretend a random player wins, but we skip rating updates.
     winner = random.choice(self.players)
     return winner, [], None  # no rating changes
-
-
-from bgbench.arena import Arena
-from bgbench.games.nim_game import NimGame
-from bgbench.models import Experiment, Player as DBPlayer, GameMatch
 
 
 @pytest.fixture

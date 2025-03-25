@@ -1,7 +1,6 @@
 import pytest
 from bgbench.games.azul_game import (
     AzulGame,
-    AzulState,
     AzulMove,
     PlayerBoard,
     TileColor,

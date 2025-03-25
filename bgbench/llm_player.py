@@ -4,8 +4,7 @@ from bgbench.llm_integration import ResponseStyle, create_llm, complete_prompt
 from dataclasses import dataclass, field
 import time
 from bgbench.game_view import GameView, PromptStyle
-from bgbench.llm_integration import NON_SYSTEM_MODELS, SYSTEM_PROMPT
-from bgbench.models import LLMInteraction, Player
+from bgbench.models import LLMInteraction
 
 logger = logging.getLogger("bgbench")
 

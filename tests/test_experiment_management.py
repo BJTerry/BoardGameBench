@@ -1,6 +1,6 @@
 import asyncio
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from bgbench.models import Experiment, GameMatch, Player
 from bgbench.arena import Arena
 from bgbench.games.nim_game import NimGame
@@ -54,7 +54,8 @@ class TestExperimentManagement:
         db_session.commit()
 
         # Create mock LLM factory
-        mock_llm_factory = lambda name: test_llm
+        def mock_llm_factory(name):
+            return test_llm
 
         # Resume experiment
         arena = Arena(
@@ -98,7 +99,8 @@ class TestExperimentManagement:
         db_session.commit()
 
         # Resume experiment
-        mock_llm_factory = lambda name: test_llm
+        def mock_llm_factory(name):
+            return test_llm
         arena = Arena(
             NimGame(12, 3),
             db_session,
@@ -156,7 +158,8 @@ class TestExperimentManagement:
             }
         ]
         # Create mock LLM factory that returns our test LLM
-        mock_llm_factory = lambda name: test_llm
+        def mock_llm_factory(name):
+            return test_llm
 
         arena = Arena(
             NimGame(12, 3),
@@ -186,8 +189,7 @@ class TestExperimentManagement:
             },
         ]
 
-        # Create mock LLM factory that returns our test LLM
-        mock_llm_factory = lambda name: test_llm
+        # Reuse the same LLM factory for the second arena
 
         # Create arena with player configs
         arena = Arena(
@@ -235,7 +237,8 @@ class TestExperimentManagement:
         ]
         
         # Create arena with test players
-        mock_llm_factory = lambda name: test_llm
+        def mock_llm_factory(name):
+            return test_llm
         arena = Arena(
             NimGame(12, 3),
             db_session,

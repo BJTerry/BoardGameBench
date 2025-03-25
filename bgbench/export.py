@@ -198,7 +198,7 @@ def format_for_export(
         intervals = elo_system.get_credible_intervals(player_names)
     else:
         # Default intervals if no match history
-        intervals = {p: (1435, 1565) for p in player_names}  # Default 95% interval
+        raise ValueError("Cannot export data: No match history available for the experiment.")
 
     # Count games played and wins for each player
     games_played = {p.name: 0 for p in players}

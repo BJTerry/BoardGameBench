@@ -20,7 +20,7 @@ from bgbench.export import (
     count_draws,
     build_match_history,
 )
-from bgbench.scheduler import MatchScheduler, FullRankingScheduler
+from bgbench.scheduler import MatchScheduler, SigmaMinimizationScheduler
 
 logger = logging.getLogger("bgbench")
 
@@ -68,7 +68,7 @@ class Arena:
             max_parallel_games: Number of games to run in parallel
             cost_budget: Maximum cost budget for the experiment in dollars
             llm_factory: Optional function for testing that creates LLM instances
-            match_scheduler: Optional scheduler for choosing player matchups (defaults to FullRankingScheduler)
+            match_scheduler: Optional scheduler for choosing player matchups (defaults to SigmaMinimizationScheduler)
         """
         self.game: Game = game
         self.players: List[ArenaPlayer] = []
@@ -85,9 +85,9 @@ class Arena:
         self._force_stop = False
         self._active_tasks: Set[asyncio.Task] = set()
 
-        # Set up the match scheduler (default to FullRankingScheduler if not provided)
+        # Set up the match scheduler (default to SigmaMinimizationScheduler if not provided)
         if match_scheduler is None:
-            self.match_scheduler = FullRankingScheduler()
+            self.match_scheduler = SigmaMinimizationScheduler()
         else:
             self.match_scheduler = match_scheduler
 

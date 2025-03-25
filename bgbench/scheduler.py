@@ -5,12 +5,13 @@ This module provides a common interface for scheduling matches between players,
 with different implementations optimizing for different goals:
 1. Top Identification Strategy: focuses on identifying the single best model with high confidence
 2. Full Ranking Uncertainty Strategy: focuses on reducing overall pairwise uncertainty among all models
+3. Sigma Minimization Strategy: focuses on reducing uncertainty (sigma) for players with highest uncertainty
 """
 
 from typing import List, Optional, Tuple, Dict, Set, cast, Any, TYPE_CHECKING
 import numpy as np
 import logging
-from bgbench.bayes_rating import EloSystem, GameResult, PlayerRating
+from bgbench.bayes_rating import EloSystem, GameResult
 
 # Handle circular imports
 if TYPE_CHECKING:
@@ -61,13 +62,13 @@ class MatchScheduler:
             ongoing_matches: Set of (player_id1, player_id2) tuples for matches currently in progress
             max_games_per_pairing: Maximum number of games allowed between any two players
             elo_system: The EloSystem used for computing probabilities
+            match_history: Optional list of game results to consider
 
         Returns:
             List of (playerA, playerB, relevance_score) tuples for valid candidate pairs,
             where relevance_score is a strategy-specific score for how important this match is
         """
         candidates = []
-        player_ids = {player.player_model.id: player for player in players}
 
         # Track number of games between each pair
         games_per_pair: Dict[Tuple[int, int], int] = {}
@@ -445,3 +446,105 @@ class TopIdentificationScheduler(MatchScheduler):
 
         # Shannon entropy: -sum(p_i * log(p_i))
         return -np.sum(non_zero_probs * np.log(non_zero_probs))
+
+
+class SigmaMinimizationScheduler(MatchScheduler):
+    """
+    A scheduler that focuses on reducing uncertainty (sigma) for players with highest uncertainty.
+    
+    This scheduler prioritizes matches that will most likely reduce the sigma value for 
+    players with high uncertainty in their skill rating. It targets the players with the 
+    highest sigma values and schedules matches that will provide the most information about
+    their true skill level.
+    """
+    
+    def find_match(
+        self,
+        players: List["ArenaPlayer"],
+        match_history: List[GameResult],
+        elo_system: EloSystem,
+        ongoing_matches: Optional[Set[Tuple[int, int]]] = None,
+        max_games_per_pairing: int = 10,
+    ) -> Optional[Tuple["ArenaPlayer", "ArenaPlayer"]]:
+        """
+        Find the match that will most reduce uncertainty (sigma) for high-uncertainty players.
+        
+        Args:
+            players: List of all players in the arena
+            match_history: List of all previous game results
+            elo_system: The EloSystem used for computing probabilities
+            ongoing_matches: Set of (player_id1, player_id2) tuples for matches currently in progress
+            max_games_per_pairing: Maximum number of games allowed between any two players
+            
+        Returns:
+            A tuple of (playerA, playerB) for the next match, or None if no match is needed
+        """
+        if ongoing_matches is None:
+            ongoing_matches = set()
+            
+        # Sort players by rating for default tie-breaking
+        sorted_players = sorted(players, key=lambda p: p.rating.rating, reverse=True)
+        
+        # For brand new experiments with no history, use adjacent players in ratings
+        if not match_history:
+            logger.debug("No game history yet, starting with adjacent players")
+            for i in range(len(sorted_players) - 1):
+                player_a = sorted_players[i]
+                player_b = sorted_players[i + 1]
+                pair_tuple = self._get_canonical_pair(
+                    player_a.player_model.id, player_b.player_model.id
+                )
+                if pair_tuple not in ongoing_matches:
+                    return player_a, player_b
+            return None
+        
+        # Otherwise, get candidates and sort by relevance score
+        candidates = self._get_candidate_pairs(
+            players, ongoing_matches, max_games_per_pairing, elo_system, match_history
+        )
+        
+        if not candidates:
+            return None
+            
+        # Sort by relevance score (higher is more important)
+        candidates.sort(key=lambda x: x[2], reverse=True)
+        return candidates[0][0], candidates[0][1]
+        
+    def _calculate_pair_relevance(
+        self, player_a: "ArenaPlayer", player_b: "ArenaPlayer", elo_system: EloSystem
+    ) -> float:
+        """
+        Calculate the relevance score based on potential sigma reduction.
+        
+        The score is based on:
+        1. The maximum sigma value between the two players (prioritizing high uncertainty players)
+        2. The closeness of their skill ratings (matches between similarly skilled players 
+           provide more information)
+        
+        Args:
+            player_a: First player
+            player_b: Second player
+            elo_system: The EloSystem used for computing probabilities
+            
+        Returns:
+            Relevance score for sigma reduction potential
+        """
+        # Get sigma values for both players
+        sigma_a = player_a.rating.sigma
+        sigma_b = player_b.rating.sigma
+        
+        # Prioritize matches involving players with high sigma
+        max_sigma = max(sigma_a, sigma_b)
+        
+        # Calculate probability that player_a is stronger than player_b
+        # Matches closer to 0.5 provide more information (50/50 matches are most informative)
+        prob = elo_system.probability_stronger(
+            player_a.llm_player.name, player_b.llm_player.name
+        )
+        uncertainty = 0.5 - abs(prob - 0.5)
+        
+        # Combine both factors:
+        # - Higher max_sigma means we want to reduce uncertainty for a high-uncertainty player
+        # - Higher uncertainty (closer to 0.5 probability) means the match will be more informative
+        # This formula prioritizes matches that involve high-uncertainty players in informative games
+        return max_sigma * uncertainty

@@ -194,7 +194,7 @@ def format_for_export(
     # Update ratings using Bayesian system if we have matches
     if match_history:
         # Calculate ratings and get confidence intervals
-        _ = elo_system.update_ratings(match_history, player_names)
+        player_ratings = elo_system.update_ratings(match_history, player_names)
         intervals = elo_system.get_credible_intervals(player_names)
     else:
         # Default intervals if no match history
@@ -238,7 +238,7 @@ def format_for_export(
     # Format results for each player
     for player in players:
         name = player.name
-        rating_value = player.rating
+        rating_value = player_ratings[name].rating
         player_games = games_played[name]
 
         # Skip players with no games

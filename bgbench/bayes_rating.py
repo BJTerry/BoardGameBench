@@ -18,7 +18,6 @@ Usage:
      which player is stronger, based on `confidence_threshold`.
 """
 
-import math
 from typing import List, Dict, Optional, Tuple, Any, cast
 from dataclasses import dataclass
 import numpy as np
@@ -28,7 +27,6 @@ import numpy as np
 #   pip install pymc
 import pymc as pm
 import arviz as az
-from arviz.data.inference_data import InferenceData
 
 
 @dataclass
@@ -187,14 +185,28 @@ class EloSystem:
         #      P(outcome=1 => p1 wins) = p1 / denom
         #      P(outcome=2 => draw)    = c  / denom
 
+        # Calculate data-driven draw parameter if we have draws
+        draw_parameter = self.draws_parameter_prior
+        draw_count = np.sum(outcome_array == 2)  # Count draws (outcome == 2)
+        if draw_count > 0:
+            # Calculate observed draw rate
+            draw_rate = draw_count / len(outcome_array)
+            # For two equally rated players (1500), set draw probability to match observed rate
+            # P(draw) = c / (2 × 10^(1500/400) + c) = draw_rate
+            # Solving for c: c = draw_rate * (2 × 10^(1500/400) + c)
+            # c = (draw_rate * 2 × 10^(1500/400)) / (1 - draw_rate)
+            if draw_rate < 1.0:  # Prevent division by zero
+                base_term = 2 * (10 ** (1500 / 400))
+                draw_parameter = (draw_rate * base_term) / (1 - draw_rate)
+        
         with pm.Model():
             # skill for each player
             skill = pm.Normal("skill", mu=1500.0, sigma=400.0, shape=n_players)
 
             # draw parameter c
-            # Using an exponential prior centered on draws_parameter_prior
-            # e.g., if draws_parameter_prior=10 => mean(c)=10
-            c = pm.Exponential("c", lam=1.0 / self.draws_parameter_prior)
+            # Using an exponential prior centered on calculated draw_parameter
+            # e.g., if draw_parameter=10 => mean(c)=10
+            c = pm.Exponential("c", lam=1.0 / draw_parameter)
 
             # Evaluate logistic-like expressions
             p0_ = 10 ** (skill[p0_array] / 400.0)
@@ -210,7 +222,7 @@ class EloSystem:
             # Use proper stacking for PyMC 5.x (replacing pm.stack with pytensor.tensor.stack)
             import pytensor.tensor as pt
 
-            outcome = pm.Categorical(
+            pm.Categorical(
                 "outcome",
                 p=pt.stack([p_win0, p_win1, p_draw], axis=1),
                 observed=outcome_array,

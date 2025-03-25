@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from bgbench.bayes_rating import EloSystem, GameResult
+from bgbench.rating import EloSystem, GameResult
 
 
 class TestBayesRating:
@@ -283,4 +283,4 @@ class TestBayesRating:
 
 # To avoid running the tests all the time when imported
 if __name__ == "__main__":
-    pytest.main(["-xvs", "test_bayes_rating.py"])
+    pytest.main(["-xvs", "test_rating.py"])

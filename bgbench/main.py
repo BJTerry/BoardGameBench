@@ -304,7 +304,7 @@ def calculate_skill_probabilities(
             - Dictionary mapping player pairs (p1, p2) to the probability that p1's skill > p2's skill
             - Dictionary mapping player pairs (p1, p2) to their record as (wins, losses, draws)
     """
-    from bgbench.bayes_rating import EloSystem, GameResult
+    from bgbench.rating import EloSystem, GameResult
 
     # Initialize win-loss-draw records for each player pair
     # (wins, losses, draws) from p1's perspective

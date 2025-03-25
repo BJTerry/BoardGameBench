@@ -12,7 +12,7 @@ from bgbench.game import Game
 from bgbench.llm_player import LLMPlayer
 from bgbench.game_view import PromptStyle
 from bgbench.game_runner import GameRunner
-from bgbench.bayes_rating import PlayerRating, EloSystem, GameResult
+from bgbench.rating import PlayerRating, EloSystem, GameResult
 from bgbench.export import (
     is_game_complete,
     is_game_draw,

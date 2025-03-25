@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Tuple, Dict, Set, cast, Any, TYPE_CHECKING
 import numpy as np
 import logging
-from bgbench.bayes_rating import EloSystem, GameResult
+from bgbench.rating import EloSystem, GameResult
 
 # Handle circular imports
 if TYPE_CHECKING:

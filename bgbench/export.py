@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from bgbench.models import Experiment, GameMatch, Player, LLMInteraction
-from bgbench.bayes_rating import EloSystem, GameResult
+from bgbench.rating import EloSystem, GameResult
 
 logger = logging.getLogger("bgbench")
 

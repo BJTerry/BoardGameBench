@@ -5,7 +5,7 @@ from bgbench.scheduler import (
     FullRankingScheduler,
     TopIdentificationScheduler,
 )
-from bgbench.bayes_rating import EloSystem
+from bgbench.rating import EloSystem
 
 
 class TestSchedulers:

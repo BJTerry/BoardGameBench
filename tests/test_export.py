@@ -218,7 +218,7 @@ class TestExportFunctionality:
 
         # Use a real EloSystem with the probability_stronger method patched
         with patch(
-            "bgbench.bayes_rating.EloSystem.probability_stronger"
+            "bgbench.rating.EloSystem.probability_stronger"
         ) as mock_prob_stronger:
             # Always return that Player 1 is stronger than Player 2 with >95% probability
             mock_prob_stronger.return_value = 0.96

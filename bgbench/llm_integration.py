@@ -24,7 +24,7 @@ register_model(
             "supports_function_calling": True,
             "supports_tool_choice": True,
         },
-        "openrouter/openai/o3-mini": {
+        "openai/o3-mini": {
             "max_tokens": 100000,
             "max_input_tokens": 200000,
             "max_output_tokens": 100000,

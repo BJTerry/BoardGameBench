@@ -24,14 +24,14 @@ register_model(
             "supports_function_calling": True,
             "supports_tool_choice": True,
         },
-        "openai/o3-mini": {
+        "openrouter/openai/o3-mini": {
             "max_tokens": 100000,
             "max_input_tokens": 200000,
             "max_output_tokens": 100000,
             "input_cost_per_token": 0.0000011,
             "output_cost_per_token": 0.0000044,
             "cache_read_input_token_cost": 0.00000055,
-            "litellm_provider": "openai",
+            "litellm_provider": "openrouter",
             "mode": "chat",
             "supports_function_calling": True,
             "supports_parallel_function_calling": False,

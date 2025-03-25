@@ -93,7 +93,7 @@ async def main():
             )
 
         if not args.game:
-            parser.error("--game is required unless using --list")
+            parser.error("--game is required unless using --list or --export-experiment")
 
         if args.players:
             with open(args.players, "r") as f:
@@ -105,11 +105,11 @@ async def main():
                     f"Player: {entry.get('name')} - Model: {model_conf.get('model')}, Temperature: {model_conf.get('temperature')}, Max Tokens: {model_conf.get('max_tokens')}, Response Style: {model_conf.get('response_style')}, Prompt Style: {entry.get('prompt_style')}"
                 )
 
-    # Get game information if needed (not for --list)
+    # Get game information if needed (not for --list or --export-experiment)
     game = None
-    if not args.list:
+    if not args.list and not args.export_experiment:
         if not args.game:
-            parser.error("--game is required except when using --list")
+            parser.error("--game is required except when using --list or --export-experiment")
 
         # Get the game class from our available games
         game_class = AVAILABLE_GAMES[args.game]
@@ -127,8 +127,9 @@ async def main():
             logger.info(f"Games played: {games}")
         return
 
-    # Handle export-experiment flag
+    # Handle export-experiment flag - doesn't require --game option
     if args.export_experiment:
+        # Skip the game check for export-experiment
         experiment = Experiment.resume_experiment(db_session, args.export_experiment)
         if not experiment:
             logger.error(f"No experiment found with ID {args.export_experiment}")

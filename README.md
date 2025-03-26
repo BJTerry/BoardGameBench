@@ -13,11 +13,13 @@ This framework allows you to:
 ## Features
 
 - Modular game implementation system
-- Support for multiple LLM providers (Anthropic, OpenAI)
-- Elo rating system with uncertainty handling
+- Support for multiple LLM providers (Anthropic, OpenAI, OpenRouter) through litellm
+- Multiple scheduling strategies: Full Ranking, Top Identification, Sigma Minimization (see `scheduler.py`)
+- Bayesian Elo rating with uncertainty handling (see `rating.py`)
 - Async support for efficient game execution
 - Conversation management for LLM context
 - Built-in move validation and error handling
+- Experiment export in standardized formats (see `export.py`)
 
 ## Getting Started
 
@@ -81,42 +83,19 @@ poetry run pytest
 poetry run pytest tests/test_war_game.py
 ```
 
-### Test Infrastructure
-
-The testing infrastructure includes:
-
-- **pytest-asyncio**: For testing async code
-- **pytest-mock**: For mocking dependencies
-- **pydantic-ai TestModel**: For simulating LLM responses
-- **Fixtures**: Common test fixtures in `conftest.py`
-
-### Test Coverage
-
-Tests cover:
-- Game logic (move validation, state transitions)
-- LLM interactions (move generation, error handling)
-- Database operations (logging, state tracking)
-- Edge cases and error conditions
-
-### Writing Tests
-
-New tests should:
-- Use appropriate fixtures from `conftest.py`
-- Mock external dependencies
-- Test both success and failure cases
-- Follow existing patterns for similar components
-
-### Maintaining Tests
-
-- **Add Tests for New Features**: Create corresponding unit tests for new functionality
-- **Update Existing Tests**: Modify tests when changing existing features
-- **Test Coverage**: Maintain high coverage of critical paths
-- **Continuous Integration**: Tests run automatically on each commit
-
 ## Contributing
 
-See DESIGN.md for architectural details and contribution guidelines.
+See DESIGN.md for architectural details and contribution guidelines. Note that this project is primarily coded by LLMs
+with imperfect human supervision. 
+
+If you are interested in using this in your own research, please let me know.
 
 ## License
 
-Copyright BJ Terry, All Rights Reserved
+Copyright (c) 2025 BJ Terry
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

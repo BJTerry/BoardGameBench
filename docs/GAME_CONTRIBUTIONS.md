@@ -226,6 +226,7 @@ To ensure the robustness and correctness of your game implementation, it is cruc
 - **Consistent Naming:** Use descriptive names for test functions to indicate what they are testing.
 - **Comprehensive Coverage:** Ensure tests cover all aspects of the game logic, including edge cases.
 - **Use Assertions:** Use assertions to verify expected outcomes and behaviors.
+- **Reference Examples:** See `tests/test_nim_game.py` for examples of testing game logic and LLM interactions.
 
 ---
 

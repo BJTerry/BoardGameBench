@@ -91,6 +91,8 @@ PostgreSQL enforces data integrity through foreign key constraints. This means:
 
 If SQLite had orphaned records (e.g., game states referring to non-existent games), these will be skipped during migration.
 
+- **Foreign Key Constraints**: PostgreSQL ensures data integrity (e.g., game states must reference valid games). Records violating constraints will be skipped.
+
 ## Sequence Synchronization
 
 PostgreSQL uses sequence objects to generate values for auto-incrementing primary keys. When migrating data from SQLite, these sequences need to be synchronized with the existing data to prevent duplicate key errors.

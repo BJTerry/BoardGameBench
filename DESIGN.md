@@ -46,6 +46,10 @@ Each game provides:
 - Comprehensive game history
 - Clear win condition tracking
 
+Required Game Interface Methods:
+- `get_rules_explanation(self) -> str`: Returns a string explaining the game rules.
+- `get_move_format_instructions(self) -> str`: Returns instructions for formatting moves (e.g., "WORD 7 7 horizontal" for Scrabble).
+
 ### 2. LLM Integration
 
 Advanced integration features:
@@ -55,20 +59,52 @@ Advanced integration features:
 - Detailed interaction logging
 - Performance metrics tracking
 
-### 3. Database Integration
+### 3. Concurrency and Scheduling
 
-Comprehensive experiment tracking:
-- Full game history
-- Player statistics
-- LLM interaction details
-- Performance metrics
-- Rating progression
+- Concurrency: The `Arena` class leverages `asyncio` for parallel game execution, using `_active_tasks` for task management, `_lock` for state synchronization, and `ongoing_matches` to track progress (see `arena.py`).
+- Scheduling Strategies: Configurable via `scheduler.py`:
+  - `SigmaMinimizationScheduler`: Reduces uncertainty for uncertain players.
+  - `TopIdentificationScheduler`: Identifies the best model.
+  - `FullRankingScheduler`: Optimizes overall rankings.
+
+### 4. Bayesian Rating System
+
+- Bayesian Elo System: Uses PyMC for MCMC sampling, modeling wins/draws with a multi-outcome categorical approach. Default skill priors are set, with typical chain lengths for sampling (see `rating.py`).
+
+### 5. Database Integration
+
+- Experiment Tracking: The `Arena` loop integrates with the database schema (`models.py`):
+  - Game start creates a `GameMatch`.
+  - Moves are logged as `LLMInteraction`.
+  - Results update `Player` ratings in `rating.py`.
+- Comprehensive experiment tracking:
+  - Full game history
+  - Player statistics
+  - LLM interaction details
+  - Performance metrics
+  - Rating progression
 
 ## Testing Framework
 
 - **Framework:** The project uses `pytest` for unit testing.
 - **Approach:** Write tests to cover core game logic, edge cases, and full game scenarios.
 - **Guidelines:** Refer to `GAME_CONTRIBUTIONS.md` for detailed instructions on writing tests for new games.
+
+### Writing Tests
+
+New tests should:
+- Use appropriate fixtures from `conftest.py`
+- Mock external dependencies
+- Test both success and failure cases
+- Follow existing patterns for similar components
+
+### Maintaining Tests
+
+- **Add Tests for New Features**: Create corresponding unit tests for new functionality
+- **Update Existing Tests**: Modify tests when changing existing features
+- **Test Coverage**: Maintain high coverage of critical paths
+- **Continuous Integration**: Tests run automatically on each commit
+
 
 ### Best Practices
 
@@ -93,11 +129,14 @@ Comprehensive experiment tracking:
 ## Current Status
 
 1. Core Features
-   - Robust game engine
+   - Robust game engine with implementations for Chess, Azul, Scrabble, and more (see `bgbench/games/`).
    - Advanced LLM integration
+   - Advanced scheduling strategies in the Arena system:
+     - `SigmaMinimizationScheduler`: Targets players with high uncertainty.
+     - `TopIdentificationScheduler`: Identifies the top-performing model.
+     - `FullRankingScheduler`: Clarifies pairwise rankings.
+   - Bayesian Elo rating system with uncertainty handling (see `rating.py`).
    - Comprehensive testing
-   - Detailed experiment tracking
-   - Rating system implementation
 
 2. Database Features
    - Full experiment logging

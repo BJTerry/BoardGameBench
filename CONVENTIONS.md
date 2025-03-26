@@ -141,8 +141,10 @@ Complexity is what kills you
 When you finish editing, present me with a list of options of how we could continue. Indicate what you think should be the next step
 When I just send you the letter c, I mean continue
 Make scripts executable
-Don't add any docstrings or comments, unless they really are needed for explaining the why 
-When you see comments or docstrings that are not absolutely necessary remove them.
+- Use docstrings for public interfaces and complex methods to clarify purpose or tricky logic (e.g., "why" this approach was chosen).
+- Add comments to explain reasoning behind complex or non-intuitive code, avoiding descriptions of obvious behavior.
+- Example: In `bgbench/game.py`, docstrings summarize game state usage, which is encouraged for clarity.
+- Ensure code remains self-documenting for straightforward behavior, using docstrings/comments sparingly but effectively.
 Use type hints whenever possible.
 
 Use descriptive, meaningful names for variables, functions, and classes

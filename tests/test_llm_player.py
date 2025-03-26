@@ -175,9 +175,7 @@ async def test_llm_player_truncates_long_invalid_moves(test_llm, db_session):
     test_llm.set_response("2")
     move = await llm_player.make_move(
         game_view,
-        invalid_moves=[
-            {"move": long_move, "explanation": "Invalid format"}
-        ],
+        invalid_moves=[{"move": long_move, "explanation": "Invalid format"}],
     )
 
     assert move == "2"
@@ -188,6 +186,6 @@ async def test_llm_player_truncates_long_invalid_moves(test_llm, db_session):
     # The truncated move should be 100 characters exactly
     truncated_part = long_move[:100]
     assert truncated_part in test_llm.last_prompt
-    
+
     # Make sure the truncation message is properly formatted
     assert "Attempt 1 (truncated to 100 characters):" in test_llm.last_prompt

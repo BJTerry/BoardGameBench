@@ -50,7 +50,7 @@ class LLMPlayer:
         if invalid_moves:
             invalid_moves_text = "Previous Invalid Moves:\n"
             for i, invalid_move in enumerate(invalid_moves, 1):
-                move_text = invalid_move['move']
+                move_text = invalid_move["move"]
                 if len(move_text) > 100:
                     move_text = move_text[:100]
                     invalid_moves_text += (

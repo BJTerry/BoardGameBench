@@ -150,7 +150,9 @@ def get_player_costs(
 
 
 def calculate_skill_comparison_data(
-    match_history: List[GameResult], player_names: List[str], elo_system: Optional[EloSystem] = None
+    match_history: List[GameResult],
+    player_names: List[str],
+    elo_system: Optional[EloSystem] = None,
 ) -> Tuple[Dict[Tuple[str, str], float], Dict[Tuple[str, str], Tuple[int, int, int]]]:
     """
     Calculate the probability that one player's skill is higher than another's using Bayesian ratings.
@@ -216,7 +218,9 @@ def calculate_skill_comparison_data(
             if p1 != p2:
                 # Calculate probability that p1's skill is higher than p2's skill
                 try:
-                    skill_probabilities[(p1, p2)] = elo_system.probability_stronger(p1, p2)
+                    skill_probabilities[(p1, p2)] = elo_system.probability_stronger(
+                        p1, p2
+                    )
                 except RuntimeError:
                     # If there's no data for these players, use 0.5 as default
                     skill_probabilities[(p1, p2)] = 0.5
@@ -232,7 +236,7 @@ def calculate_skill_comparison_data(
 def format_skill_comparison_for_export(
     skill_probabilities: Dict[Tuple[str, str], float],
     records: Dict[Tuple[str, str], Tuple[int, int, int]],
-    player_names: List[str]
+    player_names: List[str],
 ) -> List[Dict[str, Any]]:
     """
     Format skill comparison data according to the schema.json format
@@ -247,26 +251,28 @@ def format_skill_comparison_for_export(
     """
     # Create a flat list of comparisons as required by the new schema
     comparisons = []
-    
+
     for model in player_names:
         for opponent in player_names:
             if model != opponent:  # Skip self-comparisons
                 pair = (model, opponent)
                 probability = skill_probabilities.get(pair, 0.5)
-                
+
                 # Get record as (wins, losses, draws) from model's perspective
                 wins, losses, draws = records.get(pair, (0, 0, 0))
-                
+
                 # Format according to schema
-                comparisons.append({
-                    "model": model,
-                    "opponent": opponent,
-                    "probability": probability,
-                    "wins": wins,
-                    "losses": losses,
-                    "draws": draws
-                })
-    
+                comparisons.append(
+                    {
+                        "model": model,
+                        "opponent": opponent,
+                        "probability": probability,
+                        "wins": wins,
+                        "losses": losses,
+                        "draws": draws,
+                    }
+                )
+
     return comparisons
 
 
@@ -319,7 +325,9 @@ def format_for_export(
         intervals = elo_system.get_credible_intervals(player_names)
     else:
         # Default intervals if no match history
-        raise ValueError("Cannot export data: No match history available for the experiment.")
+        raise ValueError(
+            "Cannot export data: No match history available for the experiment."
+        )
 
     # Count games played and wins for each player
     games_played = {p.name: 0 for p in players}
@@ -447,7 +455,7 @@ def format_for_export(
     skill_probabilities, records = calculate_skill_comparison_data(
         match_history, player_names, elo_system
     )
-    
+
     # Format skill comparison data for export
     skill_comparison_data = format_skill_comparison_for_export(
         skill_probabilities, records, player_names

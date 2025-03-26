@@ -101,6 +101,7 @@ class TestExperimentManagement:
         # Resume experiment
         def mock_llm_factory(name):
             return test_llm
+
         arena = Arena(
             NimGame(12, 3),
             db_session,
@@ -157,6 +158,7 @@ class TestExperimentManagement:
                 },
             }
         ]
+
         # Create mock LLM factory that returns our test LLM
         def mock_llm_factory(name):
             return test_llm
@@ -212,7 +214,7 @@ class TestExperimentManagement:
         exp_player_names = {p.name for p in exp_players}
         assert "new-player-1" in exp_player_names
         assert "new-player-2" in exp_player_names
-        
+
     @pytest.mark.asyncio
     async def test_graceful_termination(self, db_session, test_llm):
         """Test that graceful termination works correctly"""
@@ -235,10 +237,11 @@ class TestExperimentManagement:
                 },
             },
         ]
-        
+
         # Create arena with test players
         def mock_llm_factory(name):
             return test_llm
+
         arena = Arena(
             NimGame(12, 3),
             db_session,
@@ -246,47 +249,50 @@ class TestExperimentManagement:
             experiment_name="termination-test",
             llm_factory=mock_llm_factory,
         )
-        
+
         # Create mock game task that will run for a while
         async def mock_long_game(*args, **kwargs):
             await asyncio.sleep(1)
             return True
-        
+
         # Replace find_next_available_match to always return the same players
         async def mock_find_match(*args, **kwargs):
             return arena.players[0], arena.players[1]
-        
+
         # Patch the methods
-        with patch.object(arena, 'run_single_game', side_effect=mock_long_game), \
-             patch.object(arena, 'find_next_available_match', side_effect=mock_find_match):
-             
+        with (
+            patch.object(arena, "run_single_game", side_effect=mock_long_game),
+            patch.object(
+                arena, "find_next_available_match", side_effect=mock_find_match
+            ),
+        ):
             # Start the arena in a task
             arena_task = asyncio.create_task(arena.evaluate_all())
-            
+
             # Wait for games to start
             await asyncio.sleep(0.2)
-            
+
             # Verify games are running
             assert len(arena._active_tasks) > 0
-            
+
             # Simulate first Ctrl+C
             arena.handle_sigint()
-            
+
             # Verify that scheduling has stopped but games continue
             assert arena._stop_scheduling
             assert not arena._force_stop
-            
+
             # Wait a bit and verify no new games were scheduled
             num_tasks = len(arena._active_tasks)
             await asyncio.sleep(0.2)
             assert len(arena._active_tasks) <= num_tasks  # Should not increase
-            
+
             # Simulate second Ctrl+C
             arena.handle_sigint()
-            
+
             # Verify that force stop is now True
             assert arena._force_stop
-            
+
             # Wait for arena to finish
             await arena_task
 

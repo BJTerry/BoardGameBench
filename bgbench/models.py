@@ -1,7 +1,18 @@
 import json
 import logging
 from typing import Optional, List, Dict, Any
-from sqlalchemy import Integer, String, ForeignKey, JSON, Float, select, event, Boolean, func, text
+from sqlalchemy import (
+    Integer,
+    String,
+    ForeignKey,
+    JSON,
+    Float,
+    select,
+    event,
+    Boolean,
+    func,
+    text,
+)
 from sqlalchemy.orm import (
     relationship,
     Session,
@@ -41,17 +52,21 @@ class Experiment(Base):
         self, session: Session, name: str, description: str = "", game_name: str = ""
     ) -> "Experiment":
         # Check if we need to adjust the sequence for PostgreSQL
-        if session.bind is not None and session.bind.dialect.name == 'postgresql':
+        if session.bind is not None and session.bind.dialect.name == "postgresql":
             # Get the highest experiment ID to ensure proper sequence
             stmt = select(func.max(Experiment.id))
             max_id = session.execute(stmt).scalar()
-            
+
             if max_id is not None:
                 # Set the sequence to start from max_id + 1
-                session.execute(text(f"SELECT setval('experiments_id_seq', {max_id}, true)"))
+                session.execute(
+                    text(f"SELECT setval('experiments_id_seq', {max_id}, true)")
+                )
                 logger.debug(f"Adjusted PostgreSQL sequence to start after ID {max_id}")
-                
-        new_experiment = Experiment(name=name, description=description, game_name=game_name)
+
+        new_experiment = Experiment(
+            name=name, description=description, game_name=game_name
+        )
         session.add(new_experiment)
         session.commit()
         logger.info(f"Created new experiment: {name} (id: {new_experiment.id})")
@@ -108,16 +123,18 @@ class Player(Base):
     ) -> "Player":
         """Create a new player with model configuration."""
         # Check if we need to adjust the sequence for PostgreSQL
-        if session.bind is not None and session.bind.dialect.name == 'postgresql':
+        if session.bind is not None and session.bind.dialect.name == "postgresql":
             # Get the highest player ID to ensure proper sequence
             stmt = select(func.max(Player.id))
             max_id = session.execute(stmt).scalar()
-            
+
             if max_id is not None:
                 # Set the sequence to start from max_id + 1
-                session.execute(text(f"SELECT setval('players_id_seq', {max_id}, true)"))
+                session.execute(
+                    text(f"SELECT setval('players_id_seq', {max_id}, true)")
+                )
                 logger.debug(f"Adjusted PostgreSQL sequence to start after ID {max_id}")
-        
+
         player = cls(name=name, model_config=model_config, experiment_id=experiment_id)
         session.add(player)
         session.commit()
@@ -205,7 +222,9 @@ class GameState(Base):
     __tablename__ = "game_states"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    game_id: Mapped[int] = mapped_column(Integer, ForeignKey("games.id", ondelete="CASCADE"))
+    game_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("games.id", ondelete="CASCADE")
+    )
     state_data: Mapped[dict] = mapped_column(JsonType, nullable=False)
     game: Mapped["GameMatch"] = relationship("GameMatch", back_populates="state")
 
@@ -257,8 +276,12 @@ class LLMInteraction(Base):
     __tablename__ = "llm_interactions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    game_id: Mapped[int] = mapped_column(Integer, ForeignKey("games.id", ondelete="CASCADE"))
-    player_id: Mapped[int] = mapped_column(Integer, ForeignKey("players.id", ondelete="CASCADE"))
+    game_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("games.id", ondelete="CASCADE")
+    )
+    player_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("players.id", ondelete="CASCADE")
+    )
     prompt: Mapped[List[dict]] = mapped_column(JsonType, nullable=False)
     response: Mapped[str] = mapped_column(String, nullable=False)
     start_time: Mapped[float] = mapped_column(Float, nullable=False)  # Unix timestamp

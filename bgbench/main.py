@@ -8,7 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from config import DATABASE_URL
 from bgbench.models import Experiment, GameMatch
-from bgbench.export import export_experiment, calculate_skill_comparison_data, format_skill_comparison_for_export
+from bgbench.export import export_experiment, calculate_skill_comparison_data
 from bgbench.rating import GameResult
 from bgbench.logging_config import setup_logging
 from bgbench.games import AVAILABLE_GAMES
@@ -88,13 +88,17 @@ async def main():
     # Check if we're resuming and can get game info from experiment
     game = None
     use_experiment_game = False
-    
+
     if args.resume:
         # Try to get experiment info early to check for game_name
         experiment = Experiment.resume_experiment(db_session, args.resume)
-        if experiment and experiment.game_name and experiment.game_name in AVAILABLE_GAMES:
+        if (
+            experiment
+            and experiment.game_name
+            and experiment.game_name in AVAILABLE_GAMES
+        ):
             use_experiment_game = True
-    
+
     # Only load player configs if not using export-experiment or list flags
     player_configs = []
     if not args.export_experiment and not args.list:
@@ -104,7 +108,9 @@ async def main():
             )
 
         if not args.game and not use_experiment_game:
-            parser.error("--game is required unless using --list, --export-experiment, or resuming an experiment with stored game_name")
+            parser.error(
+                "--game is required unless using --list, --export-experiment, or resuming an experiment with stored game_name"
+            )
 
         if args.players:
             with open(args.players, "r") as f:
@@ -163,7 +169,7 @@ async def main():
         if not experiment:
             logger.error(f"No experiment found with ID {args.resume}")
             return
-            
+
         # Use game from args if specified, otherwise try to load game from experiment's game_name
         if game is None and experiment.game_name:
             # Get the game class from stored game_name
@@ -172,16 +178,22 @@ async def main():
                 game = game_class()
                 logger.info(f"Using game '{experiment.game_name}' from experiment")
             else:
-                logger.warning(f"Stored game name '{experiment.game_name}' not found in available games")
+                logger.warning(
+                    f"Stored game name '{experiment.game_name}' not found in available games"
+                )
                 if args.game:
                     game_class = AVAILABLE_GAMES[args.game]
                     game = game_class()
                 else:
                     # Still need a game
-                    raise ValueError("Cannot determine game type from experiment. Please specify with --game")
+                    raise ValueError(
+                        "Cannot determine game type from experiment. Please specify with --game"
+                    )
         elif game is None:
-            raise ValueError("--game is required when resuming an experiment without stored game name")
-            
+            raise ValueError(
+                "--game is required when resuming an experiment without stored game name"
+            )
+
         arena = Arena(
             game,
             db_session,
@@ -213,7 +225,7 @@ async def main():
             return
 
         # If we're exporting via args.export and used the Arena, just print results
-        if 'arena' in locals():
+        if "arena" in locals():
             print_results(arena.get_experiment_results())
         else:
             # We need to create an Arena to export results
@@ -231,7 +243,9 @@ async def main():
             else:
                 # If game_name isn't available, we still need args.game
                 if not args.game:
-                    logger.error("Cannot determine game type. Please specify with --game")
+                    logger.error(
+                        "Cannot determine game type. Please specify with --game"
+                    )
                     return
                 game_class = AVAILABLE_GAMES[args.game]
                 game = game_class()
@@ -335,7 +349,7 @@ def convert_game_dicts_to_results(
                     winner=None,  # None indicates a draw
                 )
             )
-            
+
     return game_results
 
 
@@ -351,7 +365,6 @@ def print_skill_probability_table(
         player_names: List of player names to include in the table
     """
     from tabulate import tabulate
-    from typing import Tuple, Dict
 
     skill_probabilities, records = skill_probabilities_and_records
 

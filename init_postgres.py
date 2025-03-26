@@ -11,10 +11,19 @@ from sqlalchemy import create_engine, text, func
 from sqlalchemy.orm import sessionmaker
 from urllib.parse import quote_plus
 from dotenv import load_dotenv
-from bgbench.models import Base, Experiment, Player, GameMatch, GameState, LLMInteraction
+from bgbench.models import (
+    Base,
+    Experiment,
+    Player,
+    GameMatch,
+    GameState,
+    LLMInteraction,
+)
 
 # Set up logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 
@@ -63,22 +72,24 @@ def init_postgres_db():
         logger.info(f"Created tables: {', '.join(tables)}")
 
         # Initialize PostgreSQL sequences
-        if engine.dialect.name == 'postgresql':
+        if engine.dialect.name == "postgresql":
             logger.info("Initializing PostgreSQL sequences...")
             table_map = {
                 "experiments": Experiment,
-                "players": Player, 
+                "players": Player,
                 "games": GameMatch,
                 "game_states": GameState,
-                "llm_interactions": LLMInteraction
+                "llm_interactions": LLMInteraction,
             }
-            
+
             for table_name, model_class in table_map.items():
                 # Set sequence to start at 1 (or after existing max ID if data already exists)
                 max_id = session.query(func.max(model_class.id)).scalar() or 0
-                session.execute(text(f"SELECT setval('{table_name}_id_seq', {max_id}, true)"))
+                session.execute(
+                    text(f"SELECT setval('{table_name}_id_seq', {max_id}, true)")
+                )
                 logger.info(f"Initialized {table_name}_id_seq to start after {max_id}")
-            
+
             session.commit()
 
         session.close()

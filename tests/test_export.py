@@ -1,6 +1,5 @@
 import pytest
 import datetime
-from typing import Dict, Tuple, List
 from unittest.mock import patch, MagicMock
 from bgbench.rating import GameResult
 
@@ -206,31 +205,39 @@ class TestSkillComparisonFunctions:
             GameResult(player_0="Player1", player_1="Player3", winner=None),  # Draw
         ]
         player_names = ["Player1", "Player2", "Player3"]
-        
+
         # Calculate skill comparison data
-        probabilities, records = calculate_skill_comparison_data(match_history, player_names)
-        
+        probabilities, records = calculate_skill_comparison_data(
+            match_history, player_names
+        )
+
         # Check probabilities exist
-        assert (("Player1", "Player2") in probabilities) 
-        assert (("Player2", "Player1") in probabilities)
-        assert (("Player1", "Player3") in probabilities)
-        assert (("Player3", "Player1") in probabilities)
-        
+        assert ("Player1", "Player2") in probabilities
+        assert ("Player2", "Player1") in probabilities
+        assert ("Player1", "Player3") in probabilities
+        assert ("Player3", "Player1") in probabilities
+
         # Check the probabilities sum to 1 for complementary pairs
-        assert round(probabilities[("Player1", "Player2")] + 
-                     probabilities[("Player2", "Player1")], 5) == 1.0
-                     
+        assert (
+            round(
+                probabilities[("Player1", "Player2")]
+                + probabilities[("Player2", "Player1")],
+                5,
+            )
+            == 1.0
+        )
+
         # Check records are correct
         assert records[("Player1", "Player2")] == (2, 1, 0)  # 2 wins, 1 loss, 0 draws
         assert records[("Player2", "Player1")] == (1, 2, 0)  # 1 win, 2 losses, 0 draws
         assert records[("Player1", "Player3")] == (0, 0, 1)  # 0 wins, 0 losses, 1 draw
         assert records[("Player3", "Player1")] == (0, 0, 1)  # 0 wins, 0 losses, 1 draw
-    
+
     def test_format_skill_comparison_for_export(self):
         """Test formatting skill comparison data for export"""
         # Create test data
         player_names = ["Player1", "Player2", "Player3"]
-        
+
         # Sample probabilities and records
         probabilities = {
             ("Player1", "Player2"): 0.7,
@@ -240,7 +247,7 @@ class TestSkillComparisonFunctions:
             ("Player2", "Player3"): 0.55,
             ("Player3", "Player2"): 0.45,
         }
-        
+
         records = {
             ("Player1", "Player2"): (2, 1, 0),
             ("Player2", "Player1"): (1, 2, 0),
@@ -249,19 +256,19 @@ class TestSkillComparisonFunctions:
             ("Player2", "Player3"): (1, 1, 0),
             ("Player3", "Player2"): (1, 1, 0),
         }
-        
+
         # Format for export
         comparisons = format_skill_comparison_for_export(
             probabilities, records, player_names
         )
-        
+
         # Verify it's a list
         assert isinstance(comparisons, list)
-        
+
         # We should have n(n-1) comparisons where n is the number of players
         # 3 players means 6 comparisons (each player compared with 2 others)
         assert len(comparisons) == 6
-        
+
         # Verify each comparison has the correct structure
         for comparison in comparisons:
             assert "model" in comparison
@@ -270,17 +277,25 @@ class TestSkillComparisonFunctions:
             assert "wins" in comparison
             assert "losses" in comparison
             assert "draws" in comparison
-        
+
         # Find specific comparisons to verify
-        p1_p2 = next(c for c in comparisons if c["model"] == "Player1" and c["opponent"] == "Player2")
-        p3_p1 = next(c for c in comparisons if c["model"] == "Player3" and c["opponent"] == "Player1")
-        
+        p1_p2 = next(
+            c
+            for c in comparisons
+            if c["model"] == "Player1" and c["opponent"] == "Player2"
+        )
+        p3_p1 = next(
+            c
+            for c in comparisons
+            if c["model"] == "Player3" and c["opponent"] == "Player1"
+        )
+
         # Verify Player1 vs Player2 comparison
         assert p1_p2["probability"] == 0.7
         assert p1_p2["wins"] == 2
         assert p1_p2["losses"] == 1
         assert p1_p2["draws"] == 0
-        
+
         # Verify Player3 vs Player1 comparison
         assert p3_p1["probability"] == 0.4
         assert p3_p1["wins"] == 0
@@ -327,13 +342,15 @@ class TestExportFunctionality:
         assert export_data["gameName"] == "Test Game"
         assert "metadata" in export_data
         assert "results" in export_data
-        assert "skillComparisons" in export_data  # Verify skill comparison data is included
+        assert (
+            "skillComparisons" in export_data
+        )  # Verify skill comparison data is included
 
         # Verify skill comparison structure
         skill_comparisons = export_data["skillComparisons"]
         assert isinstance(skill_comparisons, list)
         assert len(skill_comparisons) == 2  # Two players * (2-1) = 2 comparisons
-        
+
         # Verify comparison structure
         for comparison in skill_comparisons:
             assert "model" in comparison

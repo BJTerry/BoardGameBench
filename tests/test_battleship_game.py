@@ -39,9 +39,7 @@ def test_validate_move_during_play(game, empty_state):
 
     # Test invalid moves
     assert not game.validate_move(empty_state, 0, (10, 0))[0]  # Out of bounds
-    assert (
-        not game.validate_move(empty_state, 0, (-1, 0))[0]
-    )  # Negative coordinate
+    assert not game.validate_move(empty_state, 0, (-1, 0))[0]  # Negative coordinate
 
     # Test repeated move
     empty_state.boards[1].hits.add((0, 0))

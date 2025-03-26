@@ -38,7 +38,7 @@ register_model(
             "supports_vision": False,
             "supports_prompt_caching": True,
             "supports_response_schema": True,
-            "supports_tool_choice": True
+            "supports_tool_choice": True,
         },
         "gemini/gemini-2.0-flash-thinking-exp-01-21": {
             "max_tokens": 8192,
@@ -265,5 +265,9 @@ async def complete_prompt(
         return content, token_info, messages
 
     except Exception as e:
-        logger.error(f"Error completing prompt {llm_config["model"]}: {str(e)}")
+        # Get model info for logging
+        model_info = (
+            llm_config["model"] if isinstance(llm_config, dict) else "unknown model"
+        )
+        logger.error(f"Error completing prompt {model_info}: {str(e)}")
         raise

@@ -244,26 +244,28 @@ def migrate_data(sqlite_url, postgres_url, drop_existing=False):
             logger.info(
                 "This is normal and expected. You may need to recreate some records manually if necessary."
             )
-            
+
         # Synchronize PostgreSQL sequences with current max IDs
-        if postgres_engine.dialect.name == 'postgresql':
+        if postgres_engine.dialect.name == "postgresql":
             logger.info("Synchronizing PostgreSQL sequences...")
             table_map = {
                 "experiments": Experiment,
-                "players": Player, 
+                "players": Player,
                 "games": GameMatch,
                 "game_states": GameState,
-                "llm_interactions": LLMInteraction
+                "llm_interactions": LLMInteraction,
             }
-            
+
             for table_name, model_class in table_map.items():
                 # Get max ID for this table
                 max_id = postgres_session.query(func.max(model_class.id)).scalar() or 0
-                
+
                 # Update sequence
-                postgres_session.execute(text(f"SELECT setval('{table_name}_id_seq', {max_id}, true)"))
+                postgres_session.execute(
+                    text(f"SELECT setval('{table_name}_id_seq', {max_id}, true)")
+                )
                 logger.info(f"Set {table_name}_id_seq to start after {max_id}")
-                
+
             postgres_session.commit()
 
         logger.info("Migration completed.")

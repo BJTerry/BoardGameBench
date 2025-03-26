@@ -17,9 +17,9 @@ def test_nim_validate_move(nim_game):
     # Test invalid moves
     assert not nim_game.validate_move(state, 0, NimMove(count=4))[0]  # Too many
     assert not nim_game.validate_move(state, 0, NimMove(count=0))[0]  # Too few
-    assert (
-        not nim_game.validate_move(state, 0, NimMove(count=11))[0]
-    )  # More than remaining
+    assert not nim_game.validate_move(state, 0, NimMove(count=11))[
+        0
+    ]  # More than remaining
 
 
 def test_nim_apply_move(nim_game):

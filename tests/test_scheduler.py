@@ -74,7 +74,9 @@ class TestSchedulers:
         match_history = []
 
         # Mock that we're starting a new experiment
-        pairs = scheduler.find_matches(players, match_history, elo_system, set(), limit=1)  # type: ignore
+        pairs = scheduler.find_matches(
+            players, match_history, elo_system, set(), limit=1
+        )  # type: ignore
 
         # For new experiments, we should get player1, player2 as the first pair (adjacent in list)
         assert len(pairs) > 0

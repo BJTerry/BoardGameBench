@@ -7,7 +7,7 @@ This module provides functionality to export experiment results in a standardize
 import os
 import logging
 import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
@@ -147,6 +147,127 @@ def get_player_costs(
         costs[player.name] = total_cost
 
     return costs
+
+
+def calculate_skill_comparison_data(
+    match_history: List[GameResult], player_names: List[str], elo_system: Optional[EloSystem] = None
+) -> Tuple[Dict[Tuple[str, str], float], Dict[Tuple[str, str], Tuple[int, int, int]]]:
+    """
+    Calculate the probability that one player's skill is higher than another's using Bayesian ratings.
+    Also calculate win-loss-draw records for each player pair.
+
+    Args:
+        match_history: List of GameResult objects
+        player_names: List of player names
+        elo_system: Optional EloSystem instance (creates a new one if not provided)
+
+    Returns:
+        Tuple containing:
+            - Dictionary mapping player pairs (p1, p2) to the probability that p1's skill > p2's skill
+            - Dictionary mapping player pairs (p1, p2) to their record as (wins, losses, draws)
+    """
+    # Initialize win-loss-draw records for each player pair
+    # (wins, losses, draws) from p1's perspective
+    records: Dict[Tuple[str, str], List[int]] = {
+        (p1, p2): [0, 0, 0] for p1 in player_names for p2 in player_names if p1 != p2
+    }
+
+    # Process match history to build records
+    for game in match_history:
+        player1 = game.player_0
+        player2 = game.player_1
+        winner = game.winner
+
+        # Skip games with unknown players
+        if player1 not in player_names or player2 not in player_names:
+            continue
+
+        # Track record for this player pair
+        if winner is not None:
+            if winner == player1:
+                # p1 won against p2
+                records[(player1, player2)][0] += 1
+                # p2 lost to p1
+                records[(player2, player1)][1] += 1
+            elif winner == player2:
+                # p1 lost to p2
+                records[(player1, player2)][1] += 1
+                # p2 won against p1
+                records[(player2, player1)][0] += 1
+            else:
+                # Unknown winner, treat as draw
+                records[(player1, player2)][2] += 1
+                records[(player2, player1)][2] += 1
+        else:
+            # It's a draw
+            records[(player1, player2)][2] += 1
+            records[(player2, player1)][2] += 1
+
+    # Use the provided EloSystem or create a new one
+    if elo_system is None:
+        elo_system = EloSystem(confidence_threshold=0.70)
+        # Update player ratings based on game history
+        elo_system.update_ratings(match_history, player_names)
+
+    # Calculate skill probabilities for each player pair
+    skill_probabilities: Dict[Tuple[str, str], float] = {}
+    for p1 in player_names:
+        for p2 in player_names:
+            if p1 != p2:
+                # Calculate probability that p1's skill is higher than p2's skill
+                try:
+                    skill_probabilities[(p1, p2)] = elo_system.probability_stronger(p1, p2)
+                except RuntimeError:
+                    # If there's no data for these players, use 0.5 as default
+                    skill_probabilities[(p1, p2)] = 0.5
+
+    # Convert records lists to tuples for immutability
+    record_tuples: Dict[Tuple[str, str], Tuple[int, int, int]] = {
+        pair: (record[0], record[1], record[2]) for pair, record in records.items()
+    }
+
+    return skill_probabilities, record_tuples
+
+
+def format_skill_comparison_for_export(
+    skill_probabilities: Dict[Tuple[str, str], float],
+    records: Dict[Tuple[str, str], Tuple[int, int, int]],
+    player_names: List[str]
+) -> List[Dict[str, Any]]:
+    """
+    Format skill comparison data according to the schema.json format
+
+    Args:
+        skill_probabilities: Dictionary of probabilities for each player pair
+        records: Dictionary of win-loss-draw records for each player pair
+        player_names: List of player names
+
+    Returns:
+        List of skill comparison objects formatted according to schema.json
+    """
+    # Create a flat list of comparisons as required by the new schema
+    comparisons = []
+    
+    for model in player_names:
+        for opponent in player_names:
+            if model != opponent:  # Skip self-comparisons
+                pair = (model, opponent)
+                probability = skill_probabilities.get(pair, 0.5)
+                
+                # Get record as (wins, losses, draws) from model's perspective
+                wins, losses, draws = records.get(pair, (0, 0, 0))
+                
+                # Format according to schema
+                comparisons.append({
+                    "model": model,
+                    "opponent": opponent,
+                    "probability": probability,
+                    "wins": wins,
+                    "losses": losses,
+                    "draws": draws
+                })
+    
+    return comparisons
 
 
 def format_for_export(
@@ -322,10 +443,21 @@ def format_for_export(
         for result in results_list:
             result["rank"] = 1
 
+    # Calculate skill comparison data
+    skill_probabilities, records = calculate_skill_comparison_data(
+        match_history, player_names, elo_system
+    )
+    
+    # Format skill comparison data for export
+    skill_comparison_data = format_skill_comparison_for_export(
+        skill_probabilities, records, player_names
+    )
+
     # Format the final export data
     export_data = {
         "gameName": game_name,
         "results": results_list,
+        "skillComparisons": skill_comparison_data,
         "metadata": {
             "generatedAt": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
             "totalGamesPlayed": total_games,

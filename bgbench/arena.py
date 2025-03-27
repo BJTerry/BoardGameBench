@@ -91,6 +91,7 @@ class Arena:
         self._stop_scheduling = False
         self._force_stop = False
         self._active_tasks: Set[asyncio.Task] = set()
+        self._budget_exceeded = False
 
         # Set up the match scheduler (default to SigmaMinimizationScheduler if not provided)
         if match_scheduler is None:
@@ -630,6 +631,8 @@ class Arena:
                     logger.info(
                         f"Cost budget of ${self.cost_budget:.6f} reached. Stopping evaluation."
                     )
+                    self._budget_exceeded = True
+                    self._stop_scheduling = True
                     break
 
             # Track number of new tasks spawned in this iteration
@@ -798,6 +801,16 @@ class Arena:
         # Get all players associated with this experiment
         db_players = self.experiment.get_players(self.session)
         player_ratings = {p.name: p.rating for p in db_players}
+        
+        # Include budget information if applicable
+        budget_info = None
+        if self.cost_budget is not None:
+            total_cost = self._get_total_cost_for_all_players()
+            budget_info = {
+                "budget": self.cost_budget,
+                "total_cost": total_cost,
+                "budget_exceeded": self._budget_exceeded
+            }
 
         # Calculate concessions per player
         player_concessions = {}
@@ -828,6 +841,7 @@ class Arena:
             "draws": draws,
             "player_ratings": player_ratings,
             "player_concessions": player_concessions,
+            "budget_info": budget_info,
             "games": [],
         }
 

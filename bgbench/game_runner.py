@@ -20,6 +20,7 @@ class GameRunner:
         game_id: int,
         player1_id: int,
         player2_id: int,
+        experiment_name: Optional[str] = None,
     ):
         self.game = game
         self.players = [player1, player2]
@@ -27,6 +28,7 @@ class GameRunner:
         self.game_id = game_id
         self.turn_count = 0
         self.start_time = None
+        self.experiment_name = experiment_name or self.game.__class__.__name__
 
         # Set database session, game_id, and player_id for players
         logger.debug(
@@ -145,13 +147,11 @@ class GameRunner:
 
                 # Print formatted turn information
                 turn_number = len(history) + 1
-                logger.info(f"\nTurn {turn_number}")
-                logger.info(f"Current Player: {player.name}")
-                logger.info("Game State:")
-                logger.info(f"{state}")
-                logger.info("Visible State:")
-                logger.info(f"{game_view.visible_state}")
-                logger.info(f"Move: {move}\n")
+                logger.debug(f"\n[{self.experiment_name}] Turn {turn_number}")
+                logger.debug(f"[{self.experiment_name}] Current Player: {player.name}")
+                logger.debug(f"[{self.experiment_name}] Game State:\n{state}")
+                logger.debug(f"[{self.experiment_name}] Visible State:\n{game_view.visible_state}")
+                logger.debug(f"[{self.experiment_name}] Move: {move}\n")
 
                 state = self.game.get_next_state(state, move)
                 history.append(

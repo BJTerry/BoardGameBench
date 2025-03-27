@@ -21,10 +21,10 @@ def setup_logging(debug=False):
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
 
-    # Console handler - less verbose
+    # Console handler
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(console_formatter)
-    console_handler.setLevel(logging.INFO)
+    console_handler.setLevel(logging.DEBUG if debug else logging.INFO)
 
     # File handler - more detailed
     file_handler = logging.FileHandler(logs_dir / "bgbench.log")

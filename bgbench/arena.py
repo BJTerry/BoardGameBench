@@ -499,6 +499,7 @@ class Arena:
                 game_id,
                 player_a.player_model.id,  # Pass the correct player IDs
                 player_b.player_model.id,
+                experiment_name=self.experiment.name,
             )
 
             winner, _, concession = await runner.play_game()

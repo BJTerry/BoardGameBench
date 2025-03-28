@@ -299,6 +299,27 @@ def _process_response(response: ModelResponse) -> Tuple[str, UsageInfo]:
     if not isinstance(response, ModelResponse):
         raise InvalidResponseTypeError("Received invalid response type")
     
+    # Extract token counts with proper typing first
+    cost = None
+    try:
+        cost = completion_cost(response)
+    except Exception as e:
+        logger.warning(f"Couldn't calculate cost: {e}")
+    token_info: UsageInfo = {
+        "prompt_tokens": getattr(response, "usage", {}).get("prompt_tokens"),
+        "completion_tokens": getattr(response, "usage", {}).get(
+            "completion_tokens"
+        ),
+        "total_tokens": getattr(response, "usage", {}).get("total_tokens"),
+        "cost": cost,
+    }
+    
+    # Check for max tokens before other errors
+    max_tokens = getattr(response, "model_params", {}).get("max_tokens")
+    if max_tokens and token_info["completion_tokens"] == max_tokens:
+        model_name = getattr(response, "model", "unknown model")
+        logger.warning(f"Response maxed out completion tokens: used {token_info['completion_tokens']} of {max_tokens} for {model_name} - consider increasing limit")
+    
     # Handle empty choices list    
     if not response.choices:
         raise EmptyChoicesError("Empty choices in LLM response")
@@ -310,21 +331,6 @@ def _process_response(response: ModelResponse) -> Tuple[str, UsageInfo]:
     content = choice.message.content
     if content is None:
         raise NoContentError("No content in LLM response")
-        
-    # Extract token counts with proper typing
-    cost = None
-    try:
-        cost = completion_cost(response)
-    except Exception as e:
-        print(f"Couldn't calculate cost {e}")
-    token_info: UsageInfo = {
-        "prompt_tokens": getattr(response, "usage", {}).get("prompt_tokens"),
-        "completion_tokens": getattr(response, "usage", {}).get(
-            "completion_tokens"
-        ),
-        "total_tokens": getattr(response, "usage", {}).get("total_tokens"),
-        "cost": cost,
-    }
     
     return content, token_info
 

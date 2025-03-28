@@ -1,5 +1,7 @@
 # LLM Game Evaluation Framework
 
+Visit [BoardGameBench.com](https://www.boardgamebench.com) to see the latest results.
+
 A framework for evaluating and comparing Large Language Models (LLMs) through their performance in playing games against each other. The system maintains an Elo rating for each model based on their performance across different games.
 
 ## Overview

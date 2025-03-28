@@ -9,6 +9,32 @@ from litellm.cost_calculator import completion_cost
 from litellm.types.utils import ModelResponse, Choices
 from litellm.exceptions import RateLimitError
 
+
+# Custom exceptions for response processing errors
+class LLMResponseError(Exception):
+    """Base class for LLM response errors that should be retried"""
+    pass
+
+
+class InvalidResponseTypeError(LLMResponseError):
+    """Raised when response is not a ModelResponse"""
+    pass
+
+
+class EmptyChoicesError(LLMResponseError):
+    """Raised when response has no choices"""
+    pass
+
+
+class InvalidChoiceError(LLMResponseError):
+    """Raised when choice is not a Choices object"""
+    pass
+
+
+class NoContentError(LLMResponseError):
+    """Raised when response content is None"""
+    pass
+
 register_model(
     {
         "openrouter/qwen/qwq-32b": {
@@ -271,15 +297,19 @@ def _process_response(response: ModelResponse) -> Tuple[str, UsageInfo]:
     """
     # Handle case where response might be None or missing content
     if not isinstance(response, ModelResponse):
-        raise ValueError("Received invalid response type")
+        raise InvalidResponseTypeError("Received invalid response type")
+    
+    # Handle empty choices list    
+    if not response.choices:
+        raise EmptyChoicesError("Empty choices in LLM response")
         
     choice = response.choices[0]
     if not isinstance(choice, Choices):
-        raise ValueError("Invalid response from LLM")
+        raise InvalidChoiceError("Invalid response from LLM")
         
     content = choice.message.content
     if content is None:
-        raise ValueError("No content in LLM response")
+        raise NoContentError("No content in LLM response")
         
     # Extract token counts with proper typing
     cost = None
@@ -339,6 +369,55 @@ async def _handle_rate_limit(
     return delay, retry_attempt + 1, total_wait_time + delay
 
 
+async def _handle_retry(
+    error: Exception,
+    model_info: str,
+    retry_attempt: int,
+    total_wait_time: float,
+    base_delay: float,
+    max_timeout: float,
+    max_retries: int,
+    error_type: str,
+) -> Tuple[float, int, float]:
+    """
+    Handle retry logic for various error types with exponential backoff.
+    
+    Args:
+        error: The exception that occurred
+        model_info: Model name for logging
+        retry_attempt: Current retry attempt number
+        total_wait_time: Total time waited so far
+        base_delay: Base delay for backoff
+        max_timeout: Maximum timeout before giving up (in seconds)
+        max_retries: Maximum number of retries allowed
+        error_type: Type of error for logging
+        
+    Returns:
+        Tuple of (delay applied, incremented retry attempt, new total wait time)
+    """
+    # Check if we've exceeded max retries
+    if retry_attempt >= max_retries:
+        logger.error(f"Max retries ({max_retries}) exceeded for {model_info}: {str(error)}")
+        raise
+        
+    # Check if we've exceeded max timeout
+    if total_wait_time >= max_timeout:
+        logger.error(f"Max timeout ({max_timeout}s) exceeded for {model_info}: {str(error)}")
+        raise
+        
+    # Calculate delay with exponential backoff and jitter
+    jitter = 0.5 + random.random()
+    # Make sure we don't exceed max_timeout
+    delay = min(2 ** retry_attempt * base_delay * jitter, max_timeout - total_wait_time)
+    
+    # Log warning about error and retry
+    logger.warning(f"{error_type.capitalize()} error for {model_info}: {str(error)}, retrying in {delay:.2f}s (attempt {retry_attempt + 1})")
+    
+    # Wait and update counters
+    await asyncio.sleep(delay)
+    return delay, retry_attempt + 1, total_wait_time + delay
+
+
 async def complete_prompt(
     llm_config: Union[Dict[str, Any], LLMCompletionProvider],
     prompt_messages: List[Dict[str, Any]],
@@ -359,12 +438,15 @@ async def complete_prompt(
     base_delay = 1
     # Track total wait time
     total_wait_time = 0
+    # Maximum retries for response errors
+    MAX_RESPONSE_RETRIES = 3
     
     # Get model info for logging
     model_info = llm_config["model"] if isinstance(llm_config, dict) else "unknown model"
     
-    # Attempt with exponential backoff for rate limits
-    retry_attempt = 0
+    # Attempt with exponential backoff for rate limits and response errors
+    rate_limit_retry_attempt = 0
+    response_retry_attempt = 0
     
     while True:
         try:
@@ -382,12 +464,19 @@ async def complete_prompt(
 
         except RateLimitError as e:
             # Handle rate limiting with exponential backoff
-            delay, retry_attempt, total_wait_time = await _handle_rate_limit(
-                e, model_info, retry_attempt, total_wait_time, 
-                base_delay, MAX_RETRY_TIMEOUT
+            delay, rate_limit_retry_attempt, total_wait_time = await _handle_retry(
+                e, model_info, rate_limit_retry_attempt, total_wait_time, 
+                base_delay, MAX_RETRY_TIMEOUT, 999999, "rate limit"  # Using large int instead of infinity
+            )
+            
+        except LLMResponseError as e:
+            # Handle response processing errors with limited retries
+            delay, response_retry_attempt, total_wait_time = await _handle_retry(
+                e, model_info, response_retry_attempt, total_wait_time,
+                base_delay, MAX_RETRY_TIMEOUT, MAX_RESPONSE_RETRIES, "response"
             )
             
         except Exception as e:
-            # For any other exceptions, log and raise immediately
-            logger.error(f"Error completing prompt {model_info}: {str(e)}")
+            # For any other exceptions, log with full traceback and raise immediately
+            logger.error(f"Error completing prompt {model_info}: {str(e)}", exc_info=True)
             raise

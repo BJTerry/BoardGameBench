@@ -57,6 +57,7 @@ class Arena:
         llm_factory=None,
         match_scheduler: Optional[MatchScheduler] = None,
         selected_players: Optional[List[str]] = None,
+        max_games_per_player_pair: int = 10,
     ):
         """
         Initialize Arena with either:
@@ -75,6 +76,7 @@ class Arena:
             llm_factory: Optional function for testing that creates LLM instances
             match_scheduler: Optional scheduler for choosing player matchups (defaults to SigmaMinimizationScheduler)
             selected_players: Optional list of player names to focus on (only matches involving these players will be scheduled)
+            max_games_per_player_pair: Maximum number of games played between each player pair
         """
         self.game: Game = game
         self.players: List[ArenaPlayer] = []
@@ -82,6 +84,7 @@ class Arena:
         self.session = db_session
         self.max_parallel_games = max_parallel_games
         self.cost_budget = cost_budget
+        self.max_games_per_player_pair = max_games_per_player_pair
         self.ongoing_matches: Set[Tuple[int, int]] = set()
         self._scheduled_games_between: Dict[Tuple[int, int], int] = {}
         self._lock = asyncio.Lock()
@@ -364,7 +367,7 @@ class Arena:
         # Create filter specification with all filtering criteria
         filter_spec = MatchFilterSpec(
             selected_player_names=self.selected_players,
-            max_games_per_pairing=10,
+            max_games_per_pairing=self.max_games_per_player_pair,
             confidence_threshold=self.confidence_threshold,
         )
 
@@ -398,7 +401,7 @@ class Arena:
                     games = self._games_played_between(
                         player_a.player_model, player_b.player_model
                     )
-                    if games < 10:
+                    if games < self.max_games_per_player_pair:
                         logger.debug(
                             f"Scheduling match between {player_a.llm_player.name} and {player_b.llm_player.name}"
                         )
@@ -410,7 +413,7 @@ class Arena:
                         return player_a, player_b
                     else:
                         logger.debug(
-                            f"Candidate match rejected - exceeded game limit ({games}/10): {player_a.llm_player.name} vs {player_b.llm_player.name}"
+                            f"Candidate match rejected - exceeded game limit ({games}/{self.max_games_per_player_pair}): {player_a.llm_player.name} vs {player_b.llm_player.name}"
                         )
                 else:
                     logger.debug(

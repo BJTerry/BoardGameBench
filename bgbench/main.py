@@ -64,6 +64,12 @@ async def main():
         default=0.70,
         help="Confidence threshold for Elo ratings",
     )
+    parser.add_argument(
+        "--max-games-per-pair",
+        type=int,
+        default=10,
+        help="Maximum number of games played between each player pair",
+    )
     args = parser.parse_args()
 
     setup_logging(debug=args.debug)
@@ -203,6 +209,7 @@ async def main():
             cost_budget=args.cost_budget,
             confidence_threshold=args.confidence_threshold,
             selected_players=selected_players,
+            max_games_per_player_pair=args.max_games_per_pair,
         )
     else:
         if game is None:
@@ -216,6 +223,7 @@ async def main():
             cost_budget=args.cost_budget,
             confidence_threshold=args.confidence_threshold,
             selected_players=selected_players,
+            max_games_per_player_pair=args.max_games_per_pair,
         )
 
     if args.export:
@@ -238,6 +246,7 @@ async def main():
                     db_session,
                     experiment_id=args.export,
                     max_parallel_games=1,  # Doesn't matter for export
+                    max_games_per_player_pair=args.max_games_per_pair,
                 )
                 print_results(arena.get_experiment_results())
             else:
@@ -254,6 +263,7 @@ async def main():
                     db_session,
                     experiment_id=args.export,
                     max_parallel_games=1,  # Doesn't matter for export
+                    max_games_per_player_pair=args.max_games_per_pair,
                 )
                 print_results(arena.get_experiment_results())
         return

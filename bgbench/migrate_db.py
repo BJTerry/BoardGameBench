@@ -12,7 +12,7 @@ from bgbench.models import (
     Experiment,
     Player,
     GameMatch,
-    GameState,
+    MatchState, # Renamed from GameState
     LLMInteraction,
 )
 from sqlalchemy.exc import SQLAlchemyError
@@ -128,28 +128,28 @@ def migrate_data(sqlite_url, postgres_url, drop_existing=False):
         for player in postgres_session.query(Player.id).all():
             valid_player_ids.add(player[0])
 
-        # Migrate Game States with FK validation
-        logger.info("Migrating game states...")
-        states = sqlite_session.query(GameState).all()
+        # Migrate Match States with FK validation
+        logger.info("Migrating match states...")
+        states = sqlite_session.query(MatchState).all() # Use MatchState
         valid_states = 0
         invalid_states = 0
 
         for state in states:
-            # Check if game_id exists in PostgreSQL
-            if state.game_id in valid_game_ids:
-                postgres_state = GameState(
-                    id=state.id, game_id=state.game_id, state_data=state.state_data
+            # Check if match_id exists in PostgreSQL
+            if state.match_id in valid_game_ids: # Use match_id
+                postgres_state = MatchState( # Use MatchState
+                    id=state.id, match_id=state.match_id, state_data=state.state_data # Use match_id
                 )
                 postgres_session.add(postgres_state)
                 valid_states += 1
             else:
                 invalid_states += 1
                 logger.warning(
-                    f"Skipping game state {state.id} - references non-existent game_id {state.game_id}"
+                    f"Skipping match state {state.id} - references non-existent match_id {state.match_id}" # Use match_id
                 )
 
         logger.info(
-            f"Game states: {valid_states} valid, {invalid_states} skipped due to invalid foreign keys"
+            f"Match states: {valid_states} valid, {invalid_states} skipped due to invalid foreign keys"
         )
         postgres_session.commit()
 
@@ -206,7 +206,7 @@ def migrate_data(sqlite_url, postgres_url, drop_existing=False):
             ("experiments", Experiment),
             ("players", Player),
             ("games", GameMatch),
-            ("game_states", GameState),
+            ("match_states", MatchState), # Use MatchState and table name
             ("llm_interactions", LLMInteraction),
         ]:
             sqlite_count = sqlite_session.query(model_class).count()
@@ -252,7 +252,7 @@ def migrate_data(sqlite_url, postgres_url, drop_existing=False):
                 "experiments": Experiment,
                 "players": Player,
                 "games": GameMatch,
-                "game_states": GameState,
+                "match_states": MatchState, # Use MatchState and table name
                 "llm_interactions": LLMInteraction,
             }
 

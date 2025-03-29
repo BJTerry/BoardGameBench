@@ -143,11 +143,13 @@ class TestArena:
             nim_game, db_session, experiment_id=exp.id, llm_factory=mock_llm_factory
         )
 
-        # Verify only complete games were kept
+        # Verify all games are still in the database (we don't delete incomplete games anymore)
         remaining_games = (
             db_session.query(GameMatch).filter_by(experiment_id=exp.id).all()
         )
-        assert len(remaining_games) == 2, "Incomplete games should be removed"
+        assert len(remaining_games) == 3, "All games should be kept in the database"
+        
+        # Verify only complete games are in the match history
 
         # Verify match history includes both complete games (win and draw)
         assert len(arena.match_history) == 2, (
@@ -267,7 +269,7 @@ class TestArena:
             return None, [], None  # No winner (draw), empty history, no concession
 
         # Patch the play_game method to return a draw
-        with patch("bgbench.game_runner.GameRunner.play_game", mock_play_game_draw):
+        with patch("bgbench.match.runner.MatchRunner.play_game", mock_play_game_draw):
             # Run a single game that will end in a draw
             player_a, player_b = arena.players[0], arena.players[1]
             await arena.run_single_game(player_a, player_b)
@@ -359,7 +361,7 @@ class TestArena:
 
         assert results["player_concessions"]["player-a"] == 1
         assert results["player_concessions"]["player-b"] == 1
-        assert results["total_games"] == 3
+        assert results["total_matches"] == 3 # Use the correct key 'total_matches'
 
     def test_log_standings_with_concessions(
         self, db_session, nim_game, mock_llm, caplog, mock_llm_factory
@@ -410,5 +412,6 @@ class TestArena:
 
         # Check that concessions are mentioned in the log
         log_text = caplog.text
-        assert "player-a: 1500 (0 games, 1 concessions, $0.0000 cost)" in log_text
-        assert "player-b: 1500 (0 games, 0 concessions, $0.0000 cost)" in log_text
+        # Update assertion to expect 'matches' instead of 'games'
+        assert "player-a: 1500 (0 matches, 1 concessions, $0.0000 cost)" in log_text
+        assert "player-b: 1500 (0 matches, 0 concessions, $0.0000 cost)" in log_text

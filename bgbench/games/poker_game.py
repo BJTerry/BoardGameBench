@@ -2,7 +2,7 @@ from pokerkit import Card, NoLimitTexasHoldem as PKNoLimitTexasHoldem, Automatio
 from typing import Optional, Dict, Any, List, Tuple
 from dataclasses import dataclass
 from bgbench.game import Game
-from bgbench.game_view import GameView, PromptStyle
+from bgbench.match.view import MatchView, PromptStyle
 from copy import deepcopy
 
 
@@ -187,7 +187,7 @@ class PokerGame(Game[PokerState, str]):
         player_id: int,
         history: Optional[List[Dict[str, Any]]] = None,
         prompt_style: PromptStyle = PromptStyle.HEADER,
-    ) -> GameView:
+    ) -> MatchView:
         # Create a view that only shows the player's own cards
         board_cards = (state.internal_state.board_cards or [[]])[0]
         pk_player = state.player_to_pk_player(player_id)
@@ -209,7 +209,7 @@ class PokerGame(Game[PokerState, str]):
             "blind": f"you are the {blind_size} blind",
         }
 
-        return GameView(
+        return MatchView(
             visible_state=visible_state,
             valid_moves=self._get_valid_moves(state, player_id),
             is_terminal=state.winner() is not None,
@@ -313,3 +313,51 @@ class PokerGame(Game[PokerState, str]):
                 new_state.last_action,
             )
         return new_state
+        
+    def serialize_state(self, state: PokerState) -> Dict[str, Any]:
+        """Serialize the game state into a JSON-compatible dictionary.
+
+        This method ensures that all game-specific state is properly serialized
+        into a format that can be stored in the database and later deserialized.
+
+        Args:
+            state: The PokerState to serialize
+
+        Returns:
+            A JSON-compatible dictionary representing the game state
+        """
+        # We can serialize the state for storage, even though we can't deserialize it
+        return {
+            "big_blind": state.big_blind,
+            "last_action": state.last_action,
+            "player_stacks": state.internal_state.stacks,
+            "pot": sum(pot.amount for pot in state.internal_state.pots),
+            "community_cards": [str(c) for c in state.internal_state.board_cards],
+            "player_hands": [
+                [str(c) for c in cards] for cards in state.internal_state.hole_cards
+            ],
+            "current_player": state.current_player(),
+            "actor_index": state.internal_state.actor_index,
+            "min_bet": state.internal_state.min_completion_betting_or_raising_to_amount or 0,
+            "bets": state.internal_state.bets,
+            "serialization_note": "This state can be stored but not restored. Poker games must be completed in a single session."
+        }
+        
+    def deserialize_state(self, state_data: Dict[str, Any]) -> PokerState:
+        """Deserialize state data into a PokerState object.
+        
+        Args:
+            state_data: Dictionary containing serialized state data from serialize_state
+            
+        Returns:
+            Deserialized PokerState object
+            
+        Raises:
+            NotImplementedError: Poker games cannot currently be deserialized for resumption
+        """
+        raise NotImplementedError(
+            "Poker games cannot currently be deserialized for resumption. "
+            "The underlying PokerKit engine uses complex automations and internal state "
+            "that cannot be easily serialized and deserialized. "
+            "Poker matches must be completed in a single session."
+        )

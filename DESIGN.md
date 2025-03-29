@@ -12,7 +12,7 @@ The framework enables systematic evaluation of LLM game-playing capabilities thr
    - Abstract Game interface defining core game mechanics
    - Game-specific state classes with type hints
    - Strict move validation
-   - Player views through GameView with configurable prompt styles
+   - Player views through MatchView with configurable prompt styles
 
 2. LLM Integration
    - Unified interface for OpenRouter and OpenAI models
@@ -34,6 +34,7 @@ The framework enables systematic evaluation of LLM game-playing capabilities thr
    - Elo rating calculations
    - Confidence-based match termination
    - Comprehensive experiment tracking
+   - Resumable matches and experiments
 
 ## Key Design Decisions
 
@@ -71,18 +72,29 @@ Advanced integration features:
 
 - Bayesian Elo System: Uses PyMC for MCMC sampling, modeling wins/draws with a multi-outcome categorical approach. Default skill priors are set, with typical chain lengths for sampling (see `rating.py`).
 
-### 5. Database Integration
+### 5. Resumable Matches
+
+- **State Persistence**: Match states are saved as immutable snapshots in the database, preserving the full history of each match.
+- **MatchStateData**: A structured dataclass encapsulates match state data with proper typing and serialization support.
+- **Game Interface Extensions**: Games implement `serialize_state` and `deserialize_state` methods to convert between game-specific state objects and database-friendly dictionaries.
+- **MatchStateManager**: Handles saving and retrieving match state snapshots from the database.
+- **Resumption Process**: The Arena identifies incomplete matches, loads their latest states, and prioritizes them for scheduling.
+- **MatchRunner Integration**: MatchRunner accepts an initial state and state manager, saving state snapshots throughout the match.
+
+### 6. Database Integration
 
 - Experiment Tracking: The `Arena` loop integrates with the database schema (`models.py`):
   - Game start creates a `GameMatch`.
   - Moves are logged as `LLMInteraction`.
   - Results update `Player` ratings in `rating.py`.
+  - Match states are saved as `MatchState` records for resumption.
 - Comprehensive experiment tracking:
   - Full game history
   - Player statistics
   - LLM interaction details
   - Performance metrics
   - Rating progression
+  - Match state snapshots for resumption
 
 ## Testing Framework
 
@@ -136,6 +148,7 @@ New tests should:
      - `TopIdentificationScheduler`: Identifies the top-performing model.
      - `FullRankingScheduler`: Clarifies pairwise rankings.
    - Bayesian Elo rating system with uncertainty handling (see `rating.py`).
+   - Resumable matches and experiments with state persistence (see `match_state_manager.py`).
    - Comprehensive testing
 
 2. Database Features

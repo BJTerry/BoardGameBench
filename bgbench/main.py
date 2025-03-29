@@ -293,8 +293,8 @@ async def main():
 def print_results(results: Dict[str, Any]):
     logger.info("\nExperiment Results:")
     logger.info(f"Name: {results['experiment_name']}")
-    logger.info(f"Total Games: {results['total_games']}")
-    logger.info(f"Completed Games: {results.get('completed_games', 0)}")
+    logger.info(f"Total Matches: {results['total_matches']}")
+    logger.info(f"Completed Matches: {results.get('completed_matches', 0)}")
     logger.info(f"Draws: {results.get('draws', 0)}")
     logger.info("\nFinal Results:")
     for name, rating in sorted(
@@ -313,17 +313,17 @@ def print_results(results: Dict[str, Any]):
     ]
     if len(player_names) > 1:
         # Convert game dictionaries to GameResult objects
-        game_results = convert_game_dicts_to_results(results["games"], player_names)
+        game_results = convert_game_dicts_to_results(results["matches"], player_names)
         # Calculate skill comparison data using the shared function from export.py
         skill_data = calculate_skill_comparison_data(game_results, player_names)
         print_skill_probability_table(skill_data, player_names)
 
     logger.info("\nGame History:")
-    for game in results["games"]:
+    for game in results["matches"]:
         if "winner" in game:
-            logger.info(f"Game {game['game_id']}: Winner - {game['winner']}")
+            logger.info(f"Match {game['match_id']}: Winner - {game['winner']}")
         else:
-            logger.info(f"Game {game['game_id']}: Draw")
+            logger.info(f"Match {game['match_id']}: Draw")
 
 
 def convert_game_dicts_to_results(

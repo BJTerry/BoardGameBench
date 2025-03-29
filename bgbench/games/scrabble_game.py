@@ -2,7 +2,7 @@ import random
 from typing import List, Dict, Tuple, Optional, Any
 from dataclasses import dataclass, field
 from bgbench.game import Game
-from bgbench.game_view import GameView, PromptStyle
+from bgbench.match.view import MatchView, PromptStyle
 
 
 @dataclass
@@ -22,6 +22,7 @@ class ScrabbleState:
             "player_racks": self.player_racks,
             "scores": self.scores,
             "tile_bag": self.tile_bag,
+            "turn_count": self.turn_count,
             "consecutive_passes": self.consecutive_passes,
         }
 
@@ -730,6 +731,38 @@ class ScrabbleGame(Game[ScrabbleState, ScrabbleMove]):
     def get_next_state(self, state: ScrabbleState, move: ScrabbleMove) -> ScrabbleState:
         # Apply the move to the current state and return the new state
         return self.apply_move(state, self.get_current_player(state), move)
+        
+    def serialize_state(self, state: ScrabbleState) -> Dict[str, Any]:
+        """Serialize the game state into a JSON-compatible dictionary.
+
+        This method ensures that all game-specific state is properly serialized
+        into a format that can be stored in the database and later deserialized.
+
+        Args:
+            state: The ScrabbleState to serialize
+
+        Returns:
+            A JSON-compatible dictionary representing the game state
+        """
+        return state.to_dict()
+        
+    def deserialize_state(self, state_data: Dict[str, Any]) -> ScrabbleState:
+        """Deserialize state data into a ScrabbleState object.
+        
+        Args:
+            state_data: Dictionary containing serialized state data from serialize_state
+            
+        Returns:
+            Deserialized ScrabbleState object
+        """
+        return ScrabbleState(
+            board=state_data.get("board", [[""] * 15 for _ in range(15)]),
+            player_racks=state_data.get("player_racks", [[], []]),
+            scores=state_data.get("scores", [0, 0]),
+            tile_bag=state_data.get("tile_bag", []),
+            turn_count=state_data.get("turn_count", 0),
+            consecutive_passes=state_data.get("consecutive_passes", 0)
+        )
 
     def _find_word_position(self, board: List[List[str]], word: str) -> Tuple[int, int]:
         """Find the starting position of a word on the board."""
@@ -805,7 +838,7 @@ class ScrabbleGame(Game[ScrabbleState, ScrabbleMove]):
         player_id: int,
         history: Optional[List[Dict[str, Any]]] = None,
         prompt_style: PromptStyle = PromptStyle.HEADER,
-    ) -> GameView:
+    ) -> MatchView:
         tile_scores = {
             tile: self.get_letter_score(tile) for tile in state.player_racks[player_id]
         }
@@ -831,7 +864,7 @@ class ScrabbleGame(Game[ScrabbleState, ScrabbleMove]):
             "3. Pass your turn: simply specify 'pass'"
         )
 
-        return GameView(
+        return MatchView(
             visible_state=visible_state,
             valid_moves=[],
             is_terminal=self.is_terminal(state),

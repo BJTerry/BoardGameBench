@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import List, Optional, Tuple, Dict, Any
 from bgbench.game import Game
-from bgbench.game_view import GameView, PromptStyle
+from bgbench.match.view import MatchView, PromptStyle
 
 
 @dataclass
@@ -14,6 +14,21 @@ class NimState:
             "remaining": self.remaining,
             "current_player": self.current_player,
         }
+        
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "NimState":
+        """Create a NimState from a dictionary.
+        
+        Args:
+            data: Dictionary containing state data
+            
+        Returns:
+            NimState object
+        """
+        return cls(
+            remaining=data.get("remaining", 0),
+            current_player=data.get("current_player", 0)
+        )
 
 
 @dataclass
@@ -53,7 +68,7 @@ class NimGame(Game[NimState, NimMove]):
         player_id: int,
         history: Optional[List[Dict[str, Any]]] = None,
         prompt_style: Optional[PromptStyle] = None,
-    ) -> GameView:
+    ) -> MatchView:
         """Get the player's view of the game state.
 
         Args:
@@ -63,10 +78,10 @@ class NimGame(Game[NimState, NimMove]):
             prompt_style: Optional PromptStyle to use for formatting
 
         Returns:
-            GameView object containing all information visible to this player
+            MatchView object containing all information visible to this player
         """
         valid_moves = list(range(1, min(self.max_take, state.remaining) + 1))
-        return GameView(
+        return MatchView(
             move_format_instructions=self.get_move_format_instructions(),
             rules_explanation=self.get_rules_explanation(),
             visible_state={"remaining": state.remaining},
@@ -163,6 +178,34 @@ class NimGame(Game[NimState, NimMove]):
         if not self.is_terminal(state):
             return None
         return 1 - state.current_player  # Previous player won
+        
+    def serialize_state(self, state: NimState) -> Dict[str, Any]:
+        """Serialize the game state into a JSON-compatible dictionary.
+
+        This method ensures that all game-specific state is properly serialized
+        into a format that can be stored in the database and later deserialized.
+
+        Args:
+            state: The NimState to serialize
+
+        Returns:
+            A JSON-compatible dictionary representing the game state
+        """
+        return state.to_dict()
+
+    def deserialize_state(self, state_data: Dict[str, Any]) -> NimState:
+        """Deserialize state data into a NimState object.
+        
+        Args:
+            state_data: Dictionary containing serialized state data
+            
+        Returns:
+            Deserialized NimState object
+        """
+        return NimState(
+            remaining=state_data.get("remaining", self.starting_count),
+            current_player=state_data.get("current_player", 0)
+        )
 
     def __init__(self, starting_count: int = 12, max_take: int = 3):
         self.starting_count = starting_count

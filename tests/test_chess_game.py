@@ -177,3 +177,83 @@ def test_to_dict(game, initial_state):
     assert not state_dict["is_checkmate"]
     assert not state_dict["is_stalemate"]
     assert state_dict["turn"] == "white"
+
+
+def test_from_dict():
+    """Test state deserialization from dictionary."""
+    # Create test data - using the correct FEN that would result from these moves
+    test_data = {
+        "fen": "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+        "pgn": "e4 c5",
+    }
+    
+    # Deserialize the state
+    state = ChessState.from_dict(test_data)
+    
+    # Verify the state was correctly deserialized
+    assert state.board.fen() == "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"
+    assert state.move_history == ["e4", "c5"]
+    assert state.board.turn  # White's turn (True)
+    
+def test_serialize_state(game, initial_state):
+    """Test game's serialize_state method."""
+    # Apply some moves to create a non-initial state
+    moves = ["e4", "c5", "Nf3"]
+    state = initial_state
+    
+    for i, move in enumerate(moves):
+        state = game.apply_move(state, i % 2, ChessMove(move))
+    
+    # Serialize the state
+    serialized = game.serialize_state(state)
+    
+    # Verify serialization
+    assert serialized["fen"] == "rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2"
+    assert serialized["pgn"] == "e4 c5 Nf3"
+    assert not serialized["is_check"]
+    assert not serialized["is_checkmate"]
+    assert serialized["turn"] == "black"
+    
+def test_deserialize_state():
+    """Test game's deserialize_state method."""
+    game = ChessGame()
+    
+    # Test direct state data - using the correct FEN that would result from these moves
+    direct_data = {
+        "fen": "rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2",
+        "pgn": "e4 c5 Nf3",
+    }
+    state = game.deserialize_state(direct_data)
+    # Check the full FEN string to ensure all state is preserved
+    assert state.board.fen() == "rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2"
+    assert state.board.turn == False  # Black's turn
+    assert state.move_history == ["e4", "c5", "Nf3"]
+
+def test_serialize_deserialize_roundtrip(game, initial_state):
+    """Test that serializing and then deserializing preserves all state."""
+    # Apply some moves to create a non-initial state
+    moves = ["e4", "e5", "Nf3", "Nc6", "Bb5"]
+    state = initial_state
+    
+    for i, move in enumerate(moves):
+        state = game.apply_move(state, i % 2, ChessMove(move))
+    
+    # Serialize the state
+    serialized = game.serialize_state(state)
+    
+    # Deserialize back to a state object
+    deserialized_state = game.deserialize_state(serialized)
+    
+    # Verify the round trip preserved all important state
+    assert deserialized_state.board.fen() == state.board.fen()
+    assert deserialized_state.move_history == state.move_history
+    assert deserialized_state.board.turn == state.board.turn
+    
+    # Verify game logic still works with the deserialized state
+    assert game.get_current_player(deserialized_state) == game.get_current_player(state)
+    assert game.is_terminal(deserialized_state) == game.is_terminal(state)
+    
+    # Try making a valid move with the deserialized state
+    valid_move = ChessMove("a6")
+    is_valid, _ = game.validate_move(deserialized_state, 1, valid_move)
+    assert is_valid

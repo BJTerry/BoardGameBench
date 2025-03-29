@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Any, Tuple, List, Optional, Dict, TypeVar, Generic
-from bgbench.game_view import GameView, PromptStyle
+from bgbench.match.view import MatchView, PromptStyle
 
 StateType = TypeVar("StateType")
 MoveType = TypeVar("MoveType")
@@ -32,7 +32,7 @@ class Game(ABC, Generic[StateType, MoveType]):
         player_id: int,
         history: Optional[List[Dict[str, Any]]] = None,
         prompt_style: PromptStyle = PromptStyle.HEADER,
-    ) -> GameView:
+    ) -> MatchView:
         """Return what this player can see of the current state.
 
         Args:
@@ -41,7 +41,7 @@ class Game(ABC, Generic[StateType, MoveType]):
             history: Optional list of previous moves and their results
 
         Returns:
-            A GameView object containing all information visible to this player.
+            A MatchView object containing all information visible to this player.
         """
         pass
 
@@ -127,5 +127,35 @@ class Game(ABC, Generic[StateType, MoveType]):
 
         Returns:
             New game state
+        """
+        pass
+        
+    @abstractmethod
+    def serialize_state(self, state: StateType) -> Dict[str, Any]:
+        """Serialize the game state into a JSON-compatible dictionary.
+
+        This method must ensure that all game-specific state is properly serialized
+        into a format that can be stored in the database and later deserialized.
+
+        Args:
+            state: The game state to serialize
+
+        Returns:
+            A JSON-compatible dictionary representing the game state
+        """
+        pass
+        
+    @abstractmethod
+    def deserialize_state(self, state_data: Dict[str, Any]) -> StateType:
+        """Deserialize a dictionary into a game state object.
+
+        This method must be able to reconstruct the game state from the dictionary
+        produced by serialize_state.
+
+        Args:
+            state_data: The dictionary to deserialize
+
+        Returns:
+            A reconstructed game state object
         """
         pass

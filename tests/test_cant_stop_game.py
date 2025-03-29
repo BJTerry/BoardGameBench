@@ -147,6 +147,66 @@ def test_win_condition(game, initial_state):
     assert view.winner == 0
 
 
+def test_serialize_deserialize_state(game, initial_state):
+    """Test serialization and deserialization of CantStopState."""
+    # Modify the initial state to have some interesting data
+    state = initial_state
+    
+    # Set up some player progress
+    state.columns[3].player_positions[0] = 2
+    state.columns[7].player_positions[1] = 3
+    
+    # Set up a claimed column
+    state.columns[2].is_claimed = True
+    state.columns[2].claimed_by = 0
+    
+    # Set up temporary progress
+    state.temp_positions = {5: 2, 9: 1}
+    state.active_columns = {5, 9}
+    
+    # Set game state
+    state.current_player = 1
+    state.awaiting_selection = False
+    state.current_dice = [3, 4, 5, 6]
+    
+    # Serialize the state
+    serialized = game.serialize_state(state)
+    
+    # Verify serialization contains expected data
+    assert serialized["current_player"] == 1
+    assert serialized["awaiting_selection"] is False
+    assert serialized["current_dice"] == [3, 4, 5, 6]
+    assert serialized["temp_positions"] == {"5": 2, "9": 1}
+    assert sorted(serialized["active_columns"]) == [5, 9]
+    assert serialized["columns"]["3"]["player_positions"]["0"] == 2
+    assert serialized["columns"]["7"]["player_positions"]["1"] == 3
+    assert serialized["columns"]["2"]["is_claimed"] is True
+    assert serialized["columns"]["2"]["claimed_by"] == 0
+    
+    # Deserialize back to a state object
+    deserialized = game.deserialize_state(serialized)
+    
+    # Verify deserialization preserves the data
+    assert deserialized.current_player == 1
+    assert deserialized.awaiting_selection is False
+    assert deserialized.current_dice == [3, 4, 5, 6]
+    assert deserialized.temp_positions == {5: 2, 9: 1}
+    assert deserialized.active_columns == {5, 9}
+    assert deserialized.columns[3].player_positions[0] == 2
+    assert deserialized.columns[7].player_positions[1] == 3
+    assert deserialized.columns[2].is_claimed is True
+    assert deserialized.columns[2].claimed_by == 0
+    
+    # Verify game logic still works with deserialized state
+    assert game.get_current_player(deserialized) == 1
+    assert not game.is_terminal(deserialized)
+    
+    # Test a move with the deserialized state
+    move = CantStopMove("stop", [])
+    new_state = game.apply_move(deserialized, 1, move)
+    assert new_state.current_player == 0  # Turn should switch to player 0
+
+
 def test_initial_temp_progress_starts_from_player_progress(game, initial_state):
     """Test that when a player first selects a column, temp progress starts from their previous progress."""
     # Set up player progress in columns

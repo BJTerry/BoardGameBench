@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import List, Dict, Any, Optional, Tuple, Set, Union, cast
 from bgbench.game import Game
-from bgbench.game_view import GameView, PromptStyle
+from bgbench.match.view import MatchView, PromptStyle
 import random
 import copy
 
@@ -52,6 +52,15 @@ class LoveLetterState:
             "drawn_card": self.drawn_card.value
             if self.drawn_card is not None
             else None,
+            "priest_views": [
+                {
+                    "viewer": viewer,
+                    "target": target,
+                    "card": card.value
+                }
+                for viewer, target, card in self.priest_views
+            ],
+            "move_history": []  # Empty list to ensure it's always serializable
         }
 
 
@@ -434,7 +443,7 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
         player_id: int,
         history: Optional[List[Dict[str, Any]]] = None,
         prompt_style: PromptStyle = PromptStyle.HEADER,
-    ) -> GameView:
+    ) -> MatchView:
         """Return what this player can see of the current state."""
         # Format visible information
         visible_state = {
@@ -503,7 +512,7 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
             f"- First to {self.target_score} tokens wins the game"
         )
 
-        return GameView(
+        return MatchView(
             rules_explanation=rules_explanation,
             visible_state=visible_state,
             valid_moves=self._get_valid_moves(state, player_id),
@@ -687,3 +696,70 @@ class LoveLetterGame(Game[LoveLetterState, LoveLetterMove]):
         elif state.scores[1] > state.scores[0]:
             return 1
         return None  # Tie
+        
+    def serialize_state(self, state: LoveLetterState) -> Dict[str, Any]:
+        """Serialize the game state into a JSON-compatible dictionary.
+
+        This method ensures that all game-specific state is properly serialized
+        into a format that can be stored in the database and later deserialized.
+
+        Args:
+            state: The LoveLetterState to serialize
+
+        Returns:
+            A JSON-compatible dictionary representing the game state
+        """
+        # Use the to_dict method which now includes priest_views
+        return state.to_dict()
+        
+    def deserialize_state(self, state_data: Dict[str, Any]) -> LoveLetterState:
+        """Deserialize state data into a LoveLetterState object.
+        
+        Args:
+            state_data: Dictionary containing serialized state data from serialize_state
+            
+        Returns:
+            Deserialized LoveLetterState object
+        """
+        # Convert integer values back to Card enum values
+        deck = [Card(value) for value in state_data["deck"]]
+        
+        # Convert hands (handling None values)
+        hands = [Card(value) if value is not None else None for value in state_data["hands"]]
+        
+        # Convert discards
+        discards = []
+        for player_discards in state_data["discards"]:
+            discards.append([Card(value) for value in player_discards])
+        
+        # Convert face_up_cards
+        face_up_cards = [Card(value) for value in state_data["face_up_cards"]]
+        
+        # Convert removed_card (handling None)
+        removed_card = Card(state_data["removed_card"]) if state_data["removed_card"] is not None else None
+        
+        # Convert drawn_card (handling None)
+        drawn_card = Card(state_data["drawn_card"]) if state_data["drawn_card"] is not None else None
+        
+        # Reconstruct priest_views if present
+        priest_views = []
+        if "priest_views" in state_data:
+            for view_data in state_data["priest_views"]:
+                viewer = view_data["viewer"]
+                target = view_data["target"]
+                card = Card(view_data["card"])
+                priest_views.append((viewer, target, card))
+        
+        # Create and return the state
+        return LoveLetterState(
+            deck=deck,
+            hands=hands,
+            discards=discards,
+            current_player=state_data["current_player"],
+            protected_players=set(state_data["protected_players"]),
+            removed_card=removed_card,
+            face_up_cards=face_up_cards,
+            scores=state_data["scores"],
+            drawn_card=drawn_card,
+            priest_views=priest_views
+        )

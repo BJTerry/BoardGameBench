@@ -8,7 +8,7 @@ from bgbench.models import (
     Experiment,
     Player,
     GameMatch,
-    GameState,
+    MatchState, # Renamed from GameState
     LLMInteraction,
 )
 
@@ -56,9 +56,9 @@ class TestExperiment:
             Experiment.resume_experiment(db_session, 999)
 
 
-class TestGameState:
-    def test_game_state_lifecycle(self, db_session):
-        """Test complete game state lifecycle"""
+class TestMatchState: # Renamed class
+    def test_match_state_lifecycle(self, db_session): # Renamed test method
+        """Test complete match state lifecycle"""
         # Create experiment and players first
         experiment = Experiment().create_experiment(db_session, "Test Experiment")
         player1 = Player(name="Player 1", model_config={}, experiment_id=experiment.id)
@@ -75,15 +75,18 @@ class TestGameState:
 
         # Initial state
         initial_state = {"phase": "setup", "turn": 0}
-        game_state = GameState(game_id=game.id, state_data=initial_state)
-        game_state.record_state(db_session)
+        # Use MatchState and match_id
+        match_state = MatchState(match_id=game.id, state_data=initial_state)
+        match_state.record_state(db_session)
 
         # Update state
         new_state = {"phase": "play", "turn": 1}
-        game_state.update_state(db_session, new_state)
+        match_state.update_state(db_session, new_state)
 
         # Verify final state
-        saved_state = db_session.query(GameState).filter_by(game_id=game.id).first()
+        # Query MatchState using match_id
+        saved_state = db_session.query(MatchState).filter_by(match_id=game.id).first()
+        assert saved_state is not None # Ensure state was found
         assert saved_state.state_data["phase"] == "play"
         assert saved_state.state_data["turn"] == 1
 
@@ -102,19 +105,20 @@ class TestGameState:
         db_session.add(game)
         db_session.commit()
 
-        game_state = GameState(game_id=game.id, state_data={})
+        # game_state = GameState(game_id=game.id, state_data={}) # This line is unused and refers to old name
 
         # Create a class that doesn't implement to_dict
         class Unserializable:
             pass
-
         invalid_state = Unserializable()
-        with pytest.raises(ValueError, match="State data must be JSON-serializable"):
-            game_state.update_state(db_session, cast(dict, invalid_state))  # type: ignore
+        # Update the expected error message regex to match the actual raised error
+        with pytest.raises(ValueError, match="Match state data must be JSON-serializable: .*"):
+            match_state = MatchState(match_id=game.id, state_data={}) # Use MatchState and match_id
+            match_state.update_state(db_session, cast(dict, invalid_state))  # type: ignore
 
 
-class TestGame:
-    def test_game_player_validation(self, db_session):
+class TestGameMatch: # Renamed class for clarity
+    def test_match_player_validation(self, db_session): # Renamed test method
         """Test game creation with invalid player combinations"""
         experiment = Experiment().create_experiment(db_session, "Test Experiment")
         player1 = Player(name="Player 1", model_config={}, experiment_id=experiment.id)
@@ -151,11 +155,11 @@ class TestGame:
             except:
                 db_session.rollback()
                 raise
-            db_session.add(game)
+            # db_session.add(game) # No need to add again
             db_session.commit()
 
-    def test_game_experiment_isolation(self, db_session):
-        """Test that games are properly isolated by experiment"""
+    def test_match_experiment_isolation(self, db_session): # Renamed test method
+        """Test that matches are properly isolated by experiment"""
         # Create two experiments
         exp1 = Experiment().create_experiment(db_session, "Experiment 1")
         exp2 = Experiment().create_experiment(db_session, "Experiment 2")
@@ -174,11 +178,11 @@ class TestGame:
         db_session.add(game1)
         db_session.commit()
 
-        # Verify game retrieval by experiment
-        exp1_games = db_session.query(GameMatch).filter_by(experiment_id=exp1.id).all()
-        exp2_games = db_session.query(GameMatch).filter_by(experiment_id=exp2.id).all()
-        assert len(exp1_games) == 1
-        assert len(exp2_games) == 0
+        # Verify match retrieval by experiment
+        exp1_matches = db_session.query(GameMatch).filter_by(experiment_id=exp1.id).all()
+        exp2_matches = db_session.query(GameMatch).filter_by(experiment_id=exp2.id).all()
+        assert len(exp1_matches) == 1
+        assert len(exp2_matches) == 0
 
 
 class TestPlayerExperiment:
@@ -237,7 +241,7 @@ class TestPlayerExperiment:
         assert player_names == {"Player 0", "Player 1", "Player 2"}
 
 
-class TestLLMInteraction:
+class TestLLMInteraction: # Keep this class name
     def test_log_interaction(self, db_session):
         """Test logging LLM interactions"""
         # Setup
@@ -267,6 +271,7 @@ class TestLLMInteraction:
 
         # Verify
         saved = db_session.query(LLMInteraction).filter_by(game_id=game.id).first()
+        assert saved is not None # Ensure interaction was found
         assert saved.prompt == prompt
         assert saved.response == response
 
@@ -300,9 +305,9 @@ class TestLLMInteraction:
         assert len(interactions) == 3
 
 
-class TestGameOutcomes:
-    def test_game_winner(self, db_session):
-        """Test setting and retrieving game winner"""
+class TestGameMatchOutcomes: # Renamed class
+    def test_match_winner(self, db_session): # Renamed test method
+        """Test setting and retrieving match winner"""
         experiment = Experiment().create_experiment(db_session, "Test Experiment")
         player1 = Player(name="Player 1", model_config={}, experiment_id=experiment.id)
         player2 = Player(name="Player 2", model_config={}, experiment_id=experiment.id)
@@ -321,12 +326,14 @@ class TestGameOutcomes:
 
         # Verify winner
         saved_game = db_session.query(GameMatch).filter_by(id=game.id).first()
+        assert saved_game is not None # Ensure match was found
         assert saved_game.winner_id == player1.id
+        assert saved_game.winner is not None # Ensure winner relationship loaded
         assert saved_game.winner.name == "Player 1"
         assert not saved_game.conceded
 
-    def test_game_concession(self, db_session):
-        """Test handling game concessions"""
+    def test_match_concession(self, db_session): # Renamed test method
+        """Test handling match concessions"""
         experiment = Experiment().create_experiment(db_session, "Test Experiment")
         player1 = Player(name="Player 1", model_config={}, experiment_id=experiment.id)
         player2 = Player(name="Player 2", model_config={}, experiment_id=experiment.id)
@@ -348,11 +355,13 @@ class TestGameOutcomes:
         # Verify concession
         saved_game = db_session.query(GameMatch).filter_by(id=game.id).first()
         assert saved_game.conceded
+        assert saved_game is not None # Ensure match was found
+        assert saved_game.conceded
         assert saved_game.concession_reason == "Invalid moves exceeded"
         assert saved_game.winner_id == player2.id
 
-    def test_game_completion_queries(self, db_session):
-        """Test querying completed and ongoing games"""
+    def test_match_completion_queries(self, db_session): # Renamed test method
+        """Test querying completed and ongoing matches"""
         experiment = Experiment().create_experiment(db_session, "Test Experiment")
         player1 = Player(name="Player 1", model_config={}, experiment_id=experiment.id)
         player2 = Player(name="Player 2", model_config={}, experiment_id=experiment.id)

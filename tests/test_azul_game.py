@@ -527,3 +527,35 @@ def test_get_player_view(game, initial_state):
 
     # Should have no valid moves since it's not their turn
     assert not view_1.valid_moves
+
+
+def test_serialize_deserialize_state(game, initial_state):
+    """Test serialization and deserialization of AzulState."""
+    # Modify the initial state to have some interesting data
+    state = initial_state
+    state.factory_displays[0][TileColor.BLUE] = 3
+    state.center_tiles[TileColor.RED] = 2
+    state.player_boards[0].pattern_lines[0][0] = TileColor.YELLOW
+    state.player_boards[1].wall[0][0] = True
+    
+    # Serialize the state
+    serialized = game.serialize_state(state)
+    
+    # Verify serialization contains expected data
+    assert serialized["factory_displays"][0][str(TileColor.BLUE)] == 3
+    assert serialized["center_tiles"][str(TileColor.RED)] == 2
+    assert serialized["player_boards"][0]["pattern_lines"][0][0] == str(TileColor.YELLOW)
+    assert serialized["player_boards"][1]["wall"][0][0] is True
+    
+    # Deserialize back to a state object
+    deserialized = game.deserialize_state(serialized)
+    
+    # Verify deserialization preserves the data
+    assert deserialized.factory_displays[0][TileColor.BLUE] == 3
+    assert deserialized.center_tiles[TileColor.RED] == 2
+    assert deserialized.player_boards[0].pattern_lines[0][0] == TileColor.YELLOW
+    assert deserialized.player_boards[1].wall[0][0] is True
+    
+    # Verify game logic still works with deserialized state
+    assert game.get_current_player(deserialized) == state.current_player
+    assert game.is_terminal(deserialized) == game.is_terminal(state)

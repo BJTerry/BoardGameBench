@@ -1,6 +1,6 @@
 import pytest
 from bgbench.llm_player import LLMPlayer
-from bgbench.game_view import GameView
+from bgbench.match.view import MatchView
 from bgbench.models import Experiment, Player, GameMatch
 
 
@@ -26,7 +26,7 @@ async def test_llm_player_basic_move(test_llm, db_session):
         _llm=test_llm,
     )
 
-    game_view = GameView(
+    game_view = MatchView(
         visible_state={"remaining": 10},
         valid_moves=["1", "2", "3"],
         is_terminal=False,
@@ -72,7 +72,7 @@ async def test_llm_player_invalid_move_retry(test_llm, db_session):
         _llm=test_llm,
     )
 
-    game_view = GameView(
+    game_view = MatchView(
         visible_state={"remaining": 5},
         valid_moves=["1", "2", "3"],
         is_terminal=False,
@@ -112,7 +112,7 @@ async def test_llm_player_db_logging(test_llm, mocker):
         _llm=test_llm,
     )
 
-    game_view = GameView(
+    game_view = MatchView(
         visible_state={"remaining": 5},
         valid_moves=["1", "2", "3"],
         is_terminal=False,
@@ -156,7 +156,7 @@ async def test_llm_player_truncates_long_invalid_moves(test_llm, db_session):
         _llm=test_llm,
     )
 
-    game_view = GameView(
+    game_view = MatchView(
         visible_state={"remaining": 5},
         valid_moves=["1", "2", "3"],
         is_terminal=False,

@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import datetime
 from typing import Optional, List, Dict, Any
 from sqlalchemy import (
     Integer,
@@ -12,6 +13,7 @@ from sqlalchemy import (
     Boolean,
     func,
     text,
+    DateTime,
 )
 from sqlalchemy.orm import (
     relationship,
@@ -180,9 +182,13 @@ class GameMatch(Base):
     concession_reason: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     complete: Mapped[bool] = mapped_column(
         Boolean, default=False
-    )  # Indicates if game finished normally (including draws)
-    state: Mapped["GameState"] = relationship(
-        "GameState", uselist=False, back_populates="game", cascade="all, delete-orphan"
+    )  # Indicates if match finished normally (including draws)
+    # One-to-many relationship to MatchState, ordered by timestamp descending
+    states: Mapped[list["MatchState"]] = relationship(
+        "MatchState",
+        cascade="all, delete-orphan",
+        primaryjoin="GameMatch.id == MatchState.match_id",
+        order_by="desc(MatchState.timestamp)" # Order by timestamp descending
     )
     experiment: Mapped["Experiment"] = relationship(
         "Experiment", back_populates="games"
@@ -198,35 +204,42 @@ class GameMatch(Base):
     )
 
 
-class GameState(Base):
+class MatchState(Base):
     def _serialize_state(self, state_data: dict) -> dict:
-        """Convert state data to JSON-serializable format."""
+        """Convert match state data to JSON-serializable format."""
         try:
             result = serialize_value(state_data)
             if not isinstance(result, dict):
                 raise ValueError("Serialized state must be a dictionary")
             return result
         except (TypeError, ValueError) as e:
-            raise ValueError(f"State data must be JSON-serializable: {str(e)}")
+            raise ValueError(f"Match state data must be JSON-serializable: {str(e)}")
 
     def update_state(self, session: Session, new_state_data: dict):
+        """Updates the state_data of this specific MatchState record."""
         self.state_data = self._serialize_state(new_state_data)
         session.commit()
-        logger.debug(f"Updated game state for game {self.game_id}: {self.state_data}")
+        logger.debug(f"Updated match state record {self.id} for match {self.match_id}: {self.state_data}")
 
     def record_state(self, session: Session):
-        self.state_data = self._serialize_state(self.state_data)
+        """Adds this MatchState instance to the session and commits."""
+        # Serialization should happen before calling this or be handled by the caller
+        # self.state_data = self._serialize_state(self.state_data)
         session.add(self)
         session.commit()
+        logger.debug(f"Recorded new match state for match {self.match_id}")
 
-    __tablename__ = "game_states"
+    __tablename__ = "match_states"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    game_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("games.id", ondelete="CASCADE")
+    # Renamed from game_id to match_id for clarity
+    match_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("games.id", ondelete="CASCADE"), index=True
     )
     state_data: Mapped[dict] = mapped_column(JsonType, nullable=False)
-    game: Mapped["GameMatch"] = relationship("GameMatch", back_populates="state")
+    timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    # Relationship back to GameMatch removed as per plan (will be one-to-many from GameMatch)
+    # match: Mapped["GameMatch"] = relationship("GameMatch", back_populates="states")
 
 
 @event.listens_for(GameMatch, "before_insert")

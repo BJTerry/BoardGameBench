@@ -17,4 +17,11 @@ def serialize_value(value: Any) -> Union[Dict[str, Any], List[Any], Any]:
         return {k: serialize_value(v) for k, v in value.items()}
     elif isinstance(value, (list, tuple)):
         return [serialize_value(item) for item in value]
+    # For basic types (int, float, str, bool, None), return as is.
+    # Assumes these are directly JSON-serializable.
     return value
+
+# Note: A corresponding generic `deserialize_value` is generally not needed.
+# Deserialization from the dictionary loaded from JSON should be handled
+# by specific `from_dict` classmethods on the target state objects (e.g., AzulState.from_dict),
+# as these methods have the necessary context to reconstruct complex types and enums.

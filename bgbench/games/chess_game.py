@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional, Tuple
 from bgbench.game import Game
-from bgbench.game_view import GameView, PromptStyle
+from bgbench.match.view import MatchView, PromptStyle
 import chess
 import chess.pgn
 
@@ -23,6 +23,37 @@ class ChessState:
             "is_insufficient_material": self.board.is_insufficient_material(),
             "turn": "white" if self.board.turn else "black",
         }
+        
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ChessState":
+        """Create a ChessState from a dictionary.
+        
+        Args:
+            data: Dictionary containing state data
+            
+        Returns:
+            ChessState object
+        """
+        # Extract move history
+        pgn_str = data.get("pgn", "")
+        move_history = pgn_str.split() if pgn_str else []
+        
+        # Create a new board from the starting position
+        board = chess.Board()
+        
+        # Replay the move history to get to the correct position
+        for move_san in move_history:
+            try:
+                move = board.parse_san(move_san)
+                board.push(move)
+            except ValueError as e:
+                # If we can't parse a move, fall back to using the FEN
+                if "fen" in data:
+                    board = chess.Board(data["fen"])
+                break
+        
+        # Return a new ChessState
+        return cls(board=board, move_history=move_history)
 
 
 @dataclass
@@ -104,7 +135,7 @@ class ChessGame(Game[ChessState, ChessMove]):
         player_id: int,
         history: Optional[List[Dict[str, Any]]] = None,
         prompt_style: PromptStyle = PromptStyle.HEADER,
-    ) -> GameView:
+    ) -> MatchView:
         """Return what this player can see of the current state."""
         visible_state = {
             "position": state.board.fen(),
@@ -127,7 +158,7 @@ class ChessGame(Game[ChessState, ChessMove]):
             # The player who just moved won
             winner = 1 - self.get_current_player(state)
 
-        return GameView(
+        return MatchView(
             rules_explanation=self.get_rules_explanation(),
             visible_state=visible_state,
             valid_moves=[state.board.san(move) for move in state.board.legal_moves],
@@ -191,3 +222,30 @@ class ChessGame(Game[ChessState, ChessMove]):
             "- Stalemate: No legal moves but king not in check\n"
             "- Draw: By agreement, repetition, or insufficient material"
         )
+        
+    def serialize_state(self, state: ChessState) -> Dict[str, Any]:
+        """Serialize the game state into a JSON-compatible dictionary.
+
+        This method ensures that all game-specific state is properly serialized
+        into a format that can be stored in the database and later deserialized.
+
+        Args:
+            state: The ChessState to serialize
+
+        Returns:
+            A JSON-compatible dictionary representing the game state
+        """
+        # Use the to_dict method of ChessState
+        return state.to_dict()
+
+    def deserialize_state(self, state_data: Dict[str, Any]) -> ChessState:
+        """Deserialize state data into a ChessState object.
+        
+        Args:
+            state_data: Dictionary containing serialized state data, the output of ChessState.to_dict()
+            
+        Returns:
+            Deserialized ChessState object
+        """
+        # Simply pass the state data to ChessState.from_dict
+        return ChessState.from_dict(state_data)

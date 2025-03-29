@@ -1,7 +1,7 @@
 import copy
 import pytest
 from bgbench.games.love_letter_game import LoveLetterGame, Card, LoveLetterMove
-from bgbench.game_view import PromptStyle
+from bgbench.match.view import PromptStyle
 
 
 @pytest.fixture
@@ -218,6 +218,51 @@ def test_card_count_verification(game, initial_state):
     state.deck.append(state.deck[0])  # Duplicate a card
     with pytest.raises(ValueError, match="Card count mismatch"):
         game._verify_card_counts(state)
+
+
+def test_serialize_deserialize_state(game, initial_state):
+    """Test serialization and deserialization of LoveLetterState."""
+    # Modify the initial state to have some interesting data
+    state = copy.deepcopy(initial_state)
+    
+    # Set up some specific cards
+    state.hands[0] = Card.GUARD
+    state.hands[1] = Card.PRINCESS
+    state.drawn_card = Card.PRIEST
+    state.discards[0].append(Card.BARON)
+    state.protected_players.add(1)
+    state.scores = [2, 1]
+    
+    # Serialize the state
+    serialized = game.serialize_state(state)
+    
+    # Verify serialization contains expected data
+    assert serialized["hands"][0] == Card.GUARD.value
+    assert serialized["hands"][1] == Card.PRINCESS.value
+    assert serialized["drawn_card"] == Card.PRIEST.value
+    assert serialized["discards"][0][0] == Card.BARON.value
+    assert 1 in serialized["protected_players"]
+    assert serialized["scores"] == [2, 1]
+    
+    # Deserialize back to a state object
+    deserialized = game.deserialize_state(serialized)
+    
+    # Verify deserialization preserves the data
+    assert deserialized.hands[0] == Card.GUARD
+    assert deserialized.hands[1] == Card.PRINCESS
+    assert deserialized.drawn_card == Card.PRIEST
+    assert deserialized.discards[0][0] == Card.BARON
+    assert 1 in deserialized.protected_players
+    assert deserialized.scores == [2, 1]
+    
+    # Verify game logic still works with deserialized state
+    assert game.get_current_player(deserialized) == state.current_player
+    assert not game.is_terminal(deserialized)
+    
+    # Test a move with the deserialized state
+    move = LoveLetterMove(Card.GUARD, 1, Card.PRINCESS)
+    new_state = game.apply_move(deserialized, 0, move)
+    assert new_state.scores[0] == 3  # Player 0 should win the round with correct guess
 
 
 def test_game_end_conditions(game, initial_state):

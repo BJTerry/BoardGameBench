@@ -118,3 +118,62 @@ def test_game_over(game, empty_state, sample_board):
 
     assert game.is_terminal(state)
     assert game.get_winner(state) == 1
+
+
+def test_serialize_deserialize_state(game):
+    """Test serialization and deserialization of BattleshipState."""
+    # Create a state with some ships and shots
+    state = game.get_initial_state()
+    
+    # Add ships to player 0's board
+    ship1 = Ship("Destroyer", 2, {(0, 0), (0, 1)})
+    ship2 = Ship("Cruiser", 3, {(5, 5), (5, 6), (5, 7)})
+    state.boards[0].ships = [ship1, ship2]
+    
+    # Add ships to player 1's board
+    ship3 = Ship("Submarine", 3, {(2, 2), (3, 2), (4, 2)})
+    state.boards[1].ships = [ship3]
+    
+    # Add some hits and misses
+    state.boards[0].hits.add((0, 0))
+    ship1.hits.add((0, 0))
+    state.boards[0].misses.add((1, 1))
+    state.boards[1].misses.add((7, 7))
+    
+    # Set game state
+    state.setup_complete = True
+    state.current_player = 1
+    
+    # Serialize the state
+    serialized = game.serialize_state(state)
+    
+    # Verify serialization contains expected data
+    assert serialized["setup_complete"] is True
+    assert serialized["current_player"] == 1
+    assert len(serialized["boards"]) == 2
+    assert len(serialized["boards"][0]["ships"]) == 2
+    assert len(serialized["boards"][1]["ships"]) == 1
+    assert (0, 0) in [tuple(pos) for pos in serialized["boards"][0]["hits"]]
+    
+    # Deserialize back to a state object
+    deserialized = game.deserialize_state(serialized)
+    
+    # Verify deserialization preserves the data
+    assert deserialized.setup_complete is True
+    assert deserialized.current_player == 1
+    assert len(deserialized.boards) == 2
+    assert len(deserialized.boards[0].ships) == 2
+    assert len(deserialized.boards[1].ships) == 1
+    assert (0, 0) in deserialized.boards[0].hits
+    assert (1, 1) in deserialized.boards[0].misses
+    assert (7, 7) in deserialized.boards[1].misses
+    
+    # Verify ship data was preserved
+    assert deserialized.boards[0].ships[0].name == "Destroyer"
+    assert deserialized.boards[0].ships[0].size == 2
+    assert (0, 0) in deserialized.boards[0].ships[0].positions
+    assert (0, 0) in deserialized.boards[0].ships[0].hits
+    
+    # Verify game logic still works with deserialized state
+    assert game.get_current_player(deserialized) == 1
+    assert not game.is_terminal(deserialized)

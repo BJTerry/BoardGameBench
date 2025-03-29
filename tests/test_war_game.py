@@ -1,6 +1,6 @@
 import pytest
 from bgbench.games.war_game import WarGame, WarState, Card
-from bgbench.game_view import GameView
+from bgbench.match.view import MatchView
 
 
 @pytest.fixture
@@ -54,7 +54,7 @@ def test_player_view(war_game, simple_state):
     """Test player view generation"""
     view = war_game.get_player_view(simple_state, 0)
 
-    assert isinstance(view, GameView)
+    assert isinstance(view, MatchView)
     if isinstance(view.visible_state, dict):
         assert view.visible_state.get("your_cards") == 2
         assert view.visible_state.get("opponent_cards") == 2
@@ -155,3 +155,66 @@ def test_game_end_detection(war_game):
     view = war_game.get_player_view(state, 0)
     assert view.is_terminal
     assert view.winner == 0  # Player 1 wins
+
+
+def test_serialize_deserialize_state(war_game):
+    """Test serialization and deserialization of WarState."""
+    # Create a state with some interesting data
+    state = WarState(
+        player_hands=[
+            [Card(14, 0), Card(10, 1)],  # Player 0: Ace of Hearts, 10 of Diamonds
+            [Card(13, 2), Card(9, 3)]    # Player 1: King of Clubs, 9 of Spades
+        ],
+        board=[Card(7, 0), Card(7, 1)],  # Two 7s on the board (war situation)
+        current_player=1,
+        war_state=True,
+        cards_needed=4,
+        face_down_count=2
+    )
+    
+    # Serialize the state
+    serialized = war_game.serialize_state(state)
+    
+    # Verify serialization contains expected data
+    assert serialized["current_player"] == 1
+    assert serialized["war_state"] is True
+    assert serialized["cards_needed"] == 4
+    assert serialized["face_down_count"] == 2
+    assert len(serialized["player_hands"]) == 2
+    assert len(serialized["player_hands"][0]) == 2
+    assert serialized["player_hands"][0][0]["rank"] == 14
+    assert serialized["player_hands"][0][0]["suit"] == 0
+    assert len(serialized["board"]) == 2
+    assert serialized["board"][0]["rank"] == 7
+    
+    # Deserialize back to a state object
+    deserialized = war_game.deserialize_state(serialized)
+    
+    # Verify deserialization preserves the data
+    assert deserialized.current_player == 1
+    assert deserialized.war_state is True
+    assert deserialized.cards_needed == 4
+    assert deserialized.face_down_count == 2
+    assert len(deserialized.player_hands) == 2
+    assert len(deserialized.player_hands[0]) == 2
+    assert deserialized.player_hands[0][0].rank == 14
+    assert deserialized.player_hands[0][0].suit == 0
+    assert len(deserialized.board) == 2
+    assert deserialized.board[0].rank == 7
+    
+    # Verify game logic still works with deserialized state
+    assert war_game.get_current_player(deserialized) == 1
+    assert not war_game.is_terminal(deserialized)
+    
+    # Test a move with the deserialized state
+    # Player 1 has King of Clubs, which should be played
+    new_state = war_game.apply_move(deserialized, 1, "play")
+        
+    # Since player 1 has only one card left, it should be played as a face-up card
+    # This should resolve the war since player 0's Ace beats player 1's King
+    # War should be over, so face_down_count should be reset to 0
+    assert new_state.war_state is False
+    assert new_state.face_down_count == 0
+    assert len(new_state.board) == 0  # Board should be cleared after war resolution
+    assert len(new_state.player_hands[0]) > 0  # Player 0 should have cards
+    assert len(new_state.player_hands[1]) == 0  # Player 1 should have no cards left

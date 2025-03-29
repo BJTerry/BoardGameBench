@@ -73,7 +73,7 @@ class PromptRenderer:
 
 
 @dataclass
-class GameView:
+class MatchView:
     """What a player can see of the game state.
 
     Attributes:

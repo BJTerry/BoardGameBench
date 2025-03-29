@@ -3,14 +3,16 @@ from datetime import datetime
 from typing import List, Dict, Any, Tuple, Optional
 from sqlalchemy.orm import Session
 from bgbench.game import Game
-from bgbench.game_view import GameView
+from bgbench.match.view import MatchView
 from bgbench.llm_player import LLMPlayer
-from bgbench.models import GameState
+from bgbench.models import MatchState # Renamed from GameState
+from bgbench.match.state_manager import MatchStateManager
+from bgbench.match_state import MatchStateData
 
 logger = logging.getLogger("bgbench")
 
 
-class GameRunner:
+class MatchRunner:
     def __init__(
         self,
         game: Game,
@@ -21,25 +23,29 @@ class GameRunner:
         player1_id: int,
         player2_id: int,
         experiment_name: Optional[str] = None,
+        match_state_manager: Optional[MatchStateManager] = None,
+        initial_state: Optional[Any] = None,
     ):
-        self.game = game
+        self.match_state_manager = match_state_manager
+        self.initial_state = initial_state
+        self.game = game # The abstract ruleset
         self.players = [player1, player2]
         self.session = db_session
-        self.game_id = game_id
+        self.match_id = game_id # Renamed game_id to match_id for clarity
         self.turn_count = 0
         self.start_time = None
         self.experiment_name = experiment_name or self.game.__class__.__name__
 
         # Set database session, game_id, and player_id for players
         logger.debug(
-            f"Setting game_id={game_id} for players {player1.name} and {player2.name}"
+            f"Setting match_id={self.match_id} for players {player1.name} and {player2.name}"
         )
         player1.db_session = db_session
-        player1.game_id = game_id
+        player1.game_id = self.match_id # LLMPlayer expects game_id for interaction logging
         player1.player_id = player1_id
 
         player2.db_session = db_session
-        player2.game_id = game_id
+        player2.game_id = self.match_id # LLMPlayer expects game_id for interaction logging
         player2.player_id = player2_id
 
         logger.debug(f"Player {player1.name} has player_id={player1.player_id}")
@@ -57,28 +63,30 @@ class GameRunner:
             - Concession reason (if game was conceded)
         """
         self.start_time = datetime.now()
-        state = self.game.get_initial_state()
+        state = self.initial_state if self.initial_state is not None else self.game.get_initial_state()
         history = []
 
-        # Record initial game state
-        game_state = GameState(
-            game_id=self.game_id,
-            state_data={
-                "initial_state": state,
-                "start_time": self.start_time.isoformat(),
-                "game_type": self.game.__class__.__name__,
-                "player1": self.players[0].name,
-                "player2": self.players[1].name,
-            },
-        )
-        game_state.record_state(self.session)
+        # Record initial match state
+        if self.match_state_manager:
+            # Serialize the game state
+            game_state = self.game.serialize_state(state)
+                
+            # Create a proper MatchStateData object
+            initial_state_data = MatchStateData(
+                turn=0,  # Initial state is turn 0
+                current_player_id=self.game.get_current_player(state),
+                timestamp=self.start_time,
+                game_state=game_state,
+            )
+                
+            self.match_state_manager.save_state(self.session, self.match_id, initial_state_data)
 
         while True:
             if self.game.is_terminal(state):
                 break
 
             current_player: int = self.game.get_current_player(state)
-            game_view: GameView = self.game.get_player_view(
+            game_view: MatchView = self.game.get_player_view(
                 state,
                 current_player,
                 history,
@@ -91,18 +99,20 @@ class GameRunner:
             player = self.players[current_player]
             self.turn_count += 1
 
-            # Log detailed game state before the move
-            game_state = GameState(
-                game_id=self.game_id,
-                state_data={
-                    "turn": self.turn_count,
-                    "current_player": player.name,
-                    "visible_state": game_view.visible_state,
-                    "history": history,
-                    "timestamp": datetime.now().isoformat(),
-                },
-            )
-            game_state.record_state(self.session)
+            # Log detailed match state before the move
+            if self.match_state_manager:
+                # Serialize the game state
+                game_state = self.game.serialize_state(state)
+                
+                # Create a proper MatchStateData object
+                turn_state_data = MatchStateData(
+                    turn=self.turn_count,
+                    current_player_id=current_player,
+                    timestamp=datetime.now(),
+                    game_state=game_state,
+                )
+                
+                self.match_state_manager.save_state(self.session, self.match_id, turn_state_data)
 
             invalid_moves: List[Dict[str, str]] = []
             retry_count = 0

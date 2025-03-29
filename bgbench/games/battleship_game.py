@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional, Tuple, Set
 from bgbench.game import Game
-from bgbench.game_view import GameView, PromptStyle
+from bgbench.match.view import MatchView, PromptStyle
 import string
 import copy
 
@@ -159,7 +159,7 @@ class BattleshipGame(Game):
         player_id: int,
         history: Optional[List[Dict[str, Any]]] = None,
         prompt_style: PromptStyle = PromptStyle.HEADER,
-    ) -> GameView:
+    ) -> MatchView:
         opponent_id = 1 - player_id
 
         # Format shot history
@@ -246,7 +246,7 @@ class BattleshipGame(Game):
             "First to sink all opponent's ships wins."
         )
 
-        return GameView(
+        return MatchView(
             rules_explanation=rules_explanation,
             visible_state=visible_state,
             valid_moves=self._get_valid_moves(state, player_id),
@@ -398,6 +398,59 @@ class BattleshipGame(Game):
         elif len(new_state.boards[state.current_player].ships) == len(SHIPS):
             new_state.current_player = 1 - state.current_player
         return new_state
+
+    def serialize_state(self, state: BattleshipState) -> Dict[str, Any]:
+        """Serialize the game state into a JSON-compatible dictionary.
+
+        This method ensures that all game-specific state is properly serialized
+        into a format that can be stored in the database and later deserialized.
+
+        Args:
+            state: The BattleshipState to serialize
+
+        Returns:
+            A JSON-compatible dictionary representing the game state
+        """
+        return state.to_dict()
+
+    def deserialize_state(self, state_data: Dict[str, Any]) -> BattleshipState:
+        """Deserialize state data into a BattleshipState object.
+        
+        Args:
+            state_data: Dictionary containing serialized state data from serialize_state
+            
+        Returns:
+            Deserialized BattleshipState object
+        """
+        # Create empty boards
+        boards = []
+        for board_data in state_data["boards"]:
+            # Create ships
+            ships = []
+            for ship_data in board_data["ships"]:
+                ship = Ship(
+                    name=ship_data["name"],
+                    size=ship_data["size"],
+                    positions=set(tuple(pos) for pos in ship_data["positions"]),
+                    sunk_reported=ship_data["sunk_reported"]
+                )
+                ship.hits = set(tuple(hit) for hit in ship_data["hits"])
+                ships.append(ship)
+            
+            # Create board with ships, hits, and misses
+            board = Board(
+                ships=ships,
+                hits=set(tuple(hit) for hit in board_data["hits"]),
+                misses=set(tuple(miss) for miss in board_data["misses"])
+            )
+            boards.append(board)
+        
+        # Create and return the state
+        return BattleshipState(
+            boards=boards,
+            current_player=state_data["current_player"],
+            setup_complete=state_data["setup_complete"]
+        )
 
     def is_terminal(self, state: BattleshipState) -> bool:
         if not state.setup_complete:

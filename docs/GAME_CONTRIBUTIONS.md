@@ -63,7 +63,7 @@ Every game must subclass the abstract class `Game[StateType, MoveType]` defined 
   _Tip:_ Use dataclasses to structure the state and include a `to_dict()` method for JSON serialization.
 
 - **`get_player_view(state, player_id, history, prompt_style)`**  
-  Generate a `GameView` object that filters the state to show each player only the information they are allowed to see.  
+  Generate a `MatchView` object that filters the state to show each player only the information they are allowed to see.  
   _Key Point:_ Hide secret or sensitive information (e.g., opponent’s hand or hidden cards).
 
 - **`parse_move(move_str)`**  
@@ -89,6 +89,14 @@ Every game must subclass the abstract class `Game[StateType, MoveType]` defined 
 
 - **`get_next_state(state, move)`**  
   Compute and return the next state after a move is applied. This may be a simple wrapper around `apply_move`.
+
+- **`serialize_state(state)`**  
+  Convert the game state into a JSON-compatible dictionary.  
+  _Purpose:_ Enable state persistence for resumable matches.
+
+- **`deserialize_state(state_data)`**  
+  Reconstruct the game state from a dictionary.  
+  _Purpose:_ Allow matches to be resumed from a saved state.
 
 ---
 
@@ -130,11 +138,11 @@ When implementing game methods, keep these common patterns in mind:
 
 - **Move Format Instructions:**  
   Every game must provide clear move format instructions to guide the LLM on how to play the game. This is crucial for ensuring that the LLM can generate valid moves.
-  - **Implementation:** Use the `get_move_format_instructions` method to return a string that explains how moves should be formatted. This string should be included in the `GameView`.
+  - **Implementation:** Use the `get_move_format_instructions` method to return a string that explains how moves should be formatted. This string should be included in the `MatchView`.
   - **Example:** In `chess_game.py`, the move format instructions are provided in standard chess notation (PGN format).
 
-- **GameView Setup:**  
-  The `GameView` class in `game_view.py` is used to encapsulate what a player can see of the game state. It includes:
+- **MatchView Setup:**  
+  The `MatchView` class in `game_view.py` is used to encapsulate what a player can see of the game state. It includes:
   - `visible_state`: A dictionary or string representing the current state visible to the player.
   - `valid_moves`: A list of legal moves available to the player.
   - `is_terminal`: A boolean indicating if the game has ended.
@@ -145,7 +153,7 @@ When implementing game methods, keep these common patterns in mind:
   - `prompt_style`: The style in which the prompt should be formatted (e.g., JSON, XML, HEADER).
 
 - **Example from ChessGame:**  
-  In `chess_game.py`, the `get_player_view` method constructs a `GameView` by:
+  In `chess_game.py`, the `get_player_view` method constructs a `MatchView` by:
   - Providing the current board position in FEN format.
   - Listing legal moves in PGN format.
   - Including move format instructions to guide the LLM.
@@ -156,14 +164,33 @@ When implementing game methods, keep these common patterns in mind:
 
 ---
 
-## 7. Serialization and Database Integration
+## 7. Serialization, Deserialization, and Database Integration
 
 - **State Serialization:**  
   All state classes should implement a `to_dict()` method that produces a JSON-serializable representation.  
   _Why:_ This is used for logging match progress, debugging, and persisting game states in the database.
 
+- **State Deserialization:**  
+  Game implementations must provide methods to deserialize state data:
+  - Implement the `serialize_state(self, state: StateType) -> Dict[str, Any]` method to convert game state to a JSON-compatible dictionary.
+  - Implement the `deserialize_state(self, state_data: Dict[str, Any]) -> StateType` method to reconstruct the game state from a dictionary.
+  - For dataclass-based states, consider implementing a `@classmethod from_dict(cls, data: Dict[str, Any]) -> "StateType"` method.
+  
+  _Why:_ These methods are essential for the resumable matches feature, allowing games to be paused and resumed later.
+
 - **Consistency:**  
-  Ensure that every piece of the game state (including nested objects) can be converted to a standard dictionary format.
+  Ensure that every piece of the game state (including nested objects) can be converted to a standard dictionary format and reconstructed from that format.
+
+- **Example Implementation:**
+  ```python
+  def serialize_state(self, state: MyGameState) -> Dict[str, Any]:
+      """Convert game state to a JSON-compatible dictionary."""
+      return state.to_dict()  # Assuming state has a to_dict method
+      
+  def deserialize_state(self, state_data: Dict[str, Any]) -> MyGameState:
+      """Reconstruct game state from a dictionary."""
+      return MyGameState.from_dict(state_data)  # Using a class method
+  ```
 
 ---
 
@@ -221,12 +248,26 @@ To ensure the robustness and correctness of your game implementation, it is cruc
          assert game.is_terminal(state)
      ```
 
+5. **Test State Serialization and Deserialization:**
+   - Verify that game states can be properly serialized and deserialized.
+   - Example:
+     ```python
+     def test_state_serialization(game, initial_state):
+         # Serialize the state
+         state_dict = game.serialize_state(initial_state)
+         # Deserialize back to a state object
+         reconstructed_state = game.deserialize_state(state_dict)
+         # Verify the reconstructed state matches the original
+         assert reconstructed_state == initial_state
+     ```
+
 ### Best Practices
 
 - **Consistent Naming:** Use descriptive names for test functions to indicate what they are testing.
 - **Comprehensive Coverage:** Ensure tests cover all aspects of the game logic, including edge cases.
 - **Use Assertions:** Use assertions to verify expected outcomes and behaviors.
-- **Reference Examples:** See `tests/test_nim_game.py` for examples of testing game logic and LLM interactions.
+- **Test Resumability:** Verify that games can be properly resumed from a serialized state.
+- **Reference Examples:** See `tests/test_nim_game.py` for examples of testing game logic and LLM interactions, and `tests/test_game_runner_resumption.py` for examples of testing resumable matches.
 
 ---
 
@@ -241,11 +282,18 @@ To ensure the robustness and correctness of your game implementation, it is cruc
 - **Error Handling:**  
   Provide clear and concise error messages during move validation to help with debugging and testing.
 
+- **State Serialization and Deserialization:**  
+  - Implement both `serialize_state` and `deserialize_state` methods in your game class.
+  - For dataclass-based states, implement `to_dict()` and `from_dict()` methods.
+  - Ensure all nested objects and complex data structures can be properly serialized and deserialized.
+  - Test the round-trip conversion (state → dict → state) to verify correctness.
+
 - **Consistency with Existing Games:**  
   Refer to the implementations of games like [Nim](./nim_game.py), [Chess](./chess_game.py), and [Battleship](./battleship_game.py) for examples of:
   - State structure
   - Player view filtering
   - Move parsing and application
+  - State serialization and deserialization
 
 - **Documentation and Comments:**  
   Write clear comments in your code explaining key decisions, especially around hidden information and state serialization.

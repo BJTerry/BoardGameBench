@@ -434,3 +434,60 @@ def test_scoring_only_modified_words_complex(game, initial_state):
     # 2. 'SADE' = 'S'(1) + 'A'(1) + 'D'(2) + 'E'(1) = 5 points
     # Total = 7 points
     assert new_state.scores[0] == 7
+
+
+def test_serialize_deserialize_state(game, initial_state):
+    """Test serialization and deserialization of ScrabbleState."""
+    # Modify the initial state to have some interesting data
+    state = initial_state
+    
+    # Set up some tiles on the board
+    state.board[7][7] = "H"
+    state.board[7][8] = "A"
+    state.board[7][9] = "T"
+    
+    # Set up player racks and scores
+    state.player_racks[0] = ["C", "A", "T", "S", "B", "C", "D"]
+    state.player_racks[1] = ["D", "O", "G", "E", "F", "G", "H"]
+    state.scores = [10, 15]
+    
+    # Set up tile bag and game state
+    state.tile_bag = ["A", "B", "C", "D", "E"]
+    state.turn_count = 3
+    state.consecutive_passes = 1
+    
+    # Serialize the state
+    serialized = game.serialize_state(state)
+    
+    # Verify serialization contains expected data
+    assert serialized["board"][7][7] == "H"
+    assert serialized["board"][7][8] == "A"
+    assert serialized["board"][7][9] == "T"
+    assert serialized["player_racks"][0] == ["C", "A", "T", "S", "B", "C", "D"]
+    assert serialized["player_racks"][1] == ["D", "O", "G", "E", "F", "G", "H"]
+    assert serialized["scores"] == [10, 15]
+    assert serialized["tile_bag"] == ["A", "B", "C", "D", "E"]
+    assert serialized["consecutive_passes"] == 1
+    
+    # Deserialize back to a state object
+    deserialized = game.deserialize_state(serialized)
+    
+    # Verify deserialization preserves the data
+    assert deserialized.board[7][7] == "H"
+    assert deserialized.board[7][8] == "A"
+    assert deserialized.board[7][9] == "T"
+    assert deserialized.player_racks[0] == ["C", "A", "T", "S", "B", "C", "D"]
+    assert deserialized.player_racks[1] == ["D", "O", "G", "E", "F", "G", "H"]
+    assert deserialized.scores == [10, 15]
+    assert deserialized.tile_bag == ["A", "B", "C", "D", "E"]
+    assert deserialized.turn_count == 3
+    assert deserialized.consecutive_passes == 1
+    
+    # Verify game logic still works with deserialized state
+    assert game.get_current_player(deserialized) == 1  # Player 1's turn (turn_count = 3)
+    assert not game.is_terminal(deserialized)
+    
+    # Test a move with the deserialized state
+    move = ScrabbleMove(word="CAT", start_position=(6, 8), direction="vertical")
+    new_state = game.apply_move(deserialized, 1, move)
+    assert game.get_current_player(new_state) == 0  # Turn should switch to player 0

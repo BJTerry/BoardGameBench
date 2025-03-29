@@ -16,7 +16,7 @@ from bgbench.models import (
     Experiment,
     Player,
     GameMatch,
-    GameState,
+    MatchState, # Renamed from GameState
     LLMInteraction,
 )
 
@@ -78,7 +78,7 @@ def init_postgres_db():
                 "experiments": Experiment,
                 "players": Player,
                 "games": GameMatch,
-                "game_states": GameState,
+                "match_states": MatchState, # Use MatchState and table name
                 "llm_interactions": LLMInteraction,
             }
 

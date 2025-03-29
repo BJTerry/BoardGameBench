@@ -33,3 +33,26 @@ def test_nim_apply_move(nim_game):
     final_state = NimState(remaining=2, current_player=0)
     end_state = nim_game.apply_move(final_state, 0, NimMove(count=2))
     assert end_state.remaining == 0
+
+
+def test_nim_serialize_deserialize(nim_game):
+    """Test serialization and deserialization of NimState."""
+    # Create a state
+    state = NimState(remaining=15, current_player=1)
+    
+    # Serialize it
+    serialized = nim_game.serialize_state(state)
+    
+    # Verify serialization
+    assert serialized == {"remaining": 15, "current_player": 1}
+    
+    # Deserialize it
+    deserialized = nim_game.deserialize_state(serialized)
+    
+    # Verify deserialization
+    assert deserialized.remaining == 15
+    assert deserialized.current_player == 1
+    
+    # Test roundtrip with game logic
+    assert nim_game.get_current_player(deserialized) == 1
+    assert not nim_game.is_terminal(deserialized)

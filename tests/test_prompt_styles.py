@@ -1,5 +1,5 @@
 import pytest
-from bgbench.game_view import GameView, PromptStyle, PromptRenderer
+from bgbench.match.view import MatchView, PromptStyle, PromptRenderer
 
 
 @pytest.mark.parametrize(
@@ -54,8 +54,8 @@ def test_prompt_renderer_invalid_style():
     "style", [PromptStyle.XML, PromptStyle.HEADER, PromptStyle.JSON]
 )
 def test_game_view_format_prompt(style: PromptStyle):
-    """Test GameView's format_prompt with different styles"""
-    game_view = GameView(
+    """Test MatchView's format_prompt with different styles"""
+    game_view = MatchView(
         visible_state={"test": "state"},
         valid_moves=[],
         is_terminal=False,
@@ -130,6 +130,6 @@ def test_game_view_format_prompt(style: PromptStyle):
 
 
 def test_game_view_default_prompt_style():
-    """Test that GameView defaults to HEADER style"""
-    game_view = GameView(visible_state={}, valid_moves=[], is_terminal=False)
+    """Test that MatchView defaults to HEADER style"""
+    game_view = MatchView(visible_state={}, valid_moves=[], is_terminal=False)
     assert game_view.prompt_style == PromptStyle.HEADER

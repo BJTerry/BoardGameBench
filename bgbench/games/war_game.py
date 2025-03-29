@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional, Tuple
 from bgbench.game import Game
-from bgbench.game_view import GameView, PromptStyle
+from bgbench.match.view import MatchView, PromptStyle
 import random
 
 
@@ -100,7 +100,7 @@ class WarGame(Game):
         player_id: int,
         history: Optional[List[Dict[str, Any]]] = None,
         prompt_style: PromptStyle = PromptStyle.HEADER,
-    ) -> GameView:
+    ) -> MatchView:
         visible_state = {
             "your_cards": len(state.player_hands[player_id]),
             "opponent_cards": len(state.player_hands[1 - player_id]),
@@ -121,7 +121,7 @@ class WarGame(Game):
         if is_terminal:
             winner = 1 if len(state.player_hands[0]) == 0 else 0
 
-        return GameView(
+        return MatchView(
             visible_state=visible_state,
             valid_moves=["play"] if can_play else [],
             is_terminal=is_terminal,
@@ -228,3 +228,45 @@ class WarGame(Game):
         if not self.is_terminal(state):
             return None
         return 1 if len(state.player_hands[0]) == 0 else 0
+        
+    def serialize_state(self, state: WarState) -> Dict[str, Any]:
+        """Serialize the game state into a JSON-compatible dictionary.
+
+        This method ensures that all game-specific state is properly serialized
+        into a format that can be stored in the database and later deserialized.
+
+        Args:
+            state: The WarState to serialize
+
+        Returns:
+            A JSON-compatible dictionary representing the game state
+        """
+        return state.to_dict()
+        
+    def deserialize_state(self, state_data: Dict[str, Any]) -> WarState:
+        """Deserialize state data into a WarState object.
+        
+        Args:
+            state_data: Dictionary containing serialized state data from serialize_state
+            
+        Returns:
+            Deserialized WarState object
+        """
+        # Reconstruct player hands
+        player_hands = []
+        for hand_data in state_data["player_hands"]:
+            hand = [Card(card_data["rank"], card_data["suit"]) for card_data in hand_data]
+            player_hands.append(hand)
+            
+        # Reconstruct board
+        board = [Card(card_data["rank"], card_data["suit"]) for card_data in state_data["board"]]
+        
+        # Create and return the state
+        return WarState(
+            player_hands=player_hands,
+            board=board,
+            current_player=state_data["current_player"],
+            war_state=state_data["war_state"],
+            cards_needed=state_data["cards_needed"],
+            face_down_count=state_data["face_down_count"]
+        )

@@ -3,7 +3,7 @@ from typing import Any, Optional, List, Dict
 from bgbench.llm_integration import ResponseStyle, create_llm, complete_prompt
 from dataclasses import dataclass, field
 import time
-from bgbench.game_view import GameView, PromptStyle
+from bgbench.match.view import MatchView, PromptStyle
 from bgbench.models import LLMInteraction
 
 logger = logging.getLogger("bgbench")
@@ -26,7 +26,7 @@ class LLMPlayer:
             self._llm = create_llm(**self.model_config)
 
     async def make_move(
-        self, game_view: GameView, invalid_moves: Optional[List[Dict[str, str]]] = None
+        self, game_view: MatchView, invalid_moves: Optional[List[Dict[str, str]]] = None
     ) -> Any:
         start_time = time.time()
         if self.db_session is None or self.game_id is None:

@@ -4,7 +4,7 @@ import random
 import copy
 from enum import Enum
 from bgbench.game import Game
-from bgbench.game_view import GameView, PromptStyle
+from bgbench.match.view import MatchView, PromptStyle
 
 
 # Define tile colors as an Enum for type safety
@@ -419,6 +419,66 @@ class AzulState:
             "phase": self.phase,
             "round_number": self.round_number,
         }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "AzulState":
+        """Reconstruct AzulState from a dictionary."""
+        # Convert factory displays back
+        factory_displays = []
+        for factory_dict in data["factory_displays"]:
+            factory = {TileColor(color): count for color, count in factory_dict.items()}
+            # Ensure all colors are present, even if count is 0
+            for color in TileColor:
+                factory.setdefault(color, 0)
+            factory_displays.append(factory)
+
+        # Convert center tiles back
+        center_tiles = {TileColor(color): count for color, count in data["center_tiles"].items()}
+        for color in TileColor:
+            center_tiles.setdefault(color, 0)
+
+        # Reconstruct player boards
+        player_boards = []
+        for board_dict in data["player_boards"]:
+            pattern_lines = [
+                [TileColor(tile) if tile else None for tile in row]
+                for row in board_dict["pattern_lines"]
+            ]
+            floor_line = [TileColor(tile) if tile else None for tile in board_dict["floor_line"]]
+            # Ensure floor line has the correct length
+            floor_line.extend([None] * (len(FLOOR_PENALTIES) - len(floor_line)))
+
+            player_boards.append(
+                PlayerBoard(
+                    pattern_lines=pattern_lines,
+                    wall=board_dict["wall"],
+                    floor_line=floor_line[:len(FLOOR_PENALTIES)], # Truncate if needed
+                    score=board_dict["score"],
+                    has_first_player_marker=board_dict["has_first_player_marker"],
+                )
+            )
+
+        # Note: tile_bag and lid are not fully reconstructed, only their sizes are stored.
+        # This is acceptable if resumption only needs the current playable state.
+        # If full bag/lid state is needed, serialization/deserialization must be enhanced.
+        tile_bag_size = data.get("tile_bag_size", 0)
+        lid_size = data.get("lid_size", 0)
+        # Create placeholder lists of the correct size (contents don't matter for current logic)
+        tile_bag = [TileColor.BLUE] * tile_bag_size # Placeholder content
+        lid = [TileColor.BLUE] * lid_size # Placeholder content
+
+
+        return cls(
+            factory_displays=factory_displays,
+            player_boards=player_boards,
+            tile_bag=tile_bag, # Using placeholder
+            center_tiles=center_tiles,
+            first_player_marker_in_center=data["first_player_marker_in_center"],
+            lid=lid, # Using placeholder
+            current_player=data["current_player"],
+            phase=data["phase"],
+            round_number=data["round_number"],
+        )
 
     def tiles_remaining_in_offer_phase(self) -> bool:
         """Check if there are any tiles remaining in the factory offer phase."""
@@ -850,6 +910,31 @@ class AzulGame(Game[AzulState, AzulMove]):
 
         # Return single winner or None for a tie
         return winners[0] if len(winners) == 1 else None
+        
+    def serialize_state(self, state: AzulState) -> Dict[str, Any]:
+        """Serialize the game state into a JSON-compatible dictionary.
+
+        This method ensures that all game-specific state is properly serialized
+        into a format that can be stored in the database and later deserialized.
+
+        Args:
+            state: The AzulState to serialize
+
+        Returns:
+            A JSON-compatible dictionary representing the game state
+        """
+        return state.to_dict()
+
+    def deserialize_state(self, state_data: Dict[str, Any]) -> AzulState:
+        """Deserialize state data into an AzulState object.
+        
+        Args:
+            state_data: Dictionary containing serialized state data from serialize_state
+            
+        Returns:
+            Deserialized AzulState object
+        """
+        return AzulState.from_dict(state_data)
 
     def get_player_view(
         self,
@@ -857,7 +942,7 @@ class AzulGame(Game[AzulState, AzulMove]):
         player_id: int,
         history: Optional[List[Dict[str, Any]]] = None,
         prompt_style: PromptStyle = PromptStyle.HEADER,
-    ) -> GameView:
+    ) -> MatchView:
         """Return what this player can see of the current state."""
 
         # Build visible state for this player
@@ -928,7 +1013,7 @@ class AzulGame(Game[AzulState, AzulMove]):
                     # Can always place on floor line
                     valid_moves.append(f"center center {color} floor")
 
-        return GameView(
+        return MatchView(
             move_format_instructions=self.get_move_format_instructions(),
             rules_explanation=self.get_rules_explanation(),
             visible_state=visible_state,

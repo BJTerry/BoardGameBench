@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional, Tuple
 from bgbench.game import Game
-from bgbench.game_view import GameView, PromptStyle
+from bgbench.match.view import MatchView, PromptStyle
 import random
 import copy
 
@@ -124,7 +124,7 @@ class GuessWhoGame(Game):
         player_id: int,
         history: Optional[List[Dict[str, Any]]] = None,
         prompt_style: PromptStyle = PromptStyle.HEADER,
-    ) -> GameView:
+    ) -> MatchView:
         """Return the game state from a player's perspective."""
 
         # Structure the visible state based on the prompt style
@@ -137,8 +137,8 @@ class GuessWhoGame(Game):
             "traits": self.TRAITS,  # Include trait definitions for reference
         }
 
-        # Create the GameView with the specified prompt style
-        return GameView(
+        # Create the MatchView with the specified prompt style
+        return MatchView(
             rules_explanation=self.get_rules_explanation(),
             visible_state=visible_state,
             valid_moves=self._get_valid_moves(),
@@ -250,3 +250,55 @@ class GuessWhoGame(Game):
                 if chars[0].name == state.target_characters[1 - player_id].name:
                     return player_id
         return None
+        
+    def serialize_state(self, state: GuessWhoState) -> Dict[str, Any]:
+        """Serialize the game state into a JSON-compatible dictionary.
+
+        This method ensures that all game-specific state is properly serialized
+        into a format that can be stored in the database and later deserialized.
+
+        Args:
+            state: The GuessWhoState to serialize
+
+        Returns:
+            A JSON-compatible dictionary representing the game state
+        """
+        return state.to_dict()
+        
+    def deserialize_state(self, state_data: Dict[str, Any]) -> GuessWhoState:
+        """Deserialize state data into a GuessWhoState object.
+        
+        Args:
+            state_data: Dictionary containing serialized state data from serialize_state
+            
+        Returns:
+            Deserialized GuessWhoState object
+        """
+        # Reconstruct characters
+        characters = [
+            Character(name=char_data["name"], traits=char_data["traits"])
+            for char_data in state_data["characters"]
+        ]
+        
+        # Reconstruct target characters
+        target_characters = [
+            Character(name=char_data["name"], traits=char_data["traits"])
+            for char_data in state_data["target_characters"]
+        ]
+        
+        # Reconstruct possible characters for each player
+        possible_characters = []
+        for player_chars in state_data["possible_characters"]:
+            player_possible = [
+                Character(name=char_data["name"], traits=char_data["traits"])
+                for char_data in player_chars
+            ]
+            possible_characters.append(player_possible)
+        
+        # Return the reconstructed state
+        return GuessWhoState(
+            characters=characters,
+            target_characters=target_characters,
+            possible_characters=possible_characters,
+            current_player=state_data["current_player"]
+        )

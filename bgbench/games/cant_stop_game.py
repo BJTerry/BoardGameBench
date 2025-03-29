@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional, Tuple, Set
 from bgbench.game import Game
-from bgbench.game_view import GameView, PromptStyle
+from bgbench.match.view import MatchView, PromptStyle
 import random
 from copy import deepcopy
 
@@ -17,7 +17,7 @@ class ColumnState:
 
     def to_dict(self) -> dict:
         return {
-            "player_positions": self.player_positions,
+            "player_positions": {str(k): v for k, v in self.player_positions.items()},
             "max_height": self.max_height,
             "is_claimed": self.is_claimed,
             "claimed_by": self.claimed_by,
@@ -303,7 +303,7 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
         player_id: int,
         history: Optional[List[Dict[str, Any]]] = None,
         prompt_style: PromptStyle = PromptStyle.HEADER,
-    ) -> GameView:
+    ) -> MatchView:
         """Return what this player can see of the current state."""
         visible_state = {
             "columns": {
@@ -341,7 +341,7 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
             winner = player_id
             is_terminal = True
 
-        return GameView(
+        return MatchView(
             rules_explanation=self.get_rules_explanation(),
             visible_state=visible_state,
             valid_moves=[],  # Dice-based game, so no fixed move list
@@ -417,3 +417,62 @@ class CantStopGame(Game[CantStopState, CantStopMove]):
     def get_next_state(self, state: CantStopState, move: CantStopMove) -> CantStopState:
         """Return the next state after applying the move."""
         return self.apply_move(state, self.get_current_player(state), move)
+        
+    def serialize_state(self, state: CantStopState) -> Dict[str, Any]:
+        """Serialize the game state into a JSON-compatible dictionary.
+
+        This method ensures that all game-specific state is properly serialized
+        into a format that can be stored in the database and later deserialized.
+
+        Args:
+            state: The CantStopState to serialize
+
+        Returns:
+            A JSON-compatible dictionary representing the game state
+        """
+        return {
+            "columns": {str(k): v.to_dict() for k, v in state.columns.items()},
+            "current_player": state.current_player,
+            "temp_positions": {str(k): v for k, v in state.temp_positions.items()},
+            "active_columns": sorted(list(state.active_columns)),
+            "current_dice": state.current_dice,
+            "awaiting_selection": state.awaiting_selection
+        }
+        
+    def deserialize_state(self, state_data: Dict[str, Any]) -> CantStopState:
+        """Deserialize state data into a CantStopState object.
+        
+        Args:
+            state_data: Dictionary containing serialized state data from serialize_state
+            
+        Returns:
+            Deserialized CantStopState object
+        """
+        # Reconstruct columns
+        columns = {}
+        for col_num, col_data in state_data["columns"].items():
+            col_num = int(col_num)  # Convert string keys back to integers
+            # Convert player_positions keys from strings to integers
+            player_positions = {int(k): v for k, v in col_data["player_positions"].items()}
+            columns[col_num] = ColumnState(
+                player_positions=player_positions,
+                max_height=col_data["max_height"],
+                is_claimed=col_data["is_claimed"],
+                claimed_by=col_data["claimed_by"]
+            )
+        
+        # Reconstruct active columns as a set
+        active_columns = set(state_data["active_columns"])
+        
+        # Convert temp_positions keys from strings to integers
+        temp_positions = {int(k): v for k, v in state_data["temp_positions"].items()}
+        
+        # Return the reconstructed state
+        return CantStopState(
+            columns=columns,
+            current_player=state_data["current_player"],
+            temp_positions=temp_positions,
+            active_columns=active_columns,
+            current_dice=state_data["current_dice"],
+            awaiting_selection=state_data["awaiting_selection"]
+        )

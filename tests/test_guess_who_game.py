@@ -131,3 +131,37 @@ def test_serialization(initial_state):
     assert "target_characters" in state_dict
     assert "possible_characters" in state_dict
     assert "current_player" in state_dict
+
+
+def test_serialize_deserialize_state(game, initial_state):
+    """Test serialization and deserialization of GuessWhoState."""
+    # Serialize the state
+    serialized = game.serialize_state(initial_state)
+    
+    # Verify serialization contains expected data
+    assert serialized["current_player"] == 0
+    assert len(serialized["characters"]) == 2
+    assert serialized["characters"][0]["name"] == "Char1"
+    assert serialized["characters"][0]["traits"]["hair_color"] == "blonde"
+    
+    # Deserialize back to a state object
+    deserialized = game.deserialize_state(serialized)
+    
+    # Verify deserialization preserves the data
+    assert deserialized.current_player == 0
+    assert len(deserialized.characters) == 2
+    assert deserialized.characters[0].name == "Char1"
+    assert deserialized.characters[0].traits["hair_color"] == "blonde"
+    assert deserialized.target_characters[0].name == "Char1"
+    assert deserialized.target_characters[1].name == "Char2"
+    assert len(deserialized.possible_characters) == 2
+    assert len(deserialized.possible_characters[0]) == 2
+    
+    # Verify game logic still works with deserialized state
+    assert game.get_current_player(deserialized) == 0
+    assert not game.is_terminal(deserialized)
+    
+    # Test a move with the deserialized state
+    move = game.parse_move("hair_color brown")
+    new_state = game.apply_move(deserialized, 0, move)
+    assert new_state.current_player == 1

@@ -70,6 +70,12 @@ async def main():
         default=10,
         help="Maximum number of games played between each player pair",
     )
+    parser.add_argument(
+        "--max-concurrent-games-per-pair",
+        type=int,
+        default=1,
+        help="Maximum number of games allowed to run concurrently between the same pair of players",
+    )
     args = parser.parse_args()
 
     setup_logging(debug=args.debug)
@@ -210,6 +216,7 @@ async def main():
             confidence_threshold=args.confidence_threshold,
             selected_players=selected_players,
             max_games_per_player_pair=args.max_games_per_pair,
+            max_concurrent_games_per_pair=args.max_concurrent_games_per_pair,
         )
     else:
         if game is None:
@@ -224,6 +231,7 @@ async def main():
             confidence_threshold=args.confidence_threshold,
             selected_players=selected_players,
             max_games_per_player_pair=args.max_games_per_pair,
+            max_concurrent_games_per_pair=args.max_concurrent_games_per_pair,
         )
 
     if args.export:
@@ -247,6 +255,7 @@ async def main():
                     experiment_id=args.export,
                     max_parallel_games=1,  # Doesn't matter for export
                     max_games_per_player_pair=args.max_games_per_pair,
+                    max_concurrent_games_per_pair=args.max_concurrent_games_per_pair, # Pass arg
                 )
                 print_results(arena.get_experiment_results())
             else:
@@ -264,6 +273,7 @@ async def main():
                     experiment_id=args.export,
                     max_parallel_games=1,  # Doesn't matter for export
                     max_games_per_player_pair=args.max_games_per_pair,
+                    max_concurrent_games_per_pair=args.max_concurrent_games_per_pair, # Pass arg
                 )
                 print_results(arena.get_experiment_results())
         return

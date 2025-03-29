@@ -58,6 +58,7 @@ class Arena:
         match_scheduler: Optional[MatchScheduler] = None,
         selected_players: Optional[List[str]] = None,
         max_games_per_player_pair: int = 10,
+        max_concurrent_games_per_pair: int = 1,
     ):
         """
         Initialize Arena with either:
@@ -77,6 +78,7 @@ class Arena:
             match_scheduler: Optional scheduler for choosing player matchups (defaults to SigmaMinimizationScheduler)
             selected_players: Optional list of player names to focus on (only matches involving these players will be scheduled)
             max_games_per_player_pair: Maximum number of games played between each player pair
+            max_concurrent_games_per_pair: Maximum number of games allowed to run concurrently between the same pair of players
         """
         self.game: Game = game
         self.players: List[ArenaPlayer] = []
@@ -85,10 +87,12 @@ class Arena:
         self.max_parallel_games = max_parallel_games
         self.cost_budget = cost_budget
         self.max_games_per_player_pair = max_games_per_player_pair
-        self.ongoing_matches: Set[Tuple[int, int]] = set()
+        # Map (min_id, max_id) -> count of ongoing games for this pair
+        self.ongoing_matches: Dict[Tuple[int, int], int] = {}
         self._scheduled_games_between: Dict[Tuple[int, int], int] = {}
         self._lock = asyncio.Lock()
         self.selected_players = selected_players
+        self.max_concurrent_games_per_pair = max_concurrent_games_per_pair
 
         # For graceful termination
         self._stop_scheduling = False
@@ -369,6 +373,7 @@ class Arena:
             selected_player_names=self.selected_players,
             max_games_per_pairing=self.max_games_per_player_pair,
             confidence_threshold=self.confidence_threshold,
+            max_concurrent_games_per_pair=self.max_concurrent_games_per_pair,
         )
 
         # Use the scheduler to find potential matches with filtering applied
@@ -378,7 +383,7 @@ class Arena:
             self.players,
             self.match_history,
             elo,
-            ongoing,
+            self.ongoing_matches, # Pass the dict directly
             filter_spec=filter_spec,
             limit=100,
         )
@@ -396,28 +401,25 @@ class Arena:
 
             # Lock to update shared state
             async with self._lock:
-                # Double check match is still valid (could have changed while we were processing)
-                if pair_ids not in self.ongoing_matches:
-                    games = self._games_played_between(
-                        player_a.player_model, player_b.player_model
+                # Check if the pair has reached the game limit
+                games = self._games_played_between(
+                    player_a.player_model, player_b.player_model
+                )
+                if games < self.max_games_per_player_pair:
+                    logger.debug(
+                        f"Scheduling match between {player_a.llm_player.name} and {player_b.llm_player.name}"
                     )
-                    if games < self.max_games_per_player_pair:
-                        logger.debug(
-                            f"Scheduling match between {player_a.llm_player.name} and {player_b.llm_player.name}"
-                        )
-                        self.ongoing_matches.add(pair_ids)
-                        # Track this scheduled game
-                        self._scheduled_games_between[pair_ids] = (
-                            self._scheduled_games_between.get(pair_ids, 0) + 1
-                        )
-                        return player_a, player_b
-                    else:
-                        logger.debug(
-                            f"Candidate match rejected - exceeded game limit ({games}/{self.max_games_per_player_pair}): {player_a.llm_player.name} vs {player_b.llm_player.name}"
-                        )
+                    # Increment the count of ongoing matches for this pair
+                    self.ongoing_matches[pair_ids] = self.ongoing_matches.get(pair_ids, 0) + 1
+                    logger.debug(f"Incremented ongoing match count for pair {pair_ids} to {self.ongoing_matches[pair_ids]}")
+                    # Track this scheduled game for the max_games_per_pair limit
+                    self._scheduled_games_between[pair_ids] = (
+                        self._scheduled_games_between.get(pair_ids, 0) + 1
+                    )
+                    return player_a, player_b
                 else:
                     logger.debug(
-                        f"Candidate match became invalid due to ongoing match: {player_a.llm_player.name} vs {player_b.llm_player.name}"
+                        f"Candidate match rejected - exceeded game limit ({games}/{self.max_games_per_player_pair}): {player_a.llm_player.name} vs {player_b.llm_player.name}"
                     )
 
         logger.debug("No valid matches found among candidates")
@@ -577,8 +579,17 @@ class Arena:
         finally:
             # Use lock to safely update tracking data
             async with self._lock:
-                # Remove from ongoing matches
-                self.ongoing_matches.discard(player_pair)
+                # Decrement the count of ongoing matches for this pair
+                current_count = self.ongoing_matches.get(player_pair, 0)
+                if current_count > 1:
+                    self.ongoing_matches[player_pair] = current_count - 1
+                    logger.debug(f"Decremented ongoing match count for pair {player_pair} to {current_count - 1}")
+                elif current_count == 1:
+                    del self.ongoing_matches[player_pair]
+                    logger.debug(f"Removed last ongoing match for pair {player_pair}")
+                else:
+                    # This case should ideally not happen if logic is correct
+                    logger.warning(f"Attempted to decrement ongoing match count for pair {player_pair}, but count was already {current_count}")
 
     def handle_sigint(self):
         """Handle SIGINT (Ctrl+C) signal"""

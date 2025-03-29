@@ -34,6 +34,9 @@ class MatchFilterSpec:
     # Statistical filters
     confidence_threshold: float = 0.70
 
+    # Concurrency filters
+    max_concurrent_games_per_pair: int = 1
+
 
 class MatchScheduler:
     """Base class for match scheduling strategies."""
@@ -43,7 +46,7 @@ class MatchScheduler:
         players: List["ArenaPlayer"],
         match_history: List[GameResult],
         elo_system: EloSystem,
-        ongoing_matches: Optional[Set[Tuple[int, int]]] = None,
+        ongoing_matches: Optional[Dict[Tuple[int, int], int]] = None,
         filter_spec: Optional[MatchFilterSpec] = None,
         limit: int = 5,
     ) -> List[Tuple["ArenaPlayer", "ArenaPlayer"]]:
@@ -71,7 +74,7 @@ class MatchScheduler:
     def _get_candidate_pairs(
         self,
         players: List["ArenaPlayer"],
-        ongoing_matches: Set[Tuple[int, int]],
+        ongoing_matches: Dict[Tuple[int, int], int],
         filter_spec: MatchFilterSpec,
         elo_system: EloSystem,
         match_history: Optional[List[GameResult]] = None,
@@ -149,8 +152,9 @@ class MatchScheduler:
                     player_a.player_model.id, player_b.player_model.id
                 )
 
-                # Skip if there's an ongoing match between these players
-                if player_ids_tuple in ongoing_matches:
+                # Skip if the number of ongoing games for this pair meets or exceeds the limit
+                if ongoing_matches.get(player_ids_tuple, 0) >= filter_spec.max_concurrent_games_per_pair:
+                    logger.debug(f"Skipping pair {player_ids_tuple}: ongoing games ({ongoing_matches.get(player_ids_tuple, 0)}) >= limit ({filter_spec.max_concurrent_games_per_pair})")
                     continue
 
                 # Skip if they've already played too many games
@@ -213,7 +217,7 @@ class FullRankingScheduler(MatchScheduler):
         players: List["ArenaPlayer"],
         match_history: List[GameResult],
         elo_system: EloSystem,
-        ongoing_matches: Optional[Set[Tuple[int, int]]] = None,
+        ongoing_matches: Optional[Dict[Tuple[int, int], int]] = None,
         filter_spec: Optional[MatchFilterSpec] = None,
         limit: int = 5,
     ) -> List[Tuple["ArenaPlayer", "ArenaPlayer"]]:
@@ -232,7 +236,7 @@ class FullRankingScheduler(MatchScheduler):
             A list of (playerA, playerB) tuples for potential matches, ordered by relevance
         """
         if ongoing_matches is None:
-            ongoing_matches = set()
+            ongoing_matches = {}
 
         if filter_spec is None:
             filter_spec = MatchFilterSpec()
@@ -264,7 +268,8 @@ class FullRankingScheduler(MatchScheduler):
                 pair_tuple = self._get_canonical_pair(
                     player_a.player_model.id, player_b.player_model.id
                 )
-                if pair_tuple not in ongoing_matches:
+                # Check against the dict using .get() for the concurrency limit
+                if ongoing_matches.get(pair_tuple, 0) < filter_spec.max_concurrent_games_per_pair:
                     result.append((player_a, player_b))
             return result
 
@@ -332,7 +337,7 @@ class TopIdentificationScheduler(MatchScheduler):
         players: List["ArenaPlayer"],
         match_history: List[GameResult],
         elo_system: EloSystem,
-        ongoing_matches: Optional[Set[Tuple[int, int]]] = None,
+        ongoing_matches: Optional[Dict[Tuple[int, int], int]] = None,
         filter_spec: Optional[MatchFilterSpec] = None,
         limit: int = 5,
     ) -> List[Tuple["ArenaPlayer", "ArenaPlayer"]]:
@@ -351,7 +356,7 @@ class TopIdentificationScheduler(MatchScheduler):
             A list of (playerA, playerB) tuples for potential matches, ordered by relevance
         """
         if ongoing_matches is None:
-            ongoing_matches = set()
+            ongoing_matches = {}
 
         if filter_spec is None:
             filter_spec = MatchFilterSpec()
@@ -530,7 +535,7 @@ class SigmaMinimizationScheduler(MatchScheduler):
         players: List["ArenaPlayer"],
         match_history: List[GameResult],
         elo_system: EloSystem,
-        ongoing_matches: Optional[Set[Tuple[int, int]]] = None,
+        ongoing_matches: Optional[Dict[Tuple[int, int], int]] = None,
         filter_spec: Optional[MatchFilterSpec] = None,
         limit: int = 5,
     ) -> List[Tuple["ArenaPlayer", "ArenaPlayer"]]:
@@ -549,7 +554,7 @@ class SigmaMinimizationScheduler(MatchScheduler):
             A list of (playerA, playerB) tuples for potential matches, ordered by relevance
         """
         if ongoing_matches is None:
-            ongoing_matches = set()
+            ongoing_matches = {}
 
         if filter_spec is None:
             filter_spec = MatchFilterSpec()
@@ -581,7 +586,8 @@ class SigmaMinimizationScheduler(MatchScheduler):
                 pair_tuple = self._get_canonical_pair(
                     player_a.player_model.id, player_b.player_model.id
                 )
-                if pair_tuple not in ongoing_matches:
+                # Check against the dict using .get() for the concurrency limit
+                if ongoing_matches.get(pair_tuple, 0) < filter_spec.max_concurrent_games_per_pair:
                     result.append((player_a, player_b))
             return result
 

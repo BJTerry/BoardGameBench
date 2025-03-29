@@ -38,7 +38,7 @@ class NoContentError(LLMResponseError):
 register_model(
     {
         "openrouter/qwen/qwq-32b": {
-            "max_tokens": 131000,
+            "max_tokens": 1310072,
             "input_cost_per_token": 0.0000009,
             "output_cost_per_token": 0.0000009,
             "litellm_provider": "openrouter",

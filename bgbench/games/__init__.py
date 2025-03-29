@@ -23,10 +23,5 @@ AVAILABLE_GAMES = {
 }
 
 __all__ = [
-    "NimGame",
-    "BattleshipGame",
-    "WarGame",
-    "GuessWhoGame",
-    "AzulGame",
     "AVAILABLE_GAMES",
 ]

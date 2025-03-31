@@ -2,7 +2,7 @@ import pytest
 import logging
 import random
 from unittest.mock import MagicMock, patch
-from bgbench.arena import Arena
+from bgbench.arena import Arena, validate_unique_player_names
 from bgbench.games.nim_game import NimGame
 from bgbench.models import Experiment, Player as DBPlayer, GameMatch
 
@@ -148,7 +148,7 @@ class TestArena:
             db_session.query(GameMatch).filter_by(experiment_id=exp.id).all()
         )
         assert len(remaining_games) == 3, "All games should be kept in the database"
-        
+
         # Verify only complete games are in the match history
 
         # Verify match history includes both complete games (win and draw)
@@ -361,7 +361,7 @@ class TestArena:
 
         assert results["player_concessions"]["player-a"] == 1
         assert results["player_concessions"]["player-b"] == 1
-        assert results["total_matches"] == 3 # Use the correct key 'total_matches'
+        assert results["total_matches"] == 3  # Use the correct key 'total_matches'
 
     def test_log_standings_with_concessions(
         self, db_session, nim_game, mock_llm, caplog, mock_llm_factory
@@ -415,3 +415,44 @@ class TestArena:
         # Update assertion to expect 'matches' instead of 'games'
         assert "player-a: 1500 (0 matches, 1 concessions, $0.0000 cost)" in log_text
         assert "player-b: 1500 (0 matches, 0 concessions, $0.0000 cost)" in log_text
+
+    def test_validate_unique_player_names(self):
+        """Test the function that validates uniqueness of player names"""
+        # Test with all unique names
+        unique_configs = [
+            {"name": "player-a", "model_config": {}},
+            {"name": "player-b", "model_config": {}},
+            {"name": "player-c", "model_config": {}},
+        ]
+        is_valid, duplicates = validate_unique_player_names(unique_configs)
+        assert is_valid is True
+        assert len(duplicates) == 0
+
+        # Test with duplicate names
+        duplicate_configs = [
+            {"name": "player-a", "model_config": {}},
+            {"name": "player-b", "model_config": {}},
+            {"name": "player-a", "model_config": {}},  # Duplicate
+        ]
+        is_valid, duplicates = validate_unique_player_names(duplicate_configs)
+        assert is_valid is False
+        assert "player-a" in duplicates
+        assert len(duplicates) == 1
+
+        # Test with missing name
+        missing_name_configs = [
+            {"name": "player-a", "model_config": {}},
+            {"model_config": {}},  # Missing name
+        ]
+        is_valid, duplicates = validate_unique_player_names(missing_name_configs)
+        assert is_valid is False
+        assert "" in duplicates  # Missing name becomes empty string
+
+        # Test with None name
+        none_name_configs = [
+            {"name": "player-a", "model_config": {}},
+            {"name": None, "model_config": {}},  # None name
+        ]
+        is_valid, duplicates = validate_unique_player_names(none_name_configs)
+        assert is_valid is False
+        assert "" in duplicates  # None name becomes empty string

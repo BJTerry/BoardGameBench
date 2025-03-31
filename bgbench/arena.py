@@ -7,9 +7,14 @@ from typing import Any, Dict, List, Optional, Tuple, Set
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from bgbench.match.state_manager import MatchStateManager
-from bgbench.models import Experiment, Player as DBPlayer, GameMatch, LLMInteraction, MatchState
+from bgbench.models import (
+    Experiment,
+    Player as DBPlayer,
+    GameMatch,
+    LLMInteraction,
+)
 from bgbench.llm_integration import ResponseStyle
-from bgbench.game import Game # Abstract ruleset
+from bgbench.game import Game  # Abstract ruleset
 from bgbench.llm_player import LLMPlayer
 from bgbench.match.view import PromptStyle
 from bgbench.match.runner import MatchRunner
@@ -28,6 +33,44 @@ from bgbench.scheduler import (
 )
 
 logger = logging.getLogger("bgbench")
+
+
+def validate_unique_player_names(
+    player_configs: List[Dict[str, Any]],
+) -> Tuple[bool, Set[str]]:
+    """
+    Validate that all player configurations have unique names.
+
+    Args:
+        player_configs: List of player configuration dictionaries
+
+    Returns:
+        tuple: (is_valid, duplicates) where is_valid is a boolean and
+               duplicates is a set of duplicate names (empty if valid)
+    """
+    # Process player names, considering None or missing names as invalid
+    player_names: List[str] = []
+    for config in player_configs:
+        name = config.get("name")
+        if name is None or name == "":
+            return False, {""}  # Missing or None name is invalid
+        player_names.append(str(name))
+
+    # Check for duplicates
+    if len(player_names) != len(set(player_names)):
+        # Find duplicates for error message
+        seen: Set[str] = set()
+        duplicates: Set[str] = set()
+
+        for name in player_names:
+            if name in seen:
+                duplicates.add(name)
+            else:
+                seen.add(name)
+
+        return False, duplicates
+
+    return True, set()
 
 
 @dataclass
@@ -117,6 +160,16 @@ class Arena:
         else:
             if player_configs is None:
                 raise ValueError("player_configs required when creating new experiment")
+
+            # Use the validation function from this module
+
+            # Validate player names are unique
+            is_valid, duplicates = validate_unique_player_names(player_configs)
+            if not is_valid:
+                raise ValueError(
+                    f"Duplicate player names found: {', '.join(duplicates)}. All players must have unique names."
+                )
+
             self._create_new_experiment(experiment_name, player_configs, llm_factory)
 
     def _create_llm_player(
@@ -162,11 +215,11 @@ class Arena:
         # For new players or players without ratings, try to get count from DB
         if db_player and not games_played:
             # Count matches played by this player
-            matches_played = ( # Overwrite the default if query runs
+            matches_played = (  # Overwrite the default if query runs
                 self.session.query(GameMatch)
                 .filter(
                     GameMatch.experiment_id == self.experiment.id,
-                    GameMatch.complete.is_(True), # Count only completed matches
+                    GameMatch.complete.is_(True),  # Count only completed matches
                     (GameMatch.player1_id == db_player.id)
                     | (GameMatch.player2_id == db_player.id),
                 )
@@ -178,7 +231,7 @@ class Arena:
             name=name,
             rating=1500.0,  # Default initial rating
             sigma=400.0,  # Default uncertainty
-            games_played=matches_played, # Use matches_played count
+            games_played=matches_played,  # Use matches_played count
         )
 
     def _create_player_from_config(
@@ -223,7 +276,6 @@ class Arena:
         if not self.experiment:
             raise ValueError(f"No experiment found with ID {experiment_id}")
 
-
         # Load all completed matches for the match history - including draws
         completed_games = (
             self.session.query(GameMatch)
@@ -263,13 +315,24 @@ class Arena:
                 logger.error(f"Could not recreate LLM for player {db_player.name}: {e}")
                 continue
 
-        incomplete_matches = self.session.query(GameMatch).filter(
-            GameMatch.experiment_id == experiment_id,
-            GameMatch.complete.is_(False),
-        ).all()
+        incomplete_matches = (
+            self.session.query(GameMatch)
+            .filter(
+                GameMatch.experiment_id == experiment_id,
+                GameMatch.complete.is_(False),
+            )
+            .all()
+        )
 
         # If player_configs is provided, check for and add new players
         if player_configs:
+            # Validate all player configurations have unique names
+            is_valid, duplicates = validate_unique_player_names(player_configs)
+            if not is_valid:
+                raise ValueError(
+                    f"Duplicate player names found in config: {', '.join(duplicates)}. All players must have unique names."
+                )
+
             new_player_configs = [
                 config
                 for config in player_configs
@@ -296,17 +359,39 @@ class Arena:
 
         # Load incomplete matches for resumption
         for match in incomplete_matches:
-            latest_state = self.match_state_manager.get_latest_state(self.session, match.id)
+            latest_state = self.match_state_manager.get_latest_state(
+                self.session, match.id
+            )
             if latest_state and latest_state.game_state:
                 try:
                     # Let the game handle deserialization of the game_state field
-                    deserialized_state = self.game.deserialize_state(latest_state.game_state)
-                    player_a = next((p for p in self.players if p.player_model.id == match.player1_id), None)
-                    player_b = next((p for p in self.players if p.player_model.id == match.player2_id), None)
+                    deserialized_state = self.game.deserialize_state(
+                        latest_state.game_state
+                    )
+                    player_a = next(
+                        (
+                            p
+                            for p in self.players
+                            if p.player_model.id == match.player1_id
+                        ),
+                        None,
+                    )
+                    player_b = next(
+                        (
+                            p
+                            for p in self.players
+                            if p.player_model.id == match.player2_id
+                        ),
+                        None,
+                    )
                     if player_a and player_b:
-                        self._resumable_matches.append((player_a, player_b, deserialized_state, match.id))
+                        self._resumable_matches.append(
+                            (player_a, player_b, deserialized_state, match.id)
+                        )
                 except Exception as e:
-                    logger.warning(f"Failed to deserialize state for match {match.id}: {e}")
+                    logger.warning(
+                        f"Failed to deserialize state for match {match.id}: {e}"
+                    )
 
         logger.info(f"Resumed experiment {self.experiment.name} (id: {experiment_id})")
 
@@ -334,10 +419,12 @@ class Arena:
         """Return the number of matches played between two players in this experiment."""
         # Get the count of completed matches from the database
         db_count = (
-            self.session.query(func.count(GameMatch.id)) # Use func.count for efficiency
+            self.session.query(
+                func.count(GameMatch.id)
+            )  # Use func.count for efficiency
             .filter(
                 GameMatch.experiment_id == self.experiment.id,
-                GameMatch.complete.is_(True), # Only count completed matches
+                GameMatch.complete.is_(True),  # Only count completed matches
                 GameMatch.experiment_id == self.experiment.id,
                 (
                     (GameMatch.player1_id == player_a.id)
@@ -348,13 +435,16 @@ class Arena:
                     & (GameMatch.player2_id == player_a.id)
                 ),
             )
-            .scalar() or 0 # Use scalar() to get the count directly
+            .scalar()
+            or 0  # Use scalar() to get the count directly
         )
 
         # Get the count of currently scheduled (ongoing or pending) matches between these players
         pair_id = (min(player_a.id, player_b.id), max(player_a.id, player_b.id))
         # scheduled_count = self._scheduled_games_between.get(pair_id, 0) # _scheduled_games_between tracks total scheduled, not just pending
-        ongoing_count = self.ongoing_matches.get(pair_id, 0) # ongoing_matches tracks currently running
+        ongoing_count = self.ongoing_matches.get(
+            pair_id, 0
+        )  # ongoing_matches tracks currently running
 
         # Count matches in self._resumable_matches if that list exists
         # For now, approximate total scheduled = completed + ongoing
@@ -371,9 +461,7 @@ class Arena:
 
         If selected_players is set, only matches involving at least one of the selected players will be considered.
         """
-        # Get a snapshot of ongoing matches for the scheduler
-        async with self._lock:
-            ongoing = self.ongoing_matches.copy()
+        # Lock not needed here as we're just doing setup for the filter_spec
 
         # Create filter specification with all filtering criteria
         filter_spec = MatchFilterSpec(
@@ -390,7 +478,7 @@ class Arena:
             self.players,
             self.match_history,
             elo,
-            self.ongoing_matches, # Pass the dict directly
+            self.ongoing_matches,  # Pass the dict directly
             filter_spec=filter_spec,
             limit=100,
         )
@@ -419,8 +507,12 @@ class Arena:
                         f"(Scheduled: {matches_scheduled}/{self.max_games_per_player_pair})"
                     )
                     # Increment the count of *ongoing* matches for this pair
-                    self.ongoing_matches[pair_ids] = self.ongoing_matches.get(pair_ids, 0) + 1
-                    logger.debug(f"Incremented ongoing match count for pair {pair_ids} to {self.ongoing_matches[pair_ids]}")
+                    self.ongoing_matches[pair_ids] = (
+                        self.ongoing_matches.get(pair_ids, 0) + 1
+                    )
+                    logger.debug(
+                        f"Incremented ongoing match count for pair {pair_ids} to {self.ongoing_matches[pair_ids]}"
+                    )
                     # No longer need _scheduled_games_between, rely on DB + ongoing_matches
                     # self._scheduled_games_between[pair_ids] = (
                     #     self._scheduled_games_between.get(pair_ids, 0) + 1
@@ -451,7 +543,7 @@ class Arena:
 
             logger.info(
                 f"{player.llm_player.name}: {player.rating.rating:.0f} "
-                f"({player.rating.games_played} matches, {concessions} concessions, " # Changed games -> matches
+                f"({player.rating.games_played} matches, {concessions} concessions, "  # Changed games -> matches
                 f"${player_cost:.4f} cost)"
             )
 
@@ -487,15 +579,21 @@ class Arena:
                 # Fetch existing match record
                 db_match = self.session.get(GameMatch, existing_match_id)
                 if not db_match:
-                    logger.error(f"Could not find existing match with ID {existing_match_id} to resume.")
+                    logger.error(
+                        f"Could not find existing match with ID {existing_match_id} to resume."
+                    )
                     # Decrement ongoing count as this match won't run
                     async with self._lock:
                         current_count = self.ongoing_matches.get(player_pair, 0)
-                        if current_count > 1: self.ongoing_matches[player_pair] -= 1
-                        elif current_count == 1: del self.ongoing_matches[player_pair]
-                    return # Exit if match not found
+                        if current_count > 1:
+                            self.ongoing_matches[player_pair] -= 1
+                        elif current_count == 1:
+                            del self.ongoing_matches[player_pair]
+                    return  # Exit if match not found
                 match_id = existing_match_id
-                logger.info(f"Resuming match {match_id} between {player_a.llm_player.name} and {player_b.llm_player.name}")
+                logger.info(
+                    f"Resuming match {match_id} between {player_a.llm_player.name} and {player_b.llm_player.name}"
+                )
                 # Player order is determined by the existing record
                 if db_match.player1_id == db_player_a.id:
                     p1_arena, p2_arena = player_a, player_b
@@ -511,30 +609,33 @@ class Arena:
                         winner_id=None,
                         player1_id=p1_arena.player_model.id,
                         player2_id=p2_arena.player_model.id,
-                        complete=False, # Start as incomplete
+                        complete=False,  # Start as incomplete
                     )
                     self.session.add(db_match)
                     self.session.commit()
                     self.session.refresh(db_match)
                     match_id = int(db_match.id)
-                    logger.info(f"Starting new match {match_id} between {p1_arena.llm_player.name} and {p2_arena.llm_player.name}")
+                    logger.info(
+                        f"Starting new match {match_id} between {p1_arena.llm_player.name} and {p2_arena.llm_player.name}"
+                    )
                 except Exception as e:
                     self.session.rollback()
                     logger.error(f"Failed to create match record: {e}")
                     # Decrement ongoing count as this match won't run
                     async with self._lock:
                         current_count = self.ongoing_matches.get(player_pair, 0)
-                        if current_count > 1: self.ongoing_matches[player_pair] -= 1
-                        elif current_count == 1: del self.ongoing_matches[player_pair]
-                    raise # Re-raise exception
-
+                        if current_count > 1:
+                            self.ongoing_matches[player_pair] -= 1
+                        elif current_count == 1:
+                            del self.ongoing_matches[player_pair]
+                    raise  # Re-raise exception
 
             runner = MatchRunner(
-                game=self.game, # Pass the abstract game ruleset
+                game=self.game,  # Pass the abstract game ruleset
                 player1=p1_arena.llm_player,
                 player2=p2_arena.llm_player,
                 db_session=self.session,
-                game_id=match_id, # Pass match_id to MatchRunner (renamed internally)
+                game_id=match_id,  # Pass match_id to MatchRunner (renamed internally)
                 player1_id=p1_arena.player_model.id,
                 player2_id=p2_arena.player_model.id,
                 experiment_name=self.experiment.name,
@@ -553,7 +654,7 @@ class Arena:
 
                 # Create a GameResult entry for this match result
                 new_match_result = GameResult(
-                    player_0=p1_arena.llm_player.name, # Use the actual player order for the result
+                    player_0=p1_arena.llm_player.name,  # Use the actual player order for the result
                     player_1=p2_arena.llm_player.name,
                     winner=winner_name,
                 )
@@ -579,7 +680,7 @@ class Arena:
 
             self.match_history.append(new_match_result)
             try:
-                self.session.commit() # Commit winner, completion status, concession
+                self.session.commit()  # Commit winner, completion status, concession
             except Exception as e:
                 self.session.rollback()
                 logger.error(f"Failed to update match record {match_id}: {e}")
@@ -603,7 +704,9 @@ class Arena:
                 self.session.commit()
             except Exception as e:
                 self.session.rollback()
-                logger.error(f"Failed to update player ratings after match {match_id}: {e}")
+                logger.error(
+                    f"Failed to update player ratings after match {match_id}: {e}"
+                )
                 raise
 
             logger.info(
@@ -617,13 +720,17 @@ class Arena:
                 current_count = self.ongoing_matches.get(player_pair, 0)
                 if current_count > 1:
                     self.ongoing_matches[player_pair] = current_count - 1
-                    logger.debug(f"Decremented ongoing match count for pair {player_pair} to {current_count - 1}")
+                    logger.debug(
+                        f"Decremented ongoing match count for pair {player_pair} to {current_count - 1}"
+                    )
                 elif current_count == 1:
                     del self.ongoing_matches[player_pair]
                     logger.debug(f"Removed last ongoing match for pair {player_pair}")
                 else:
                     # This case should ideally not happen if logic is correct
-                    logger.warning(f"Attempted to decrement ongoing match count for pair {player_pair}, but count was already {current_count}")
+                    logger.warning(
+                        f"Attempted to decrement ongoing match count for pair {player_pair}, but count was already {current_count}"
+                    )
 
     def handle_sigint(self):
         """Handle SIGINT (Ctrl+C) signal"""
@@ -633,7 +740,7 @@ class Arena:
             self._force_stop = True
 
             # Cancel all active tasks
-            for task in list(self._active_tasks): # Iterate over a copy
+            for task in list(self._active_tasks):  # Iterate over a copy
                 if not task.done():
                     task.cancel()
         else:
@@ -650,7 +757,6 @@ class Arena:
         last_logged_cost = 0
         total_cost = 0.0  # Initialize total_cost
         MIN_LOG_INTERVAL = 10  # Only log costs at most every 10 seconds
-        tries = 0  # Attempts to schedule
 
         # Main evaluation loop
         while not self._force_stop:
@@ -680,29 +786,44 @@ class Arena:
                         f"Cost budget of ${self.cost_budget:.6f} reached. Stopping evaluation."
                     )
                     self._budget_exceeded = True
-                    self._stop_scheduling = True # Stop scheduling new/resumed matches
+                    self._stop_scheduling = True  # Stop scheduling new/resumed matches
                     # Don't break immediately, let ongoing tasks finish unless Ctrl+C again
 
             # Track number of new tasks spawned in this iteration
             new_tasks_spawned = 0
 
             # Schedule new or resumed matches only if not stopping and below parallel limit
-            if not self._stop_scheduling and len(self._active_tasks) < self.max_parallel_games:
+            if (
+                not self._stop_scheduling
+                and len(self._active_tasks) < self.max_parallel_games
+            ):
                 scheduled_something = False
                 # Prioritize resumable matches
                 if self._resumable_matches:
                     # Take the first resumable match
                     pA, pB, state, match_id = self._resumable_matches.pop(0)
-                    pair_ids = (min(pA.player_model.id, pB.player_model.id), max(pA.player_model.id, pB.player_model.id))
+                    pair_ids = (
+                        min(pA.player_model.id, pB.player_model.id),
+                        max(pA.player_model.id, pB.player_model.id),
+                    )
 
                     # Check concurrency limits for this specific pair
-                    if self.ongoing_matches.get(pair_ids, 0) < self.max_concurrent_games_per_pair:
-                        logger.info(f"Attempting to resume match {match_id} between {pA.llm_player.name} and {pB.llm_player.name}")
+                    if (
+                        self.ongoing_matches.get(pair_ids, 0)
+                        < self.max_concurrent_games_per_pair
+                    ):
+                        logger.info(
+                            f"Attempting to resume match {match_id} between {pA.llm_player.name} and {pB.llm_player.name}"
+                        )
                         # Increment ongoing count *before* creating task
-                        self.ongoing_matches[pair_ids] = self.ongoing_matches.get(pair_ids, 0) + 1
+                        self.ongoing_matches[pair_ids] = (
+                            self.ongoing_matches.get(pair_ids, 0) + 1
+                        )
                         task = asyncio.create_task(
-                            self.run_single_game(pA, pB, resumed_state=state, existing_match_id=match_id),
-                            name=f"match-{match_id}-resume"
+                            self.run_single_game(
+                                pA, pB, resumed_state=state, existing_match_id=match_id
+                            ),
+                            name=f"match-{match_id}-resume",
                         )
                         self._active_tasks.add(task)
                         new_tasks_spawned += 1
@@ -711,7 +832,9 @@ class Arena:
                         task.add_done_callback(lambda t: self._active_tasks.discard(t))
                     else:
                         # Limit reached for this pair, put it back at the front
-                        logger.debug(f"Resuming match {match_id} deferred: concurrent limit for pair {pair_ids} reached.")
+                        logger.debug(
+                            f"Resuming match {match_id} deferred: concurrent limit for pair {pair_ids} reached."
+                        )
                         self._resumable_matches.insert(0, (pA, pB, state, match_id))
                         scheduled_something = True
 
@@ -736,14 +859,16 @@ class Arena:
                     else:
                         logger.debug("No new matches available to schedule right now.")
 
-
             # Check if we should exit the loop
-            if not self._active_tasks and (self._stop_scheduling or new_tasks_spawned == 0):
+            if not self._active_tasks and (
+                self._stop_scheduling or new_tasks_spawned == 0
+            ):
                 # If stopping, or if we couldn't schedule anything and nothing is running
-                logger.info("No active matches and no new matches scheduled. Exiting loop.")
+                logger.info(
+                    "No active matches and no new matches scheduled. Exiting loop."
+                )
 
                 break
-
 
             # If we spawned new tasks, log current state before waiting
             if new_tasks_spawned > 0:
@@ -762,14 +887,15 @@ class Arena:
                 try:
                     self.log_pairwise_confidences()
                 except RuntimeError as e:
-                    logger.warning(f"Could not log pairwise confidences: {e}") # Log as warning
+                    logger.warning(
+                        f"Could not log pairwise confidences: {e}"
+                    )  # Log as warning
 
             # Wait for tasks to complete or timeout
-            timeout = 1.0 # Use float for timeout
+            timeout = 1.0  # Use float for timeout
 
             if self._active_tasks:
-                # Create a copy of the set to avoid issues if tasks finish during wait
-                tasks_to_wait = list(self._active_tasks)
+                # Wait for any task to complete or timeout
                 done, pending = await asyncio.wait(
                     self._active_tasks,
                     return_when=asyncio.FIRST_COMPLETED,
@@ -781,19 +907,32 @@ class Arena:
                     try:
                         await finished
                         # Log completion using task name
-                        task_name = finished.get_name() if hasattr(finished, 'get_name') else 'Unknown Task'
+                        task_name = (
+                            finished.get_name()
+                            if hasattr(finished, "get_name")
+                            else "Unknown Task"
+                        )
                         logger.info(f"Match task completed: {task_name}")
                     except asyncio.CancelledError:
-                        task_name = finished.get_name() if hasattr(finished, 'get_name') else 'Unknown Task'
+                        task_name = (
+                            finished.get_name()
+                            if hasattr(finished, "get_name")
+                            else "Unknown Task"
+                        )
                         logger.warning(f"Match task cancelled: {task_name}")
                     except Exception as e:
-                        task_name = finished.get_name() if hasattr(finished, 'get_name') else 'Unknown Task'
-                        logger.error(f"Match task failed: {task_name} - {e}", exc_info=True) # Log traceback
-            elif not self._stop_scheduling: # Only sleep if not stopping
+                        task_name = (
+                            finished.get_name()
+                            if hasattr(finished, "get_name")
+                            else "Unknown Task"
+                        )
+                        logger.error(
+                            f"Match task failed: {task_name} - {e}", exc_info=True
+                        )  # Log traceback
+            elif not self._stop_scheduling:  # Only sleep if not stopping
                 # No active tasks, wait before checking again
                 await asyncio.sleep(timeout)
             # If stopping and no active tasks, the loop condition will handle exit
-
 
     def current_elo(self) -> Tuple[EloSystem, Dict[str, PlayerRating]]:
         """Calculates the current Elo ratings based on completed matches."""
@@ -844,9 +983,11 @@ class Arena:
 
         try:
             elo, _ = self.current_elo()
-        except ValueError: # Handle case with no match history yet
-             logger.warning("Cannot calculate pairwise confidences: No completed matches yet.")
-             return
+        except ValueError:  # Handle case with no match history yet
+            logger.warning(
+                "Cannot calculate pairwise confidences: No completed matches yet."
+            )
+            return
 
         for i in range(len(sorted_players) - 1):
             player_a = sorted_players[i]
@@ -861,25 +1002,27 @@ class Arena:
                     f"{prob * 100:.1f}% confident that {player_a.llm_player.name} is stronger"
                 )
             except RuntimeError as e:
-                 logger.warning(f"Could not calculate confidence for {player_a.llm_player.name} vs {player_b.llm_player.name}: {e}")
-
+                logger.warning(
+                    f"Could not calculate confidence for {player_a.llm_player.name} vs {player_b.llm_player.name}: {e}"
+                )
 
     def _get_player_concessions(self, player: ArenaPlayer) -> int:
         """Calculate the number of matches conceded by a player."""
         return (
-             self.session.query(func.count(GameMatch.id))
-             .filter(
-                 GameMatch.experiment_id == self.experiment.id,
-                 GameMatch.conceded.is_(True),
-                 # Player is either player1 or player2, but NOT the winner
-                 (
-                     (GameMatch.player1_id == player.player_model.id) |
-                     (GameMatch.player2_id == player.player_model.id)
-                 ),
-                 GameMatch.winner_id != player.player_model.id
-             )
-             .scalar() or 0
-         )
+            self.session.query(func.count(GameMatch.id))
+            .filter(
+                GameMatch.experiment_id == self.experiment.id,
+                GameMatch.conceded.is_(True),
+                # Player is either player1 or player2, but NOT the winner
+                (
+                    (GameMatch.player1_id == player.player_model.id)
+                    | (GameMatch.player2_id == player.player_model.id)
+                ),
+                GameMatch.winner_id != player.player_model.id,
+            )
+            .scalar()
+            or 0
+        )
 
     def get_experiment_results(self) -> Dict[str, Any]:
         """Get summary of experiment results including matches played and final ratings."""
@@ -890,8 +1033,6 @@ class Arena:
             .all()
         )
 
-        # Get all players associated with this experiment
-        db_players = self.experiment.get_players(self.session)
         # Get final ratings from the player objects (which should be updated by run_single_game)
         player_ratings = {p.llm_player.name: p.rating.rating for p in self.players}
 
@@ -902,7 +1043,7 @@ class Arena:
             budget_info = {
                 "budget": self.cost_budget,
                 "total_cost": total_cost,
-                "budget_exceeded": self._budget_exceeded
+                "budget_exceeded": self._budget_exceeded,
             }
 
         # Calculate concessions per player using the helper method
@@ -912,7 +1053,7 @@ class Arena:
 
         # Use utility functions for counts
         draws = count_draws(matches)
-        completed_matches = count_complete_games(matches) # Renamed function internally
+        completed_matches = count_complete_games(matches)  # Renamed function internally
 
         results = {
             "experiment_id": self.experiment.id,
@@ -923,23 +1064,44 @@ class Arena:
             "player_ratings": player_ratings,
             "player_concessions": player_concessions,
             "budget_info": budget_info,
-            "matches": [], # Changed key from 'games' to 'matches'
+            "matches": [],  # Changed key from 'games' to 'matches'
         }
 
         # Add details for each completed match
         for match in matches:
-            if is_game_complete(match): # Use utility function
+            if is_game_complete(match):  # Use utility function
                 # Find corresponding ArenaPlayers to get names easily
-                p1_arena = next((p for p in self.players if p.player_model.id == match.player1_id), None)
-                p2_arena = next((p for p in self.players if p.player_model.id == match.player2_id), None)
-                winner_arena = next((p for p in self.players if p.player_model.id == match.winner_id), None) if match.winner_id else None
+                p1_arena = next(
+                    (p for p in self.players if p.player_model.id == match.player1_id),
+                    None,
+                )
+                p2_arena = next(
+                    (p for p in self.players if p.player_model.id == match.player2_id),
+                    None,
+                )
+                winner_arena = (
+                    next(
+                        (
+                            p
+                            for p in self.players
+                            if p.player_model.id == match.winner_id
+                        ),
+                        None,
+                    )
+                    if match.winner_id
+                    else None
+                )
 
                 match_entry = {
                     "match_id": match.id,
-                    "player1": p1_arena.llm_player.name if p1_arena else f"ID:{match.player1_id}",
-                    "player2": p2_arena.llm_player.name if p2_arena else f"ID:{match.player2_id}",
+                    "player1": p1_arena.llm_player.name
+                    if p1_arena
+                    else f"ID:{match.player1_id}",
+                    "player2": p2_arena.llm_player.name
+                    if p2_arena
+                    else f"ID:{match.player2_id}",
                     "winner": winner_arena.llm_player.name if winner_arena else None,
-                    "is_draw": is_game_draw(match), # Use utility function
+                    "is_draw": is_game_draw(match),  # Use utility function
                     "conceded": match.conceded,
                     "concession_reason": match.concession_reason,
                     # Optionally add final ratings snapshot if needed, but it's complex

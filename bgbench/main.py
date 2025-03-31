@@ -128,6 +128,19 @@ async def main():
             with open(args.players, "r") as f:
                 player_configs = json.load(f)
 
+            # Validate player names are unique
+            from bgbench.arena import validate_unique_player_names
+
+            is_valid, duplicates = validate_unique_player_names(player_configs)
+            if not is_valid:
+                logger.error(
+                    f"Error: Duplicate player names found: {', '.join(duplicates)}"
+                )
+                logger.error(
+                    "All players must have unique names. Please update your player configuration."
+                )
+                return
+
             for entry in player_configs:
                 model_conf = entry.get("model_config", {})
                 logger.info(
@@ -255,7 +268,7 @@ async def main():
                     experiment_id=args.export,
                     max_parallel_games=1,  # Doesn't matter for export
                     max_games_per_player_pair=args.max_games_per_pair,
-                    max_concurrent_games_per_pair=args.max_concurrent_games_per_pair, # Pass arg
+                    max_concurrent_games_per_pair=args.max_concurrent_games_per_pair,  # Pass arg
                 )
                 print_results(arena.get_experiment_results())
             else:
@@ -273,7 +286,7 @@ async def main():
                     experiment_id=args.export,
                     max_parallel_games=1,  # Doesn't matter for export
                     max_games_per_player_pair=args.max_games_per_pair,
-                    max_concurrent_games_per_pair=args.max_concurrent_games_per_pair, # Pass arg
+                    max_concurrent_games_per_pair=args.max_concurrent_games_per_pair,  # Pass arg
                 )
                 print_results(arena.get_experiment_results())
         return

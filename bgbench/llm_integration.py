@@ -128,6 +128,7 @@ class LLMCompletionProvider(Protocol):
 NON_SYSTEM_MODELS = ["openai/o1-mini", "openai/o1-preview"]
 # Models that don't support cache_control parameters (strip these out before calling)
 CACHE_ENABLED_MODELS = [
+    "openrouter/anthropic/claude-3.7-sonnet:thinking",
     "openrouter/anthropic/claude-3.7-sonnet",
     "openrouter/anthropic/claude-3.5-haiku",
 ]

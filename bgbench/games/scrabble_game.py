@@ -103,6 +103,8 @@ class ScrabbleGame(Game[ScrabbleState, ScrabbleMove]):
 
     def parse_move(self, move_str: str) -> Optional[ScrabbleMove]:
         parts = move_str.split()
+        if not parts:
+            return None
         action = parts[0].lower()
 
         if action == "exchange":

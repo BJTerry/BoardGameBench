@@ -111,8 +111,13 @@ class MatchRunner:
                     timestamp=datetime.now(),
                     game_state=game_state,
                 )
-                
-                self.match_state_manager.save_state(self.session, self.match_id, turn_state_data)
+
+                # Save state and get the ID
+                current_match_state_id: Optional[int] = self.match_state_manager.save_state(
+                    self.session, self.match_id, turn_state_data
+                )
+            else:
+                current_match_state_id = None # No state saved, pass None
 
             invalid_moves: List[Dict[str, str]] = []
             retry_count = 0
@@ -128,7 +133,12 @@ class MatchRunner:
                     winner = self.players[1 - current_player]
                     return winner, history, concession_reason
 
-                move_str = await player.make_move(game_view, invalid_moves)
+                # Pass the captured match_state_id and invalid_moves correctly
+                move_str = await player.make_move(
+                    game_view=game_view,
+                    match_state_id=current_match_state_id,
+                    invalid_moves=invalid_moves
+                )
                 move = self.game.parse_move(move_str)
                 if move is None:
                     logger.warning(f"Invalid move format by {player.name}: {move_str}")

@@ -26,7 +26,10 @@ class LLMPlayer:
             self._llm = create_llm(**self.model_config)
 
     async def make_move(
-        self, game_view: MatchView, invalid_moves: Optional[List[Dict[str, str]]] = None
+        self,
+        game_view: MatchView,
+        match_state_id: Optional[int], # Allow None
+        invalid_moves: Optional[List[Dict[str, str]]] = None
     ) -> Any:
         start_time = time.time()
         if self.db_session is None or self.game_id is None:
@@ -105,10 +108,12 @@ class LLMPlayer:
                 logger.debug(f"Cost from token_info: ${float(cost):.6f}")
 
                 # Use the full message list from complete_prompt for accurate logging
+                # Use the full message list from complete_prompt for accurate logging
                 llm_interaction = LLMInteraction(
                     game_id=self.game_id,
                     player_id=self.player_id,
-                    prompt=full_messages,  # Use full messages including system message
+                    match_state_id=match_state_id, # <<< Set the new field here
+                    prompt=full_messages,
                     response=move,
                     cost=float(cost),
                 )

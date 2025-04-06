@@ -303,4 +303,12 @@ class LLMInteraction(Base):
     completion_tokens: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     total_tokens: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     cost: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
+    # --- Add the following ---
+    match_state_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("match_states.id"), nullable=True, index=True
+    )
+    match_state: Mapped[Optional["MatchState"]] = relationship("MatchState")
+    # --- End of addition ---
+
     player: Mapped["Player"] = relationship("Player")

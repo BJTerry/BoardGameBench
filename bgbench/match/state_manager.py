@@ -15,10 +15,9 @@ class MatchStateManager:
 
     def save_state(
         self, session: Session, match_id: int, state_data: MatchStateData
-    ) -> None:
+    ) -> int:
         """
-        Saves the given match state to the database as a new record.
-        
+        Saves the given match state to the database as a new record and returns its ID.
         This creates a new historical snapshot rather than updating an existing record,
         allowing for a complete history of the match state.
 
@@ -42,9 +41,13 @@ class MatchStateManager:
                 state_data=state_data_dict
             )
             session.add(new_match_state)
-            # Commit the transaction directly
+            # Flush to get the ID before committing
+            session.flush()
+            saved_state_id = new_match_state.id
+            # Commit the transaction
             session.commit()
-            logger.debug(f"Saved new match state record for match {match_id}")
+            logger.debug(f"Saved new match state record {saved_state_id} for match {match_id}")
+            return saved_state_id
         except (TypeError, ValueError) as e:
             logger.error(f"Failed to serialize or prepare state for match {match_id}: {e}")
             session.rollback()

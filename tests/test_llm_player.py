@@ -39,7 +39,8 @@ async def test_llm_player_basic_move(test_llm, db_session):
 
     # Test move generation
     test_llm.set_response("2")
-    move = await llm_player.make_move(game_view)
+    # Provide a dummy match_state_id for the test
+    move = await llm_player.make_move(game_view, match_state_id=1)
 
     # Verify response
     assert move == "2"
@@ -87,6 +88,8 @@ async def test_llm_player_invalid_move_retry(test_llm, db_session):
     test_llm.set_response("2")
     move = await llm_player.make_move(
         game_view,
+        # Provide a dummy match_state_id for the test
+        match_state_id=1,
         invalid_moves=[
             {"move": "4", "explanation": "Cannot take 4 objects, maximum is 3"}
         ],
@@ -100,8 +103,9 @@ async def test_llm_player_invalid_move_retry(test_llm, db_session):
 async def test_llm_player_db_logging(test_llm, mocker):
     """Test database logging of LLM interactions"""
     mock_session = mocker.MagicMock()
-    mock_interaction = mocker.MagicMock()
-    mocker.patch("bgbench.llm_player.LLMInteraction", return_value=mock_interaction)
+    mock_interaction_instance = mocker.MagicMock()
+    # Patch the class and store the mock class object itself
+    mock_llm_interaction_class = mocker.patch("bgbench.llm_player.LLMInteraction", return_value=mock_interaction_instance)
 
     llm_player = LLMPlayer(
         "test_player",
@@ -124,11 +128,25 @@ async def test_llm_player_db_logging(test_llm, mocker):
     )
 
     test_llm.set_response("2")
-    await llm_player.make_move(game_view)
+    # Provide a dummy match_state_id for the test
+    await llm_player.make_move(game_view, match_state_id=1)
 
     # Verify logging
-    mock_interaction.log_interaction.assert_called_once()
-    args = mock_interaction.log_interaction.call_args[0]
+    # Also verify that match_state_id was passed correctly during LLMInteraction creation
+    mock_interaction_init_call = mocker.call(
+        game_id=1,
+        player_id=1,
+        match_state_id=1, # Check the dummy ID is passed
+        prompt=mocker.ANY,  # Check prompt structure if needed
+        response="2",
+        cost=mocker.ANY,  # Cost calculation might vary
+    )
+    # Assert the call against the mock class object we captured earlier
+    mock_llm_interaction_class.assert_has_calls([mock_interaction_init_call])
+
+    # Verify the log_interaction call itself on the returned instance
+    mock_interaction_instance.log_interaction.assert_called_once()
+    args = mock_interaction_instance.log_interaction.call_args[0]
     assert args[0] == mock_session
     assert isinstance(args[1], list)
     assert args[2] == "2"
@@ -175,6 +193,8 @@ async def test_llm_player_truncates_long_invalid_moves(test_llm, db_session):
     test_llm.set_response("2")
     move = await llm_player.make_move(
         game_view,
+        # Provide a dummy match_state_id for the test
+        match_state_id=1,
         invalid_moves=[{"move": long_move, "explanation": "Invalid format"}],
     )
 

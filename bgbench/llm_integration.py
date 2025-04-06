@@ -428,7 +428,7 @@ async def _handle_retry(
 async def complete_prompt(
     llm_config: Union[Dict[str, Any], LLMCompletionProvider],
     prompt_messages: List[Dict[str, Any]],
-) -> Tuple[str, UsageInfo, List[Dict[str, Any]]]:
+) -> Tuple[str, UsageInfo, List[Dict[str, Any]], Optional[Dict[str, Any]]]:
     """
     Helper function to complete a prompt using litellm with caching support.
 
@@ -437,7 +437,8 @@ async def complete_prompt(
         prompt_messages: List of message blocks with appropriate caching settings
 
     Returns:
-        Tuple of (response content, usage info, full message list used)
+        Tuple of (response content, usage info, full message list used, error info)
+        Error info is None for successful completions
     """
     # Max timeout in seconds (5 minutes)
     MAX_RETRY_TIMEOUT = 300
@@ -455,6 +456,9 @@ async def complete_prompt(
     rate_limit_retry_attempt = 0
     response_retry_attempt = 0
     
+    # Track the last error for reporting
+    last_error = None
+    
     while True:
         try:
             # Step 1: Prepare messages and configuration
@@ -466,8 +470,29 @@ async def complete_prompt(
             # Step 3: Process the response
             content, token_info = _process_response(response)
             
-            # Return the content, token info, and the full message list that was used
-            return content, token_info, messages
+            # Check for token limit warnings and capture them
+            error_info = None
+            max_tokens = getattr(response, "model_params", {}).get("max_tokens")
+            if max_tokens and token_info["completion_tokens"] == max_tokens:
+                model_name = getattr(response, "model", "unknown model")
+                warning_msg = f"Response maxed out completion tokens: used {token_info['completion_tokens']} of {max_tokens} for {model_name}"
+                logger.warning(warning_msg)
+                
+                # Create error info but don't treat as failure
+                error_info = {
+                    "error_occurred": True,
+                    "error_type": "TOKEN_LIMIT_WARNING",
+                    "error_message": warning_msg,
+                    "error_details": {
+                        "completion_tokens": token_info["completion_tokens"],
+                        "max_tokens": max_tokens,
+                        "model": model_name
+                    },
+                    "retry_count": rate_limit_retry_attempt + response_retry_attempt
+                }
+            
+            # Return the content, token info, the full message list, and error info
+            return content, token_info, messages, error_info
 
         except RateLimitError as e:
             # Handle rate limiting with exponential backoff
@@ -475,6 +500,13 @@ async def complete_prompt(
                 e, model_info, rate_limit_retry_attempt, total_wait_time, 
                 base_delay, MAX_RETRY_TIMEOUT, 999999, "rate limit"  # Using large int instead of infinity
             )
+            last_error = {
+                "error_occurred": True,
+                "error_type": "RATE_LIMIT",
+                "error_message": str(e),
+                "error_details": {"retry_attempt": rate_limit_retry_attempt},
+                "retry_count": rate_limit_retry_attempt
+            }
             
         except LLMResponseError as e:
             # Handle response processing errors with limited retries
@@ -482,8 +514,25 @@ async def complete_prompt(
                 e, model_info, response_retry_attempt, total_wait_time,
                 base_delay, MAX_RETRY_TIMEOUT, MAX_RESPONSE_RETRIES, "response"
             )
+            last_error = {
+                "error_occurred": True,
+                "error_type": "RESPONSE_ERROR",
+                "error_message": str(e),
+                "error_details": {
+                    "error_class": e.__class__.__name__,
+                    "retry_attempt": response_retry_attempt
+                },
+                "retry_count": response_retry_attempt
+            }
             
         except Exception as e:
             # For any other exceptions, log with full traceback and raise immediately
             logger.error(f"Error completing prompt {model_info}: {str(e)}", exc_info=True)
+            last_error = {
+                "error_occurred": True,
+                "error_type": "UNHANDLED_ERROR",
+                "error_message": str(e),
+                "error_details": {"error_class": e.__class__.__name__},
+                "retry_count": rate_limit_retry_attempt + response_retry_attempt
+            }
             raise

@@ -260,6 +260,11 @@ class LLMInteraction(Base):
         completion_tokens: Optional[int] = None,
         total_tokens: Optional[int] = None,
         cost: Optional[float] = None,
+        error_occurred: bool = False,
+        error_type: Optional[str] = None,
+        error_message: Optional[str] = None,
+        error_details: Optional[dict] = None,
+        retry_count: int = 0,
     ):
         self.prompt = json.loads(json.dumps(prompt))  # Ensure proper JSON serialization
         self.response = response
@@ -269,6 +274,11 @@ class LLMInteraction(Base):
         self.completion_tokens = completion_tokens
         self.total_tokens = total_tokens
         self.cost = cost
+        self.error_occurred = error_occurred
+        self.error_type = error_type
+        self.error_message = error_message
+        self.error_details = error_details
+        self.retry_count = retry_count
 
         # Add debug logging
         logger.debug(
@@ -285,6 +295,12 @@ class LLMInteraction(Base):
             logger.debug(f"Total tokens: {total_tokens}")
         if cost:
             logger.debug(f"Cost: ${cost:.6f}")
+        
+        # Add debug logging for errors
+        if error_occurred:
+            logger.warning(
+                f"Logged LLM error for game {self.game_id}: {error_type} - {error_message}"
+            )
 
     __tablename__ = "llm_interactions"
 
@@ -303,6 +319,13 @@ class LLMInteraction(Base):
     completion_tokens: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     total_tokens: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     cost: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
+    # Error tracking fields
+    error_occurred: Mapped[bool] = mapped_column(Boolean, default=False)
+    error_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    error_message: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    error_details: Mapped[Optional[dict]] = mapped_column(JsonType, nullable=True)
+    retry_count: Mapped[int] = mapped_column(Integer, default=0)
 
     # --- Add the following ---
     match_state_id: Mapped[Optional[int]] = mapped_column(

@@ -1,4 +1,5 @@
 import logging
+import json
 from typing import Any, Optional, List, Dict
 from bgbench.llm_integration import ResponseStyle, create_llm, complete_prompt
 from dataclasses import dataclass, field
@@ -78,7 +79,8 @@ class LLMPlayer:
         try:
             # Get response from LLM using the structured prompt messages with caching
             # Now complete_prompt returns the full list of messages used (including system message)
-            response, token_info, full_messages = await complete_prompt(
+            # and error info if applicable
+            response, token_info, full_messages, error_info = await complete_prompt(
                 self._llm, prompt_messages
             )
             end_time = time.time()
@@ -117,6 +119,21 @@ class LLMPlayer:
                     response=move,
                     cost=float(cost),
                 )
+                
+                # Add error information if present
+                error_occurred = False
+                error_type = None
+                error_message = None
+                error_details = None
+                retry_count = 0
+                
+                if error_info:
+                    error_occurred = error_info.get("error_occurred", False)
+                    error_type = error_info.get("error_type")
+                    error_message = error_info.get("error_message")
+                    error_details = error_info.get("error_details")
+                    retry_count = error_info.get("retry_count", 0)
+                
                 llm_interaction.log_interaction(
                     self.db_session,
                     full_messages,  # Log the complete message list
@@ -127,10 +144,55 @@ class LLMPlayer:
                     token_info["completion_tokens"],
                     token_info["total_tokens"],
                     token_info["cost"],
+                    error_occurred=error_occurred,
+                    error_type=error_type,
+                    error_message=error_message,
+                    error_details=error_details,
+                    retry_count=retry_count
                 )
 
             return move
 
         except Exception as e:
+            end_time = time.time()
             logger.error(f"Error making move: {str(e)}")
+            
+            # Log the failed interaction
+            if self.db_session and self.game_id and hasattr(self, "player_id") and self.player_id is not None:
+                try:
+                    # Create a minimal representation of the prompt
+                    prompt_str = json.dumps(prompt_messages)
+                    if len(prompt_str) > 1000:
+                        prompt_str = prompt_str[:1000] + "... [truncated]"
+                    
+                    llm_interaction = LLMInteraction(
+                        game_id=self.game_id,
+                        player_id=self.player_id,
+                        match_state_id=match_state_id,
+                        prompt=prompt_messages,
+                        response="[ERROR]",
+                        cost=0.0,
+                    )
+                    
+                    llm_interaction.log_interaction(
+                        self.db_session,
+                        prompt_messages,
+                        "[ERROR]",
+                        start_time,
+                        end_time,
+                        None,
+                        None,
+                        None,
+                        0.0,
+                        error_occurred=True,
+                        error_type="EXCEPTION",
+                        error_message=str(e),
+                        error_details={"exception_class": e.__class__.__name__},
+                        retry_count=0
+                    )
+                    
+                    logger.info(f"Logged failed LLM interaction for game {self.game_id}")
+                except Exception as log_error:
+                    logger.error(f"Failed to log LLM error: {str(log_error)}")
+            
             raise

@@ -5,6 +5,7 @@ from bgbench.games.azul_game import (
     PlayerBoard,
     TileColor,
     WALL_COLOR_ARRANGEMENT,
+    WALL_SIZE,
 )
 import random
 
@@ -154,14 +155,25 @@ def test_score_wall_tile():
     board.wall[0][1] = True
     assert board.score_wall_tile(0, 1) == 2  # Counts itself and the tile to its left
 
-    # Place an adjacent vertical tile, creating an L shape
-    board.wall[1][1] = True
-    assert (
-        board.score_wall_tile(1, 1) == 3
-    )  # Counts itself, one above, and one to the left of above
+    # Place an adjacent vertical tile
+    board.wall[1][0] = True
+    assert board.score_wall_tile(1, 0) == 2 # Counts itself and the one above
+
+    # Place a tile connected both ways (L-shape corner)
+    # Wall: [[T, T, F], [F, T, F], [F, F, F]] -> Place at (1,1)
+    board.wall[0][0] = True # Top-left
+    board.wall[0][1] = True # Top-middle
+    board.wall[1][1] = True # Middle-middle
+    # Score for (1,1): H-line=[(0,1), (1,1)] len=2. V-line=[(1,1)] len=1.
+    # Rule: Score H if > 1, Score V if > 1. Sum if both. Isolated = 1.
+    # Here: H=2, V=1. Score = 2.
+    assert board.score_wall_tile(1, 1) == 2
 
     # Place another tile to extend horizontal line
+    # Wall: [[T, T, T], [F, T, F], [F, F, F]] -> Place at (0,2)
     board.wall[0][2] = True
+    # Score for (0,2): H-line=[(0,0), (0,1), (0,2)] len=3. V-line=[(0,2)] len=1.
+    # Score = 3.
     assert board.score_wall_tile(0, 2) == 3  # Counts itself and two to its left
 
     # The middle tile has a special fixed score for the L test case
@@ -182,13 +194,16 @@ def test_tiling_phase():
     board.pattern_lines[2] = [None, TileColor.YELLOW, TileColor.YELLOW]
 
     # Add penalties to floor line
-    board.floor_line = [TileColor.WHITE, TileColor.BLACK, None, None, None, None, None]
+    board.floor_line = [TileColor.WHITE, TileColor.BLACK, None, None, None, None, None] # Penalties: -1, -1 = -2
+
+    # Initial lid
+    initial_lid = [TileColor.YELLOW]
 
     # Execute tiling phase
-    score_delta = board.tiling_phase()
+    score_delta, updated_lid = board.tiling_phase(initial_lid)
 
     # Check pattern lines
-    assert all(tile is None for tile in board.pattern_lines[0])  # Cleared
+    assert all(tile is None for tile in board.pattern_lines[0]) # Cleared
     assert all(tile is None for tile in board.pattern_lines[1])  # Cleared
     assert board.pattern_lines[2] == [
         None,
@@ -227,13 +242,20 @@ def test_tiling_phase():
     )
 
     assert board.wall[0][blue_col]
-    assert board.wall[1][red_col]
+    assert board.wall[1][red_col] # RED placed
 
     # Check floor line is cleared
     assert all(tile is None for tile in board.floor_line)
 
-    # Check score delta (1 for BLUE, 1 for RED, -1-2=-3 for floor penalties)
-    assert score_delta == 1 + 1 - 3
+    # Check score delta (1 for BLUE, 1 for RED, -1 -1 = -2 for floor penalties)
+    # Expected score: 1 + 1 - 2 = 0
+    assert score_delta == 0
+
+    # Check lid contains initial lid + discarded tiles
+    # Discarded: 1 RED (from pattern line 1), WHITE, BLACK (from floor)
+    expected_lid_contents = initial_lid + [TileColor.RED, TileColor.WHITE, TileColor.BLACK]
+    assert len(updated_lid) == len(expected_lid_contents)
+    assert all(tile in updated_lid for tile in expected_lid_contents)
 
 
 def test_has_completed_horizontal_line():
@@ -267,14 +289,13 @@ def test_calculate_end_game_bonus():
         board.wall[row][0] = True
 
     # 1 color bonus - complete all BLUE tiles (10 points)
-    # Find position of BLUE in each row and fill it
-    for row in range(5):
-        for col in range(5):
-            if (
-                row == 0 and col == 0
-            ):  # BLUE in first row is at column 0 (already filled above)
-                continue
-            # This is simplified - in real implementation we'd look up the actual positions from the color arrangement
+    # Find all positions for BLUE and mark them as filled
+    for r in range(WALL_SIZE):
+        for c in range(WALL_SIZE):
+            if WALL_COLOR_ARRANGEMENT[r][c] == TileColor.BLUE:
+                 # Ensure we don't overwrite already set True values for H/V lines
+                 if not board.wall[r][c]:
+                     board.wall[r][c] = True
 
     # Calculate bonus
     bonus = board.calculate_end_game_bonus()
@@ -502,6 +523,9 @@ def test_get_player_view(game, initial_state):
     # Add some tiles to factories and center
     state.factory_displays[0][TileColor.BLUE] = 2
     state.center_tiles[TileColor.RED] = 1
+    
+    # Add a tile to player 1's pattern line for testing
+    state.player_boards[1].pattern_lines[0][0] = TileColor.YELLOW
 
     # Player 0's view
     view_0 = game.get_player_view(state, 0)
@@ -513,11 +537,14 @@ def test_get_player_view(game, initial_state):
     # Check own board is fully visible
     assert "your_board" in view_0.visible_state
 
-    # Check opponent info is included but limited
+    # Check opponent info is included with complete information
     assert "opponent_boards" in view_0.visible_state
-    assert (
-        len(view_0.visible_state["opponent_boards"]) == 1
-    )  # One opponent in 2-player game
+    assert len(view_0.visible_state["opponent_boards"]) == 1  # One opponent in 2-player game
+    
+    # Verify opponent's pattern lines are visible (open information)
+    opponent_board = view_0.visible_state["opponent_boards"][0]
+    assert "pattern_lines" in opponent_board
+    assert opponent_board["pattern_lines"][0][0] == str(TileColor.YELLOW)
 
     # Check valid moves are included when it's player's turn
     assert view_0.valid_moves
@@ -537,16 +564,20 @@ def test_serialize_deserialize_state(game, initial_state):
     state.center_tiles[TileColor.RED] = 2
     state.player_boards[0].pattern_lines[0][0] = TileColor.YELLOW
     state.player_boards[1].wall[0][0] = True
-    
+    state.tile_bag = [TileColor.BLACK, TileColor.WHITE]
+    state.lid = [TileColor.YELLOW]
+
     # Serialize the state
     serialized = game.serialize_state(state)
-    
+
     # Verify serialization contains expected data
     assert serialized["factory_displays"][0][str(TileColor.BLUE)] == 3
     assert serialized["center_tiles"][str(TileColor.RED)] == 2
     assert serialized["player_boards"][0]["pattern_lines"][0][0] == str(TileColor.YELLOW)
     assert serialized["player_boards"][1]["wall"][0][0] is True
-    
+    assert serialized["tile_bag"] == [str(TileColor.BLACK), str(TileColor.WHITE)]
+    assert serialized["lid"] == [str(TileColor.YELLOW)]
+
     # Deserialize back to a state object
     deserialized = game.deserialize_state(serialized)
     
@@ -555,7 +586,9 @@ def test_serialize_deserialize_state(game, initial_state):
     assert deserialized.center_tiles[TileColor.RED] == 2
     assert deserialized.player_boards[0].pattern_lines[0][0] == TileColor.YELLOW
     assert deserialized.player_boards[1].wall[0][0] is True
-    
+    assert deserialized.tile_bag == [TileColor.BLACK, TileColor.WHITE]
+    assert deserialized.lid == [TileColor.YELLOW]
+
     # Verify game logic still works with deserialized state
     assert game.get_current_player(deserialized) == state.current_player
     assert game.is_terminal(deserialized) == game.is_terminal(state)

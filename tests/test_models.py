@@ -3,7 +3,7 @@ import pytest
 from typing import cast
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from bgbench.models import (
+from bgbench.data.models import (
     Base,
     Experiment,
     Player,

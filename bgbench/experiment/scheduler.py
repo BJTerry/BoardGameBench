@@ -12,11 +12,11 @@ from dataclasses import dataclass
 from typing import List, Optional, Tuple, Dict, Set, cast, Any, TYPE_CHECKING
 import numpy as np
 import logging
-from bgbench.rating import EloSystem, GameResult
+from bgbench.experiment.rating import EloSystem, GameResult
 
 # Handle circular imports
 if TYPE_CHECKING:
-    from bgbench.arena import ArenaPlayer
+    from bgbench.experiment.arena import ArenaPlayer
 
 logger = logging.getLogger(__name__)
 

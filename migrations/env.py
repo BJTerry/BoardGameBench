@@ -7,7 +7,7 @@ from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from alembic import context
-from bgbench.models import Base  # Import our Base model
+from bgbench.data.models import Base  # Import our Base model
 
 # Load environment variables
 load_dotenv()

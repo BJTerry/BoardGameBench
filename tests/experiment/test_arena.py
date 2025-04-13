@@ -2,9 +2,9 @@ import pytest
 import logging
 import random
 from unittest.mock import MagicMock, patch
-from bgbench.arena import Arena, validate_unique_player_names
+from bgbench.experiment.arena import Arena, validate_unique_player_names
 from bgbench.games.nim_game import NimGame
-from bgbench.models import Experiment, Player as DBPlayer, GameMatch
+from bgbench.data.models import Experiment, Player as DBPlayer, GameMatch
 
 
 async def mock_play_game_no_elo_update(self):

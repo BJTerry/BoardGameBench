@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, desc
 from sqlalchemy.sql.selectable import Select
 
-from bgbench.models import MatchState
+from bgbench.data.models import MatchState
 from bgbench.match.state_manager import MatchStateManager
 from bgbench.match.match_state import MatchStateData
 

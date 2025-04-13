@@ -1,11 +1,11 @@
 import logging
 import json
 from typing import Any, Optional, List, Dict
-from bgbench.llm_integration import ResponseStyle, create_llm, complete_prompt
+from bgbench.llm.integration import ResponseStyle, create_llm, complete_prompt
 from dataclasses import dataclass, field
 import time
 from bgbench.match.view import MatchView, PromptStyle
-from bgbench.models import LLMInteraction
+from bgbench.data.models import LLMInteraction
 
 logger = logging.getLogger("bgbench")
 

@@ -1,14 +1,14 @@
 from typing import List, cast
 import pytest
 from unittest.mock import Mock, MagicMock
-from bgbench.arena import ArenaPlayer
-from bgbench.scheduler import (
+from bgbench.experiment.arena import ArenaPlayer
+from bgbench.experiment.scheduler import (
     MatchScheduler,
     FullRankingScheduler,
     TopIdentificationScheduler,
     MatchFilterSpec,  # Import MatchFilterSpec
 )
-from bgbench.rating import EloSystem, GameResult
+from bgbench.experiment.rating import EloSystem, GameResult
 
 
 class TestSchedulers:

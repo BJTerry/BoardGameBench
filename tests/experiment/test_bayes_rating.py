@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from bgbench.rating import EloSystem, GameResult
+from bgbench.experiment.rating import EloSystem, GameResult
 
 
 class TestBayesRating:

@@ -4,8 +4,8 @@ from typing import List, Dict, Any, Tuple, Optional
 from sqlalchemy.orm import Session
 from bgbench.game import Game
 from bgbench.match.view import MatchView
-from bgbench.llm_player import LLMPlayer
-from bgbench.models import MatchState # Renamed from GameState
+from bgbench.llm.player import LLMPlayer
+from bgbench.data.models import MatchState # Renamed from GameState
 from bgbench.match.state_manager import MatchStateManager
 from bgbench.match.match_state import MatchStateData
 

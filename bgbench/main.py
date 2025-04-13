@@ -7,12 +7,12 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from config import DATABASE_URL
-from bgbench.models import Experiment, GameMatch
-from bgbench.export import export_experiment, calculate_skill_comparison_data
-from bgbench.rating import GameResult
+from bgbench.data.models import Experiment, GameMatch
+from bgbench.experiment.export import export_experiment, calculate_skill_comparison_data
+from bgbench.experiment.rating import GameResult
 from bgbench.logging_config import setup_logging
 from bgbench.games import AVAILABLE_GAMES
-from bgbench.arena import Arena
+from bgbench.experiment.arena import Arena
 import yaml # Import yaml for the except block
 # Import the new config loader
 from bgbench.config_loader import load_and_merge_config
@@ -177,7 +177,7 @@ async def main():
                 logger.info(f"Loaded player configurations from: {players_file}")
 
                 # Validate player names are unique
-                from bgbench.arena import validate_unique_player_names
+                from bgbench.experiment.arena import validate_unique_player_names
 
                 is_valid, duplicates = validate_unique_player_names(player_configs)
                 if not is_valid:

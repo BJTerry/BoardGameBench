@@ -7,7 +7,7 @@ import argparse
 import logging
 from sqlalchemy import create_engine, func, text
 from sqlalchemy.orm import sessionmaker
-from bgbench.models import (
+from bgbench.data.models import (
     Base,
     Experiment,
     Player,

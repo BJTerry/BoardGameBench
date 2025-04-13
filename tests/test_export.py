@@ -1,10 +1,10 @@
 import pytest
 import datetime
 from unittest.mock import patch, MagicMock
-from bgbench.rating import GameResult
+from bgbench.experiment.rating import GameResult
 
-from bgbench.models import Experiment, Player, GameMatch
-from bgbench.export import (
+from bgbench.data.models import Experiment, Player, GameMatch
+from bgbench.experiment.export import (
     is_game_complete,
     is_game_draw,
     count_complete_games,
@@ -159,10 +159,9 @@ class TestMatchHistoryBuilding:
         # Check player names are correct
         assert match_history[0].player_0 == "Player 1"
         assert match_history[0].player_1 == "Player 2"
-
-
 class TestPlayerCosts:
-    @patch("bgbench.export.func.sum")
+    # Patch target updated to reflect the new location of export
+    @patch("bgbench.experiment.export.func.sum")
     def test_get_player_costs(self, mock_sum, setup_experiment, db_session):
         """Test get_player_costs utility function"""
         experiment = setup_experiment["experiment"]
@@ -301,11 +300,10 @@ class TestSkillComparisonFunctions:
         assert p3_p1["wins"] == 0
         assert p3_p1["losses"] == 1
         assert p3_p1["draws"] == 1
-
-
 class TestExportFunctionality:
-    @patch("bgbench.export.build_match_history")
-    @patch("bgbench.export.get_player_costs")
+    # Patch targets updated to reflect the new location of export
+    @patch("bgbench.experiment.export.build_match_history")
+    @patch("bgbench.experiment.export.get_player_costs")
     def test_format_for_export(
         self, mock_get_costs, mock_build_history, setup_experiment, db_session
     ):
@@ -330,7 +328,7 @@ class TestExportFunctionality:
 
         # Use a real EloSystem with the probability_stronger method patched
         with patch(
-            "bgbench.rating.EloSystem.probability_stronger"
+            "bgbench.experiment.rating.EloSystem.probability_stronger"
         ) as mock_prob_stronger:
             # Always return that Player 1 is stronger than Player 2 with >95% probability
             mock_prob_stronger.return_value = 0.96
@@ -389,10 +387,11 @@ class TestExportFunctionality:
         assert results_by_score[1]["rank"] == 2
 
     @patch("os.makedirs")
-    @patch("bgbench.export.format_for_export")
+    # Patch targets updated to reflect the new location of export
+    @patch("bgbench.experiment.export.format_for_export")
     @patch("json.dump")
     @patch("builtins.open")
-    @patch("bgbench.export.datetime")
+    @patch("bgbench.experiment.export.datetime")
     def test_export_experiment(
         self,
         mock_datetime,

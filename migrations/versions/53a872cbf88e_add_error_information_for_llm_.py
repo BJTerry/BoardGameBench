@@ -9,7 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-from bgbench.models import JsonType
+from bgbench.data.models import JsonType
 
 
 # revision identifiers, used by Alembic.

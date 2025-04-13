@@ -3,9 +3,9 @@ logs/
 .env
 __pycache__/
 .DS_Store
-players/
-data/
-utils/
+/players/
+/data/
+/utils/
 
 # Exports
 /exports

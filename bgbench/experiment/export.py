@@ -11,8 +11,8 @@ from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from bgbench.models import Experiment, GameMatch, Player, LLMInteraction
-from bgbench.rating import EloSystem, GameResult
+from bgbench.data.models import Experiment, GameMatch, Player, LLMInteraction
+from bgbench.experiment.rating import EloSystem, GameResult
 
 logger = logging.getLogger("bgbench")
 

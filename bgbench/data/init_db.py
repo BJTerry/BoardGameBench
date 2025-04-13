@@ -1,5 +1,5 @@
 from sqlalchemy import create_engine, text
-from bgbench.models import Base
+from bgbench.data.models import Base
 from config import DATABASE_URL
 
 

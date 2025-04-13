@@ -1,7 +1,7 @@
 import pytest
-from bgbench.llm_player import LLMPlayer
+from bgbench.llm.player import LLMPlayer
 from bgbench.match.view import MatchView
-from bgbench.models import Experiment, Player, GameMatch
+from bgbench.data.models import Experiment, Player, GameMatch
 
 
 @pytest.mark.asyncio
@@ -105,7 +105,8 @@ async def test_llm_player_db_logging(test_llm, mocker):
     mock_session = mocker.MagicMock()
     mock_interaction_instance = mocker.MagicMock()
     # Patch the class and store the mock class object itself
-    mock_llm_interaction_class = mocker.patch("bgbench.llm_player.LLMInteraction", return_value=mock_interaction_instance)
+    # Patch target updated to reflect the new location of llm_player
+    mock_llm_interaction_class = mocker.patch("bgbench.llm.player.LLMInteraction", return_value=mock_interaction_instance)
 
     llm_player = LLMPlayer(
         "test_player",

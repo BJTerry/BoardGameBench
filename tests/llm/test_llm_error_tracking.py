@@ -3,10 +3,10 @@ import asyncio
 from unittest.mock import MagicMock, patch
 import json
 from sqlalchemy.orm import Session
-from bgbench.llm_player import LLMPlayer
+from bgbench.llm.player import LLMPlayer
 from bgbench.match.view import MatchView, PromptStyle
-from bgbench.models import LLMInteraction, Player, GameMatch
-from bgbench.llm_integration import (
+from bgbench.data.models import LLMInteraction, Player, GameMatch
+from bgbench.llm.integration import (
     complete_prompt, 
     RateLimitError,
     LLMResponseError,
@@ -72,9 +72,10 @@ class TestLLMErrorTracking:
         response.usage = {"prompt_tokens": 10, "completion_tokens": 100, "total_tokens": 110}
         response.model_params = {"max_tokens": 100}
         response.model = "test-model"
-        
+
         # Mock the complete_prompt function to return our response with token limit warning
-        with patch('bgbench.llm_player.complete_prompt', autospec=True) as mock_complete:
+        # Patch target updated to reflect the new location of llm_player
+        with patch('bgbench.llm.player.complete_prompt', autospec=True) as mock_complete:
             # Return response, token info, messages, and error info
             mock_complete.return_value = (
                 "Test response",
@@ -117,9 +118,10 @@ class TestLLMErrorTracking:
     async def test_exception_tracking(self, mock_llm_player, mock_match_view, mock_db_session):
         """Test that exceptions during LLM calls are tracked correctly."""
         # Mock the complete_prompt function to raise an exception
-        with patch('bgbench.llm_player.complete_prompt', autospec=True) as mock_complete:
+        # Patch target updated to reflect the new location of llm_player
+        with patch('bgbench.llm.player.complete_prompt', autospec=True) as mock_complete:
             mock_complete.side_effect = Exception("Test exception")
-            
+
             # Call make_move and expect it to raise the exception
             with pytest.raises(Exception, match="Test exception"):
                 await mock_llm_player.make_move(mock_match_view, None)
@@ -223,10 +225,11 @@ class TestLLMErrorTracking:
     async def test_llm_response_error_handling(self):
         """Test that LLM response errors are properly handled and would be tracked."""
         # Mock _execute_completion to return a response, but _process_response to raise an error then succeed
-        with patch('bgbench.llm_integration._execute_completion', autospec=True) as mock_execute, \
-             patch('bgbench.llm_integration._process_response', autospec=True) as mock_process, \
+        # Patch targets updated to reflect the new location of llm_integration
+        with patch('bgbench.llm.integration._execute_completion', autospec=True) as mock_execute, \
+             patch('bgbench.llm.integration._process_response', autospec=True) as mock_process, \
              patch('asyncio.sleep', return_value=None) as mock_sleep:
-            
+
             # _execute_completion always returns a mock response
             mock_execute.return_value = "mock_response"
             

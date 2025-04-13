@@ -1,8 +1,8 @@
 import asyncio
 import pytest
 from unittest.mock import patch
-from bgbench.models import Experiment, GameMatch, Player
-from bgbench.arena import Arena
+from bgbench.data.models import Experiment, GameMatch, Player
+from bgbench.experiment.arena import Arena
 from bgbench.games.nim_game import NimGame
 
 

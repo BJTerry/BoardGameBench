@@ -7,26 +7,26 @@ from typing import Any, Dict, List, Optional, Tuple, Set
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from bgbench.match.state_manager import MatchStateManager
-from bgbench.models import (
+from bgbench.data.models import (
     Experiment,
     Player as DBPlayer,
     GameMatch,
     LLMInteraction,
 )
-from bgbench.llm_integration import ResponseStyle
+from bgbench.llm.integration import ResponseStyle
 from bgbench.game import Game  # Abstract ruleset
-from bgbench.llm_player import LLMPlayer
+from bgbench.llm.player import LLMPlayer
 from bgbench.match.view import PromptStyle
 from bgbench.match.runner import MatchRunner
-from bgbench.rating import PlayerRating, EloSystem, GameResult
-from bgbench.export import (
+from bgbench.experiment.rating import PlayerRating, EloSystem, GameResult
+from bgbench.experiment.export import (
     is_game_complete,
     is_game_draw,
     count_complete_games,
     count_draws,
     build_match_history,
 )
-from bgbench.scheduler import (
+from bgbench.experiment.scheduler import (
     MatchScheduler,
     SigmaMinimizationScheduler,
     MatchFilterSpec,

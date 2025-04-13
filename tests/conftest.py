@@ -4,7 +4,7 @@ import pytest
 import pytest_asyncio
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from bgbench.models import Base
+from bgbench.data.models import Base
 from tests.test_llm import TestLLM
 
 # Mark all tests as requiring anyio for async support

@@ -1,9 +1,9 @@
 import pytest
 import asyncio
 from unittest.mock import MagicMock, patch, AsyncMock
-from bgbench.arena import Arena
+from bgbench.experiment.arena import Arena
 from bgbench.games.nim_game import NimGame, NimState
-from bgbench.models import Experiment, Player as DBPlayer, GameMatch
+from bgbench.data.models import Experiment, Player as DBPlayer, GameMatch
 from bgbench.match.match_state import MatchStateData
 from datetime import datetime
 
@@ -100,9 +100,10 @@ class TestArenaResumption:
         )
         db_session.add(incomplete_match)
         db_session.commit()
-        
+
         # Patch the match_state_manager to return our mock
-        with patch('bgbench.arena.MatchStateManager', return_value=mock_match_state_manager):
+        # Patch target updated to reflect the new location of arena
+        with patch('bgbench.experiment.arena.MatchStateManager', return_value=mock_match_state_manager):
             # Patch the game's deserialize_state method to return a NimState
             with patch.object(nim_game, 'deserialize_state', return_value=NimState(remaining=9, current_player=0)):
                 # Instead of patching _resume_experiment which causes recursion,
@@ -117,12 +118,13 @@ class TestArenaResumption:
                     game_state={"remaining": 9, "current_player": 0},
                     metadata={"test": "data"}
                 )
-                
+
                 # Directly patch the MatchStateManager class
-                with patch('bgbench.arena.MatchStateManager', return_value=mock_match_state_manager):
+                # Patch target updated to reflect the new location of arena
+                with patch('bgbench.experiment.arena.MatchStateManager', return_value=mock_match_state_manager):
                     # Resume the experiment
                     arena = Arena(
-                        nim_game, 
+                        nim_game,
                         db_session, 
                         experiment_id=exp.id, 
                         llm_factory=mock_llm_factory
@@ -170,9 +172,10 @@ class TestArenaResumption:
         )
         db_session.add(incomplete_match)
         db_session.commit()
-        
+
         # Patch the match_state_manager to return our mock
-        with patch('bgbench.arena.MatchStateManager', return_value=mock_match_state_manager):
+        # Patch target updated to reflect the new location of arena
+        with patch('bgbench.experiment.arena.MatchStateManager', return_value=mock_match_state_manager):
             # Patch the game's deserialize_state method to return a NimState
             with patch.object(nim_game, 'deserialize_state', return_value=NimState(remaining=9, current_player=0)):
                 # Configure our mock to return a valid state
@@ -281,9 +284,10 @@ class TestArenaResumption:
         
         # Create a test state
         test_state = NimState(remaining=9, current_player=0)
-        
+
         # Mock MatchRunner to verify it receives the correct state
-        with patch('bgbench.arena.MatchRunner') as mock_runner_class:
+        # Patch target updated to reflect the new location of arena
+        with patch('bgbench.experiment.arena.MatchRunner') as mock_runner_class:
             # Set up the mock runner
             mock_runner = MagicMock()
             mock_runner.play_game = AsyncMock(return_value=(None, [], None))

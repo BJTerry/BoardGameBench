@@ -9,3 +9,6 @@ utils/
 
 # Exports
 /exports
+
+# Experiment data/results (if stored locally)
+/experiments/

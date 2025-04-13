@@ -1,0 +1,19 @@
+# Example configuration file for bgbench experiments
+# Settings defined here can be overridden by command-line arguments.
+
+# Core settings
+game: "nim"  # Required: The game to play (e.g., nim, chess, azul)
+players: "configs/players/basic_players.json" # Required: Path to the player configuration JSON file
+name: "nim_experiment_from_yaml" # Required for new experiments: Name for the experiment
+# resume: 123 # Optional: ID of an existing experiment to resume
+
+# Arena configuration (Optional - defaults will be used if not specified)
+parallel_games: 5                 # Default: 3
+cost_budget: 1.50                 # Default: 2.0
+confidence_threshold: 0.75        # Default: 0.70
+max_games_per_pair: 15            # Default: 10
+max_concurrent_games_per_pair: 2  # Default: 1
+# selected_players: "gpt-4,claude-3-opus" # Optional: Comma-separated list of player names to focus matches on
+
+# Other settings
+debug: false # Default: false

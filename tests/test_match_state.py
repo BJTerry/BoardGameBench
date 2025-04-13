@@ -2,7 +2,7 @@ import unittest
 from datetime import datetime
 from typing import Dict, Any
 
-from bgbench.match_state import MatchStateData
+from bgbench.match.match_state import MatchStateData
 
 
 class TestMatchStateData(unittest.TestCase):

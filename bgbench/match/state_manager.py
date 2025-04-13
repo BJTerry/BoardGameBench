@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, desc
 
 from bgbench.models import MatchState
-from bgbench.match_state import MatchStateData
+from bgbench.match.match_state import MatchStateData
 
 logger = logging.getLogger(__name__)
 

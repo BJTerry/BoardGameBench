@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch, AsyncMock
 from bgbench.arena import Arena
 from bgbench.games.nim_game import NimGame, NimState
 from bgbench.models import Experiment, Player as DBPlayer, GameMatch
-from bgbench.match_state import MatchStateData
+from bgbench.match.match_state import MatchStateData
 from datetime import datetime
 
 

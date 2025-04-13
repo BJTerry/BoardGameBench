@@ -7,7 +7,7 @@ from bgbench.match.view import MatchView
 from bgbench.llm_player import LLMPlayer
 from bgbench.models import MatchState # Renamed from GameState
 from bgbench.match.state_manager import MatchStateManager
-from bgbench.match_state import MatchStateData
+from bgbench.match.match_state import MatchStateData
 
 logger = logging.getLogger("bgbench")
 

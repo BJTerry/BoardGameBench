@@ -9,7 +9,7 @@ from sqlalchemy.sql.selectable import Select
 
 from bgbench.models import MatchState
 from bgbench.match.state_manager import MatchStateManager
-from bgbench.match_state import MatchStateData
+from bgbench.match.match_state import MatchStateData
 
 
 # Test Fixture for the manager

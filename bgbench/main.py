@@ -406,7 +406,9 @@ async def main():
         # Ensure the database session is closed
         if db_session:
             db_session.close()
-        logger.info("Database session closed.")
+            # Only log closure if debugging is enabled
+            if config and config.get('debug'):
+                 logger.info("Database session closed.")
 
 
 def print_results(results: Dict[str, Any]):
@@ -425,22 +427,53 @@ def print_results(results: Dict[str, Any]):
 
     player_ratings = results.get("player_ratings", {})
     player_concessions = results.get("player_concessions", {})
-    player_costs = results.get("player_costs", {}) # Get player costs if available
+    player_costs = results.get("player_costs", {})
+    player_matches_played = results.get("player_matches_played", {}) # Get matches played if available
 
     if player_ratings:
         # Sort players by rating (mu) descending
-        sorted_players = sorted(
-            player_ratings.items(), key=lambda item: item[1].mu, reverse=True
+        # Ensure player_ratings is a dict {name: PlayerRating}
+        # If it's just {name: float}, adapt accordingly or fetch full PlayerRating objects
+        # Assuming results['player_ratings'] provides PlayerRating objects or similar structure
+        # If not, we might need to adjust how sigma is accessed.
+        # Let's assume it's a dict {name: PlayerRating} for now.
+        sorted_players_data = sorted(
+            player_ratings.items(), key=lambda item: item[1].rating, reverse=True # Use .rating instead of .mu
         )
-        logger.info("\n--- Final Standings (Rating ± 95% CI) ---")
-        for name, rating in sorted_players:
+
+        logger.info("\n--- Final Standings ---")
+        table_data = []
+        headers = ["Rank", "Player", "Rating (95% CI)", "Matches", "Concessions", "Cost"]
+
+        for i, (name, rating) in enumerate(sorted_players_data):
             concessions = player_concessions.get(name, 0)
             cost = player_costs.get(name, 0.0)
-            # Display rating (mu) and uncertainty (sigma), cost, concessions
-            logger.info(f"{name}: {rating.mu:.0f} ± {rating.sigma*1.96:.0f} (Cost: ${cost:.4f}, Concessions: {concessions})") # Show 95% CI
+            matches_played = player_matches_played.get(name, rating.games_played if hasattr(rating, 'games_played') else 'N/A') # Use rating.games_played if available
+            # Calculate 95% CI (rating ± 1.96 * sigma)
+            # Check if rating object has sigma, otherwise display only rating
+            if hasattr(rating, 'sigma') and rating.sigma is not None:
+                 # Use rating.rating here for the mean value (mu)
+                rating_str = f"{rating.rating:.0f} ± {rating.sigma * 1.96:.0f}"
+            else:
+                 # Use rating.rating here as well
+                rating_str = f"{rating.rating:.0f}" # Fallback if sigma not available
+
+            table_data.append([
+                i + 1,
+                name,
+                rating_str,
+                matches_played,
+                concessions,
+                f"${cost:.4f}"
+            ])
+
+        # Use tabulate to format the table
+        from tabulate import tabulate # Ensure import is present
+        table = tabulate(table_data, headers=headers, tablefmt="grid")
+        logger.info("\n" + table) # Add newline before table
 
         # Calculate skill comparison probabilities and records from game history
-        player_names_sorted = [name for name, _ in sorted_players]
+        player_names_sorted = [name for name, _ in sorted_players_data]
         if len(player_names_sorted) > 1:
             game_dicts = results.get("matches", [])
             # Convert game dictionaries to GameResult objects
@@ -458,7 +491,7 @@ def print_results(results: Dict[str, Any]):
     else:
         logger.info("\nNo player ratings available.")
 
-    # Optionally print detailed game history (can be verbose)
+    # Optionally print detailed game history (can be verbose) - Keep this commented out
     # game_history = results.get("matches", [])
     # if game_history:
     #     logger.info("\n--- Game History ---")

@@ -3,9 +3,11 @@ import time
 from dataclasses import dataclass
 import random
 import asyncio
+from datetime import datetime # Add datetime import
 from typing import Any, Dict, List, Optional, Tuple, Set
-from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy import func, desc # Add desc import
+from sqlalchemy.orm import Session, joinedload # Add joinedload import
+from tabulate import tabulate # Add tabulate import
 from bgbench.match.state_manager import MatchStateManager
 from bgbench.data.models import (
     Experiment,
@@ -144,6 +146,7 @@ class Arena:
         self._stop_scheduling = False
         self._force_stop = False
         self._active_tasks: Set[asyncio.Task] = set()
+        self._periodic_logger_task: Optional[asyncio.Task] = None # Add periodic logger task attribute
         self._budget_exceeded = False
 
         # Set up the match scheduler (default to SigmaMinimizationScheduler if not provided)
@@ -527,29 +530,54 @@ class Arena:
         return None
 
     def log_standings(self):
-        """Log current ratings and costs for all players"""
+        """Log current ratings, costs, and other stats for all players using tabulate."""
         logger.info("\nCurrent Standings:")
         sorted_players = sorted(
             self.players, key=lambda p: p.rating.rating, reverse=True
         )
 
+        table_data = []
+        headers = ["Rank", "Player", "Rating (95% CI)", "Matches", "Concessions", "Cost"]
         total_cost = 0.0
-        for player in sorted_players:
+
+        for i, player in enumerate(sorted_players):
             # Count concessions by this player across all matches in the experiment
             concessions = self._get_player_concessions(player)
-
             player_cost = self._get_player_cost(player)
             total_cost += player_cost
 
-            logger.info(
-                f"{player.llm_player.name}: {player.rating.rating:.0f} "
-                f"({player.rating.games_played} matches, {concessions} concessions, "  # Changed games -> matches
-                f"${player_cost:.4f} cost)"
-            )
+            rating_str = f"{player.rating.rating:.0f} ± {player.rating.sigma * 1.96:.0f}"
+            table_data.append([
+                i + 1,
+                player.llm_player.name,
+                rating_str,
+                player.rating.games_played,
+                concessions,
+                f"${player_cost:.4f}"
+            ])
 
+        # Add a separator line before the total cost
+        table_data.append(['---'] * len(headers))
+        # Add total cost row - span the first few columns for label
+        total_cost_label = "Total Cost:"
+        table_data.append([
+            "", # Rank
+            total_cost_label, # Player
+            "", # Rating
+            "", # Matches
+            "", # Concessions
+            f"${total_cost:.4f}" # Cost
+        ])
+
+
+        # Use tabulate to format the table
+        table = tabulate(table_data, headers=headers, tablefmt="grid")
+        logger.info("\n" + table) # Add newline before table for better spacing
+
+        # Log budget separately if applicable
         if self.cost_budget:
             logger.info(
-                f"Total cost: ${total_cost:.4f} / ${self.cost_budget:.4f} "
+                f"Budget: ${self.cost_budget:.4f} "
                 f"({total_cost / self.cost_budget * 100:.1f}% of budget)"
             )
         else:
@@ -732,6 +760,132 @@ class Arena:
                         f"Attempted to decrement ongoing match count for pair {player_pair}, but count was already {current_count}"
                     )
 
+    async def _periodic_status_logger(self):
+        """Periodically logs the status of ongoing matches and budget."""
+        last_log_time = 0.0 # Initialize time of last full log
+        log_interval = 60.0 # Log every 60 seconds
+        check_interval = 5.0 # Check for stop signal every 5 seconds
+
+        while True: # Loop indefinitely until explicitly broken
+            if self._force_stop: # Check stop flag *before* sleeping
+                logger.info("Periodic status logger stopping due to force_stop flag.")
+                break
+
+            try:
+                # Sleep for the shorter check interval
+                await asyncio.sleep(check_interval)
+
+                # Check stop flag again after sleep
+                if self._force_stop:
+                    logger.info("Periodic status logger stopping after sleep due to force_stop flag.")
+                    break
+
+                current_time = time.time()
+                # Check if it's time to perform the full logging actions
+                if current_time - last_log_time >= log_interval:
+                    logger.debug(f"Performing periodic status log update ({(current_time - last_log_time):.1f}s since last).")
+                    # --- Perform Logging ---
+                    logger.info(f"\n--- Periodic Status Update [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] ---")
+
+                    # Log Budget Status
+                    total_cost = self._get_total_cost_for_all_players()
+                    if self.cost_budget:
+                        budget_percent = (total_cost / self.cost_budget * 100) if self.cost_budget > 0 else 0
+                        logger.info(
+                            f"Budget Status: ${total_cost:.4f} / ${self.cost_budget:.4f} ({budget_percent:.1f}% used)"
+                        )
+                    else:
+                        logger.info(f"Total Cost: ${total_cost:.4f} (No budget set)")
+
+
+                    # Log Ongoing Matches
+                    active_matches_data = []
+                    try:
+                        # Get pairs currently running from self.ongoing_matches
+                        # The keys are (min_player_id, max_player_id)
+                        active_pair_ids = list(self.ongoing_matches.keys())
+
+                        if active_pair_ids:
+                            # Find the corresponding GameMatch records that are not complete
+                            # This is less direct than using task names but avoids parsing fragile names
+                            # It might briefly show matches that just finished but whose tasks haven't fully cleaned up.
+
+                            # Subquery to get cost per game
+                            cost_subquery = (
+                                self.session.query(
+                                    LLMInteraction.game_id,
+                                    func.sum(LLMInteraction.cost).label("match_cost")
+                                )
+                                .group_by(LLMInteraction.game_id)
+                                .subquery()
+                            )
+
+                            # Use aliased for player names
+                            from sqlalchemy.orm import aliased
+                            Player1 = aliased(DBPlayer, name="p1")
+                            Player2 = aliased(DBPlayer, name="p2")
+
+                            # Query matches involving the active pairs that are not yet complete
+                            query = (
+                                self.session.query(
+                                    GameMatch.id,
+                                    Player1.name.label("player1_name"),
+                                    Player2.name.label("player2_name"),
+                                    cost_subquery.c.match_cost,
+                                )
+                                .join(Player1, GameMatch.player1_id == Player1.id)
+                                .join(Player2, GameMatch.player2_id == Player2.id)
+                                .outerjoin(cost_subquery, GameMatch.id == cost_subquery.c.game_id)
+                                .filter(
+                                    GameMatch.experiment_id == self.experiment.id,
+                                    GameMatch.complete.is_(False),
+                                    # Filter based on pairs in self.ongoing_matches
+                                    func.least(GameMatch.player1_id, GameMatch.player2_id).in_([p[0] for p in active_pair_ids]),
+                                    func.greatest(GameMatch.player1_id, GameMatch.player2_id).in_([p[1] for p in active_pair_ids])
+                                )
+                                .order_by(GameMatch.id)
+                            )
+
+                            truly_active_matches = query.all()
+
+                            if truly_active_matches:
+                                for match_id, p1_name, p2_name, cost in truly_active_matches:
+                                    active_matches_data.append(
+                                        [
+                                            match_id,
+                                            p1_name,
+                                            p2_name,
+                                            f"${cost or 0.0:.4f}", # Handle None cost
+                                        ]
+                                    )
+                                headers = ["Match ID", "Player 1", "Player 2", "Cost"]
+                                table = tabulate(active_matches_data, headers=headers, tablefmt="grid")
+                                logger.info("Ongoing Matches:\n" + table)
+                            else:
+                                # This might happen if ongoing_matches has pairs whose DB record is already complete (race condition)
+                                logger.info("Ongoing Matches: None (or tasks finishing)")
+                        else:
+                             logger.info("Ongoing Matches: None")
+
+                    except Exception as e:
+                        logger.error(f"Error querying/formatting ongoing matches: {e}", exc_info=True)
+                        # Don't update last_log_time if query failed, try again sooner
+                        continue # Skip to next loop iteration
+                    last_log_time = current_time # Update time of last successful log
+                else:
+                    # Not time to log yet, just loop back after sleep
+                    logger.debug(f"Skipping periodic log update ({(current_time - last_log_time):.1f}s < {log_interval}s).")
+                    pass
+
+            except asyncio.CancelledError:
+                logger.info("Periodic status logger task cancelled.")
+                break
+            except Exception as e:
+                logger.error(f"Error in periodic status logger: {e}", exc_info=True)
+                # Avoid tight loop on persistent error
+                await asyncio.sleep(60) # Add sleep back after general error
+
+
     def handle_sigint(self):
         """Handle SIGINT (Ctrl+C) signal"""
         if self._stop_scheduling:
@@ -739,10 +893,15 @@ class Arena:
             logger.warning("Second interrupt received. Stopping all tasks immediately.")
             self._force_stop = True
 
-            # Cancel all active tasks
-            for task in list(self._active_tasks):  # Iterate over a copy
+            # Cancel all active tasks, including the periodic logger
+            for task in list(self._active_tasks): # Iterate over a copy
                 if not task.done():
+                    logger.debug(f"Cancelling task: {task.get_name()}")
                     task.cancel()
+            # Explicitly cancel logger task if it's somehow missed (should be in _active_tasks)
+            if self._periodic_logger_task and not self._periodic_logger_task.done():
+                 logger.debug("Forcefully cancelling periodic logger task.")
+                 self._periodic_logger_task.cancel()
         else:
             # First Ctrl+C: Stop scheduling new matches, complete ongoing ones
             self._stop_scheduling = True
@@ -753,10 +912,15 @@ class Arena:
     async def evaluate_all(self):
         """Run the experiment by scheduling and executing matches"""
         # Initialize tracking variables
-        last_log_time = 0
-        last_logged_cost = 0
         total_cost = 0.0  # Initialize total_cost
-        MIN_LOG_INTERVAL = 10  # Only log costs at most every 10 seconds
+
+        # Start the periodic status logger task
+        if not self._periodic_logger_task or self._periodic_logger_task.done():
+            self._periodic_logger_task = asyncio.create_task(self._periodic_status_logger(), name="periodic-status-logger")
+            self._active_tasks.add(self._periodic_logger_task)
+            # Add callback to remove task from set when done (handles normal completion and cancellation)
+            self._periodic_logger_task.add_done_callback(lambda t: self._active_tasks.discard(t))
+            logger.info("Started periodic status logger task.")
 
         # Main evaluation loop
         while not self._force_stop:
@@ -767,23 +931,10 @@ class Arena:
                 # Calculate current total cost
                 total_cost = self._get_total_cost_for_all_players()
 
-                # Log only when cost changes AND enough time has passed
-                cost_changed = (
-                    abs(total_cost - last_logged_cost) > 0.000001
-                )  # Float comparison with small epsilon
-                time_elapsed = current_time - last_log_time > MIN_LOG_INTERVAL
-
-                if cost_changed and time_elapsed:
+                # Check if budget is exceeded (only log the first time)
+                if not self._budget_exceeded and total_cost >= self.cost_budget:
                     logger.info(
-                        f"Current total cost: ${total_cost:.6f} / ${self.cost_budget:.6f}"
-                    )
-                    last_log_time = current_time
-                    last_logged_cost = total_cost
-
-                # Check if budget is exceeded
-                if total_cost >= self.cost_budget:
-                    logger.info(
-                        f"Cost budget of ${self.cost_budget:.6f} reached. Stopping evaluation."
+                        f"Cost budget of ${self.cost_budget:.4f} reached. Stopping scheduling."
                     )
                     self._budget_exceeded = True
                     self._stop_scheduling = True  # Stop scheduling new/resumed matches
@@ -791,6 +942,7 @@ class Arena:
 
             # Track number of new tasks spawned in this iteration
             new_tasks_spawned = 0
+            scheduled_something = False # Initialize here to ensure it's always bound
 
             # Schedule new or resumed matches only if not stopping and below parallel limit
             if (
@@ -836,7 +988,7 @@ class Arena:
                             f"Resuming match {match_id} deferred: concurrent limit for pair {pair_ids} reached."
                         )
                         self._resumable_matches.insert(0, (pA, pB, state, match_id))
-                        scheduled_something = True
+                        scheduled_something = True # Still counts as scheduling attempt
 
                 # If no resumable match was scheduled, try scheduling a new one
                 if not scheduled_something:
@@ -859,30 +1011,54 @@ class Arena:
                     else:
                         logger.debug("No new matches available to schedule right now.")
 
-            # Check if we should exit the loop
-            if not self._active_tasks and (
-                self._stop_scheduling or new_tasks_spawned == 0
-            ):
-                # If stopping, or if we couldn't schedule anything and nothing is running
-                logger.info(
-                    "No active matches and no new matches scheduled. Exiting loop."
-                )
+            # Debug log before checking exit condition
+            active_task_names = {t.get_name() for t in self._active_tasks if hasattr(t, 'get_name')}
+            logger.debug(
+                f"Exit check: _active_tasks={active_task_names}, "
+                f"_stop_scheduling={self._stop_scheduling}, "
+                f"_resumable_matches count={len(self._resumable_matches)}"
+            )
 
-                break
+            # Check if we should exit the loop: Exit if stopping and no tasks are active
+            # (Allowing for only the periodic logger task to remain)
+            only_logger_active = len(self._active_tasks) == 1 and self._periodic_logger_task in self._active_tasks
+            no_tasks_active = not self._active_tasks
+            can_schedule_more = not scheduled_something # Inverted logic for clarity below
+            no_resumables_left = not self._resumable_matches
 
-            # If we spawned new tasks, log current state before waiting
+            # More detailed debug log for the exit condition check itself
+            logger.debug(
+                f"Evaluating exit condition: "
+                f"no_tasks_active={no_tasks_active}, "
+                f"only_logger_active={only_logger_active}, "
+                f"_stop_scheduling={self._stop_scheduling}, "
+                f"scheduled_something={scheduled_something}, " # Log scheduled_something
+                f"no_resumables_left={no_resumables_left}. "
+                # f"Condition result: {(no_tasks_active or only_logger_active) and (self._stop_scheduling or (not scheduled_something and no_resumables_left))}" # Combined logic
+            )
+
+            # Check exit conditions:
+            # 1. Stop requested (budget/Ctrl+C) AND no active match tasks
+            # 2. OR Nothing is running AND nothing more could be scheduled/resumed
+            if (no_tasks_active or only_logger_active):
+                if self._stop_scheduling:
+                    logger.debug( # Changed from info to debug
+                        f"Stopping criteria met (stop requested): _stop_scheduling={self._stop_scheduling}, "
+                        f"active tasks condition met (is_empty={no_tasks_active}, only_logger={only_logger_active}). Exiting loop."
+                    )
+                    break
+                elif not scheduled_something and no_resumables_left:
+                     logger.info( # Keep this as info level
+                         f"Stopping criteria met (natural completion): No active tasks, "
+                         f"nothing new scheduled (scheduled_something={scheduled_something}), "
+                         f"and no resumable matches left (no_resumables_left={no_resumables_left}). Exiting loop."
+                     )
+                     # Set stop scheduling flag as well to prevent periodic logger from trying queries after exit
+                     self._stop_scheduling = True
+                     break
+
+            # If we spawned new tasks, log current standings and confidences before waiting
             if new_tasks_spawned > 0:
-                # Update cost tracking when starting new matches
-                if self.cost_budget is not None:
-                    # Only log if cost changed significantly and enough time passed
-                    cost_changed = abs(total_cost - last_logged_cost) > 0.000001
-                    time_elapsed = current_time - last_log_time > MIN_LOG_INTERVAL
-                    if cost_changed and time_elapsed:
-                        logger.info(
-                            f"Current total cost: ${total_cost:.6f} / ${self.cost_budget:.6f}"
-                        )
-                        last_log_time = current_time
-                        last_logged_cost = total_cost
                 self.log_standings()
                 try:
                     self.log_pairwise_confidences()
@@ -905,34 +1081,42 @@ class Arena:
                 # Process completed tasks
                 for finished in done:
                     try:
+                        # Ensure result is awaited/retrieved to propagate exceptions
                         await finished
-                        # Log completion using task name
-                        task_name = (
-                            finished.get_name()
-                            if hasattr(finished, "get_name")
-                            else "Unknown Task"
-                        )
+                        task_name = finished.get_name() if hasattr(finished, "get_name") else "Unknown Task"
                         logger.info(f"Match task completed: {task_name}")
                     except asyncio.CancelledError:
-                        task_name = (
-                            finished.get_name()
-                            if hasattr(finished, "get_name")
-                            else "Unknown Task"
-                        )
+                        task_name = finished.get_name() if hasattr(finished, "get_name") else "Unknown Task"
                         logger.warning(f"Match task cancelled: {task_name}")
                     except Exception as e:
-                        task_name = (
-                            finished.get_name()
-                            if hasattr(finished, "get_name")
-                            else "Unknown Task"
-                        )
+                        task_name = finished.get_name() if hasattr(finished, "get_name") else "Unknown Task"
                         logger.error(
                             f"Match task failed: {task_name} - {e}", exc_info=True
                         )  # Log traceback
-            elif not self._stop_scheduling:  # Only sleep if not stopping
+            elif not self._stop_scheduling:  # Only sleep if not stopping and no tasks
                 # No active tasks, wait before checking again
                 await asyncio.sleep(timeout)
             # If stopping and no active tasks, the loop condition will handle exit
+
+            # Yield control briefly to allow other tasks (like done callbacks) to run
+            await asyncio.sleep(0.01)
+
+        # --- End of main loop ---
+
+        # Ensure periodic logger is stopped if it hasn't been already
+        if self._periodic_logger_task and not self._periodic_logger_task.done():
+            logger.debug("Stopping periodic status logger task...") # Changed from info to debug
+            self._periodic_logger_task.cancel()
+            try:
+                # Give it a moment to cancel gracefully
+                await asyncio.wait_for(self._periodic_logger_task, timeout=2.0)
+            except asyncio.CancelledError:
+                logger.debug("Periodic status logger task successfully cancelled.") # Changed from info to debug
+            except asyncio.TimeoutError:
+                logger.warning("Periodic status logger task did not cancel within timeout.") # Kept as warning
+            except Exception as e:
+                logger.error(f"Error while stopping periodic logger: {e}", exc_info=True)
+
 
     def current_elo(self) -> Tuple[EloSystem, Dict[str, PlayerRating]]:
         """Calculates the current Elo ratings based on completed matches."""
@@ -975,11 +1159,15 @@ class Arena:
             return (elo, ratings)
 
     def log_pairwise_confidences(self):
-        """Log confidence levels between adjacent players sorted by rating"""
-        logger.info("\nPairwise Confidences (Based on current Elo):")
+        """Log confidence levels between adjacent players sorted by rating using tabulate."""
+        logger.info("\nPairwise Confidences (Adjacent Ranks):")
         sorted_players = sorted(
             self.players, key=lambda p: p.rating.rating, reverse=True
         )
+
+        if len(sorted_players) < 2:
+            logger.info("Not enough players to compare.")
+            return
 
         try:
             elo, _ = self.current_elo()
@@ -989,22 +1177,34 @@ class Arena:
             )
             return
 
+        table_data = []
+        headers = ["Rank", "Player A", "Player B (Next Rank)", "P(A > B)", "Likely Stronger"]
+
         for i in range(len(sorted_players) - 1):
             player_a = sorted_players[i]
             player_b = sorted_players[i + 1]
+            name_a = player_a.llm_player.name
+            name_b = player_b.llm_player.name
 
             try:
-                prob = elo.probability_stronger(
-                    player_a.llm_player.name, player_b.llm_player.name
-                )
-                logger.info(
-                    f"{player_a.llm_player.name} vs {player_b.llm_player.name}: "
-                    f"{prob * 100:.1f}% confident that {player_a.llm_player.name} is stronger"
-                )
+                prob_a_stronger = elo.probability_stronger(name_a, name_b)
+                confidence_percent = f"{prob_a_stronger * 100:.1f}%"
+                likely_stronger = name_a if prob_a_stronger >= 0.5 else name_b
+                table_data.append([i + 1, name_a, name_b, confidence_percent, likely_stronger])
+
             except RuntimeError as e:
                 logger.warning(
-                    f"Could not calculate confidence for {player_a.llm_player.name} vs {player_b.llm_player.name}: {e}"
+                    f"Could not calculate confidence for {name_a} vs {name_b}: {e}"
                 )
+                # Add a row indicating error for this pair
+                table_data.append([i + 1, name_a, name_b, "Error", "N/A"])
+
+        if table_data:
+            table = tabulate(table_data, headers=headers, tablefmt="grid")
+            logger.info("\n" + table)
+        else:
+            logger.info("No adjacent player pairs to compare or errors occurred.")
+
 
     def _get_player_concessions(self, player: ArenaPlayer) -> int:
         """Calculate the number of matches conceded by a player."""
@@ -1033,8 +1233,8 @@ class Arena:
             .all()
         )
 
-        # Get final ratings from the player objects (which should be updated by run_single_game)
-        player_ratings = {p.llm_player.name: p.rating.rating for p in self.players}
+        # Get final ratings (full PlayerRating objects) from the player objects
+        player_ratings = {p.llm_player.name: p.rating for p in self.players}
 
         # Include budget information if applicable
         budget_info = None
@@ -1053,18 +1253,29 @@ class Arena:
 
         # Use utility functions for counts
         draws = count_draws(matches)
-        completed_matches = count_complete_games(matches)  # Renamed function internally
+        completed_matches = count_complete_games(matches)
+
+        # Calculate total cost and individual player costs
+        total_cost = self._get_total_cost_for_all_players()
+        player_costs = {
+            p.llm_player.name: self._get_player_cost(p) for p in self.players
+        }
 
         results = {
             "experiment_id": self.experiment.id,
             "experiment_name": self.experiment.name,
+            "game_name": self.game.__class__.__name__, # Add game name
+            "total_cost": total_cost, # Add total cost
+            "player_costs": player_costs, # Add player costs
             "total_matches": len(matches),
             "completed_matches": completed_matches,
             "draws": draws,
             "player_ratings": player_ratings,
             "player_concessions": player_concessions,
+            "player_matches_played": {p.llm_player.name: p.rating.games_played for p in self.players}, # Add matches played
             "budget_info": budget_info,
-            "matches": [],  # Changed key from 'games' to 'matches'
+            "matches": [],
+            "elo_system": self.current_elo()[0] if self.match_history else None, # Add Elo system instance if available
         }
 
         # Add details for each completed match

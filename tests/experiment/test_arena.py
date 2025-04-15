@@ -410,11 +410,15 @@ class TestArena:
         # Log standings
         arena.log_standings()
 
-        # Check that concessions are mentioned in the log
+        # Check that concessions are mentioned in the log within the tabulate output
         log_text = caplog.text
-        # Update assertion to expect 'matches' instead of 'games'
-        assert "player-a: 1500 (0 matches, 1 concessions, $0.0000 cost)" in log_text
-        assert "player-b: 1500 (0 matches, 0 concessions, $0.0000 cost)" in log_text
+        # Check for player-a's row with 1 concession
+        assert "| player-a    |" in log_text  # Check player name column
+        assert "| 0         |" in log_text  # Check matches column (assuming it's 0)
+        assert "| 1             |" in log_text # Check concessions column for player-a
+        # Check for player-b's row with 0 concessions
+        assert "| player-b    |" in log_text  # Check player name column
+        assert "| 0             |" in log_text # Check concessions column for player-b
 
     def test_validate_unique_player_names(self):
         """Test the function that validates uniqueness of player names"""

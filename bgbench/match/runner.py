@@ -123,9 +123,13 @@ class MatchRunner:
             retry_count = 0
             MAX_RETRIES = 5
             while True:
+                # Determine current player name for logging context
+                current_player_name = player.name
+
                 if retry_count == MAX_RETRIES:
                     logger.warning(
-                        f"{player.name} exceeded {MAX_RETRIES} invalid move format attempts and concedes the game"
+                        f"[Match:{self.match_id}] [Player:{current_player_name}] exceeded {MAX_RETRIES} "
+                        f"invalid move format attempts and concedes the game"
                     )
                     concession_reason = (
                         f"Exceeded {MAX_RETRIES} invalid move format attempts"
@@ -141,7 +145,10 @@ class MatchRunner:
                 )
                 move = self.game.parse_move(move_str)
                 if move is None:
-                    logger.warning(f"Invalid move format by {player.name}: {move_str}")
+                    logger.warning(
+                        f"[Match:{self.match_id}] [Player:{current_player_name}] "
+                        f"Invalid move format: {move_str}"
+                    )
                     invalid_moves.append(
                         {
                             "move": move_str,
@@ -155,7 +162,10 @@ class MatchRunner:
                 )
 
                 if not valid:
-                    logger.warning(f"Invalid move by {player.name}: {explanation}")
+                    logger.warning(
+                        f"[Match:{self.match_id}] [Player:{current_player_name}] "
+                        f"Invalid move: {explanation} (Move attempted: '{move_str}')"
+                    )
                     invalid_moves.append(
                         {
                             "move": move_str,
@@ -165,13 +175,13 @@ class MatchRunner:
                     retry_count += 1
                     continue
 
-                # Print formatted turn information
+                # Print formatted turn information with match/player context
                 turn_number = len(history) + 1
-                logger.debug(f"\n[{self.experiment_name}] Turn {turn_number}")
-                logger.debug(f"[{self.experiment_name}] Current Player: {player.name}")
-                logger.debug(f"[{self.experiment_name}] Game State:\n{state}")
-                logger.debug(f"[{self.experiment_name}] Visible State:\n{game_view.visible_state}")
-                logger.debug(f"[{self.experiment_name}] Move: {move}\n")
+                log_prefix = f"[Match:{self.match_id}] [Player:{current_player_name}]"
+                logger.debug(f"\n{log_prefix} Turn {turn_number}")
+                # logger.debug(f"{log_prefix} Full Game State:\n{state}") # Maybe too verbose for debug
+                logger.debug(f"{log_prefix} Visible State:\n{game_view.visible_state}")
+                logger.debug(f"{log_prefix} Move: {move}\n")
 
                 state = self.game.get_next_state(state, move)
                 history.append(

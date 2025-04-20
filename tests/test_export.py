@@ -231,6 +231,35 @@ class TestSkillComparisonFunctions:
         assert records[("Player2", "Player1")] == (1, 2, 0)  # 1 win, 2 losses, 0 draws
         assert records[("Player1", "Player3")] == (0, 0, 1)  # 0 wins, 0 losses, 1 draw
         assert records[("Player3", "Player1")] == (0, 0, 1)  # 0 wins, 0 losses, 1 draw
+        
+    def test_calculate_skill_comparison_with_ignored_players(self):
+        """Test that ignored players are included in skill comparison calculations"""
+        # Create a match history with an ignored player
+        match_history = [
+            GameResult(player_0="Player1", player_1="Player2", winner="Player1"),
+            GameResult(player_0="Player1", player_1="Player2", winner="Player1"),
+            GameResult(player_0="Player1", player_1="Player3", winner="Player3"),  # Player3 is ignored but still included
+            GameResult(player_0="Player2", player_1="Player3", winner="Player2"),
+        ]
+        # All players, including ignored one
+        player_names = ["Player1", "Player2", "Player3"]
+        
+        # Calculate skill comparison data
+        probabilities, records = calculate_skill_comparison_data(
+            match_history, player_names
+        )
+        
+        # Check that the ignored player's probabilities are included
+        assert ("Player1", "Player3") in probabilities
+        assert ("Player3", "Player1") in probabilities
+        assert ("Player2", "Player3") in probabilities
+        assert ("Player3", "Player2") in probabilities
+        
+        # Check records are correct for the ignored player
+        assert records[("Player1", "Player3")] == (0, 1, 0)  # 0 wins, 1 loss, 0 draws
+        assert records[("Player3", "Player1")] == (1, 0, 0)  # 1 win, 0 losses, 0 draws
+        assert records[("Player2", "Player3")] == (1, 0, 0)  # 1 win, 0 losses, 0 draws
+        assert records[("Player3", "Player2")] == (0, 1, 0)  # 0 wins, 1 losses, 0 draws
 
     def test_format_skill_comparison_for_export(self):
         """Test formatting skill comparison data for export"""

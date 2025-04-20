@@ -27,6 +27,7 @@ class MatchFilterSpec:
 
     # Experiment design filters
     selected_player_names: Optional[List[str]] = None
+    ignored_player_names: Optional[List[str]] = None
 
     # Match dynamics filters
     max_games_per_pairing: int = 10
@@ -146,6 +147,16 @@ class MatchScheduler:
                         not in filter_spec.selected_player_names
                     ):
                         continue
+                        
+                # Skip if either player is in the ignored players list
+                if filter_spec.ignored_player_names:
+                    if (
+                        player_a.llm_player.name
+                        in filter_spec.ignored_player_names
+                        or player_b.llm_player.name
+                        in filter_spec.ignored_player_names
+                    ):
+                        continue
 
                 # Create a canonical ordering of player IDs for the pair
                 player_ids_tuple = self._get_canonical_pair(
@@ -248,12 +259,20 @@ class FullRankingScheduler(MatchScheduler):
         if not match_history:
             logger.debug("No game history yet, starting with adjacent players")
             result = []
-            for i in range(len(sorted_players) - 1):
+            
+            # Filter out ignored players for adjacency calculations
+            filtered_players = sorted_players
+            if filter_spec.ignored_player_names:
+                filtered_players = [p for p in sorted_players if p.llm_player.name not in filter_spec.ignored_player_names]
+                logger.debug(f"Filtered out {len(sorted_players) - len(filtered_players)} ignored players from adjacency consideration")
+            
+            # Process adjacent pairs in the filtered ranking
+            for i in range(len(filtered_players) - 1):
                 if len(result) >= limit:
                     break
 
-                player_a = sorted_players[i]
-                player_b = sorted_players[i + 1]
+                player_a = filtered_players[i]
+                player_b = filtered_players[i + 1]
 
                 # Apply selected player filter
                 if filter_spec.selected_player_names:
@@ -566,12 +585,20 @@ class SigmaMinimizationScheduler(MatchScheduler):
         if not match_history:
             logger.debug("No game history yet, starting with adjacent players")
             result = []
-            for i in range(len(sorted_players) - 1):
+            
+            # Filter out ignored players for adjacency calculations
+            filtered_players = sorted_players
+            if filter_spec.ignored_player_names:
+                filtered_players = [p for p in sorted_players if p.llm_player.name not in filter_spec.ignored_player_names]
+                logger.debug(f"Filtered out {len(sorted_players) - len(filtered_players)} ignored players from adjacency consideration")
+            
+            # Process adjacent pairs in the filtered ranking
+            for i in range(len(filtered_players) - 1):
                 if len(result) >= limit:
                     break
 
-                player_a = sorted_players[i]
-                player_b = sorted_players[i + 1]
+                player_a = filtered_players[i]
+                player_b = filtered_players[i + 1]
 
                 # Apply selected player filter
                 if filter_spec.selected_player_names:

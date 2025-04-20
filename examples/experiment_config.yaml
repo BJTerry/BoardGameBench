@@ -14,6 +14,7 @@ confidence_threshold: 0.75        # Default: 0.70
 max_games_per_pair: 15            # Default: 10
 max_concurrent_games_per_pair: 2  # Default: 1
 # selected_players: "gpt-4,claude-3-opus" # Optional: Comma-separated list of player names to focus matches on
+# ignored_players: "openai/gpt-3.5-turbo,anthropic/claude-instant" # Optional: Comma-separated list of player names to exclude from scheduling
 
 # Other settings
 debug: false # Default: false

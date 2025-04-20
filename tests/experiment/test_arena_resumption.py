@@ -441,3 +441,113 @@ class TestArenaResumption:
                 assert match1.id in match_ids
                 assert match2.id in match_ids
                 assert match3.id in match_ids
+                
+    def test_ignored_players_filter_resumable_matches(
+        self, db_session, nim_game, mock_llm_factory, mock_match_state_manager
+    ):
+        """Test that Arena excludes matches with ignored players when resuming."""
+        # Create experiment
+        exp = Experiment().create_experiment(db_session, "test-ignored-players-filter")
+        
+        # Create players
+        player1 = DBPlayer(
+            name="player1", model_config={"model": "test-model"}, experiment_id=exp.id
+        )
+        player2 = DBPlayer(
+            name="player2", model_config={"model": "test-model"}, experiment_id=exp.id
+        )
+        player3 = DBPlayer(
+            name="player3", model_config={"model": "test-model"}, experiment_id=exp.id
+        )
+        db_session.add_all([player1, player2, player3])
+        db_session.flush()
+        
+        # Create incomplete matches
+        # Match 1: player1 vs player2 (should not be resumed when ignored_players=["player1"])
+        match1 = GameMatch(
+            experiment_id=exp.id,
+            player1_id=player1.id,
+            player2_id=player2.id,
+            winner_id=None,
+            complete=False,
+        )
+        # Match 2: player2 vs player3 (should not be resumed when ignored_players=["player2"])
+        match2 = GameMatch(
+            experiment_id=exp.id,
+            player1_id=player2.id,
+            player2_id=player3.id,
+            winner_id=None,
+            complete=False,
+        )
+        # Match 3: player3 vs player1 (should not be resumed when ignored_players=["player3"])
+        match3 = GameMatch(
+            experiment_id=exp.id,
+            player1_id=player3.id,
+            player2_id=player1.id,
+            winner_id=None,
+            complete=False,
+        )
+        db_session.add_all([match1, match2, match3])
+        db_session.commit()
+        
+        # Patch the match_state_manager to return our mock
+        with patch('bgbench.experiment.arena.MatchStateManager', return_value=mock_match_state_manager):
+            # Patch the game's deserialize_state method to return a NimState
+            with patch.object(nim_game, 'deserialize_state', return_value=NimState(remaining=9, current_player=0)):
+                # Configure our mock to return a valid state
+                mock_match_state_manager.get_latest_state.return_value = MatchStateData(
+                    turn=1,
+                    current_player_id=1,
+                    timestamp=datetime.now(),
+                    game_state={"remaining": 9, "current_player": 0},
+                    metadata={"test": "data"}
+                )
+                
+                # Case 1: Resume with ignored_players=["player1"]
+                arena1 = Arena(
+                    nim_game, 
+                    db_session, 
+                    experiment_id=exp.id, 
+                    llm_factory=mock_llm_factory,
+                    ignored_players=["player1"]
+                )
+                
+                # Should only include matches without player1 (only match2)
+                assert len(arena1._resumable_matches) == 1
+                match_ids = [m[3] for m in arena1._resumable_matches]
+                assert match2.id in match_ids
+                assert match1.id not in match_ids
+                assert match3.id not in match_ids
+                
+                # Case 2: Resume with ignored_players=["player2"]
+                arena2 = Arena(
+                    nim_game, 
+                    db_session, 
+                    experiment_id=exp.id, 
+                    llm_factory=mock_llm_factory,
+                    ignored_players=["player2"]
+                )
+                
+                # Should only include matches without player2 (only match3)
+                assert len(arena2._resumable_matches) == 1
+                match_ids = [m[3] for m in arena2._resumable_matches]
+                assert match3.id in match_ids
+                assert match1.id not in match_ids
+                assert match2.id not in match_ids
+                
+                # Case 3: Resume with both selected_players and ignored_players
+                arena3 = Arena(
+                    nim_game, 
+                    db_session, 
+                    experiment_id=exp.id, 
+                    llm_factory=mock_llm_factory,
+                    selected_players=["player1", "player2"],
+                    ignored_players=["player1"]
+                )
+                
+                # Should only include matches with player2 but without player1 (only match2)
+                assert len(arena3._resumable_matches) == 1
+                match_ids = [m[3] for m in arena3._resumable_matches]
+                assert match2.id in match_ids
+                assert match1.id not in match_ids
+                assert match3.id not in match_ids

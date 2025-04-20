@@ -103,6 +103,7 @@ class Arena:
         llm_factory=None,
         match_scheduler: Optional[MatchScheduler] = None,
         selected_players: Optional[List[str]] = None,
+        ignored_players: Optional[List[str]] = None,
         max_games_per_player_pair: int = 10,
         max_concurrent_games_per_pair: int = 1,
     ):
@@ -123,6 +124,7 @@ class Arena:
             llm_factory: Optional function for testing that creates LLM instances
             match_scheduler: Optional scheduler for choosing player matchups (defaults to SigmaMinimizationScheduler)
             selected_players: Optional list of player names to focus on (only matches involving these players will be scheduled)
+            ignored_players: Optional list of player names to exclude from scheduling
             max_games_per_player_pair: Maximum number of games played between each player pair
             max_concurrent_games_per_pair: Maximum number of games allowed to run concurrently between the same pair of players
         """
@@ -140,6 +142,7 @@ class Arena:
         self._scheduled_games_between: Dict[Tuple[int, int], int] = {}
         self._lock = asyncio.Lock()
         self.selected_players = selected_players
+        self.ignored_players = ignored_players
         self.max_concurrent_games_per_pair = max_concurrent_games_per_pair
 
         # For graceful termination
@@ -390,20 +393,42 @@ class Arena:
                     
                     # Check if both players exist and match selected_players configuration
                     if player_a and player_b:
-                        # Only resume matches that match selected_players configuration
-                        if self.selected_players is None or (
-                            player_a.llm_player.name in self.selected_players or 
-                            player_b.llm_player.name in self.selected_players
+                        # Only resume matches that match selected_players and ignored_players configuration
+                        should_include = True
+                        # Check selected_players (must include at least one selected player if list provided)
+                        if self.selected_players is not None and (
+                            player_a.llm_player.name not in self.selected_players and 
+                            player_b.llm_player.name not in self.selected_players
                         ):
+                            should_include = False
+                        
+                        # Check ignored_players (must not include any ignored player)
+                        if self.ignored_players is not None and (
+                            player_a.llm_player.name in self.ignored_players or 
+                            player_b.llm_player.name in self.ignored_players
+                        ):
+                            should_include = False
+                            
+                        if should_include:
                             self._resumable_matches.append(
                                 (player_a, player_b, deserialized_state, match.id)
                             )
                         else:
-                            logger.debug(
-                                f"Skipping resumption of match {match.id} as players "
-                                f"({player_a.llm_player.name}, {player_b.llm_player.name}) "
-                                f"don't match selected_players configuration"
-                            )
+                            if self.ignored_players is not None and (
+                                player_a.llm_player.name in self.ignored_players or 
+                                player_b.llm_player.name in self.ignored_players
+                            ):
+                                logger.debug(
+                                    f"Skipping resumption of match {match.id} as players "
+                                    f"({player_a.llm_player.name}, {player_b.llm_player.name}) "
+                                    f"match ignored_players configuration"
+                                )
+                            else:
+                                logger.debug(
+                                    f"Skipping resumption of match {match.id} as players "
+                                    f"({player_a.llm_player.name}, {player_b.llm_player.name}) "
+                                    f"don't match selected_players configuration"
+                                )
                 except Exception as e:
                     logger.warning(
                         f"Failed to deserialize state for match {match.id}: {e}"
@@ -482,6 +507,7 @@ class Arena:
         # Create filter specification with all filtering criteria
         filter_spec = MatchFilterSpec(
             selected_player_names=self.selected_players,
+            ignored_player_names=self.ignored_players,
             max_games_per_pairing=self.max_games_per_player_pair,
             confidence_threshold=self.confidence_threshold,
             max_concurrent_games_per_pair=self.max_concurrent_games_per_pair,
@@ -1177,6 +1203,13 @@ class Arena:
         sorted_players = sorted(
             self.players, key=lambda p: p.rating.rating, reverse=True
         )
+        
+        # Filter out ignored players for adjacency calculations
+        if self.ignored_players:
+            filtered_players = [p for p in sorted_players if p.llm_player.name not in self.ignored_players]
+            if len(filtered_players) != len(sorted_players):
+                logger.info(f"Note: {len(sorted_players) - len(filtered_players)} ignored players excluded from rankings")
+            sorted_players = filtered_players
 
         if len(sorted_players) < 2:
             logger.info("Not enough players to compare.")
@@ -1286,6 +1319,7 @@ class Arena:
             "player_ratings": player_ratings,
             "player_concessions": player_concessions,
             "player_matches_played": {p.llm_player.name: p.rating.games_played for p in self.players}, # Add matches played
+            "ignored_players": self.ignored_players, # Add ignored players list
             "budget_info": budget_info,
             "matches": [],
             "elo_system": self.current_elo()[0] if self.match_history else None, # Add Elo system instance if available

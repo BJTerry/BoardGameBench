@@ -94,6 +94,11 @@ async def main():
         type=str,
         help="Comma-separated list of player names to focus matches on.",
     )
+    arena_group.add_argument(
+        "--ignored-players",
+        type=str,
+        help="Comma-separated list of player names to exclude from scheduling.",
+    )
 
     # Other options
     parser.add_argument("--debug", action="store_true", help="Enable debug logging.")
@@ -273,6 +278,15 @@ async def main():
         logger.info(
             f"Focusing on games involving these players: {', '.join(selected_players_list)}"
         )
+        
+    # Process ignored players from config
+    ignored_players_str = config.get('ignored_players')
+    ignored_players_list = None
+    if ignored_players_str:
+        ignored_players_list = [name.strip() for name in ignored_players_str.split(",")]
+        logger.info(
+            f"Ignoring these players during scheduling: {', '.join(ignored_players_list)}"
+        )
 
     arena_instance = None # Define arena_instance before try/finally block
 
@@ -307,6 +321,7 @@ async def main():
                 cost_budget=config.get('cost_budget', 2.0),
                 confidence_threshold=config.get('confidence_threshold', 0.70),
                 selected_players=selected_players_list, # Use processed list
+                ignored_players=ignored_players_list, # Use processed list
                 max_games_per_player_pair=config.get('max_games_per_pair', 10),
                 max_concurrent_games_per_pair=config.get('max_concurrent_games_per_pair', 1),
             )
@@ -336,6 +351,7 @@ async def main():
                 cost_budget=config.get('cost_budget', 2.0),
                 confidence_threshold=config.get('confidence_threshold', 0.70),
                 selected_players=selected_players_list, # Use processed list
+                ignored_players=ignored_players_list, # Use processed list
                 max_games_per_player_pair=config.get('max_games_per_pair', 10),
                 max_concurrent_games_per_pair=config.get('max_concurrent_games_per_pair', 1),
             )
@@ -429,8 +445,14 @@ def print_results(results: Dict[str, Any]):
     player_concessions = results.get("player_concessions", {})
     player_costs = results.get("player_costs", {})
     player_matches_played = results.get("player_matches_played", {}) # Get matches played if available
+    ignored_players = results.get("ignored_players", [])
+    
+    if ignored_players:
+        logger.info(f"Note: {len(ignored_players)} players were ignored during scheduling: {', '.join(ignored_players)}")
 
     if player_ratings:
+        # Don't filter out ignored players from results, just add a marker
+        
         # Sort players by rating (mu) descending
         # Ensure player_ratings is a dict {name: PlayerRating}
         # If it's just {name: float}, adapt accordingly or fetch full PlayerRating objects
@@ -458,9 +480,14 @@ def print_results(results: Dict[str, Any]):
                  # Use rating.rating here as well
                 rating_str = f"{rating.rating:.0f}" # Fallback if sigma not available
 
+            # Mark ignored players with an asterisk
+            display_name = name
+            if ignored_players and name in ignored_players:
+                display_name = f"{name} *"  # Add asterisk to mark ignored players
+                
             table_data.append([
                 i + 1,
-                name,
+                display_name,
                 rating_str,
                 matches_played,
                 concessions,
@@ -471,12 +498,16 @@ def print_results(results: Dict[str, Any]):
         from tabulate import tabulate # Ensure import is present
         table = tabulate(table_data, headers=headers, tablefmt="grid")
         logger.info("\n" + table) # Add newline before table
+        
+        # Add a note explaining the asterisk if there are ignored players
+        if ignored_players:
+            logger.info("* Players marked with an asterisk were excluded from match scheduling")
 
         # Calculate skill comparison probabilities and records from game history
         player_names_sorted = [name for name, _ in sorted_players_data]
         if len(player_names_sorted) > 1:
             game_dicts = results.get("matches", [])
-            # Convert game dictionaries to GameResult objects
+            # Convert game dictionaries to GameResult objects - use filtered player_ratings keys
             game_results = convert_game_dicts_to_results(game_dicts, list(player_ratings.keys()))
 
             if game_results:

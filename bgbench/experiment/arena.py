@@ -387,10 +387,23 @@ class Arena:
                         ),
                         None,
                     )
+                    
+                    # Check if both players exist and match selected_players configuration
                     if player_a and player_b:
-                        self._resumable_matches.append(
-                            (player_a, player_b, deserialized_state, match.id)
-                        )
+                        # Only resume matches that match selected_players configuration
+                        if self.selected_players is None or (
+                            player_a.llm_player.name in self.selected_players or 
+                            player_b.llm_player.name in self.selected_players
+                        ):
+                            self._resumable_matches.append(
+                                (player_a, player_b, deserialized_state, match.id)
+                            )
+                        else:
+                            logger.debug(
+                                f"Skipping resumption of match {match.id} as players "
+                                f"({player_a.llm_player.name}, {player_b.llm_player.name}) "
+                                f"don't match selected_players configuration"
+                            )
                 except Exception as e:
                     logger.warning(
                         f"Failed to deserialize state for match {match.id}: {e}"

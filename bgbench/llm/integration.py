@@ -7,8 +7,7 @@ import litellm
 from litellm.utils import register_model
 from litellm.cost_calculator import completion_cost
 from litellm.types.utils import ModelResponse, Choices
-from litellm.exceptions import RateLimitError
-
+from litellm.exceptions import RateLimitError, BadRequestError
 
 # Custom exceptions for response processing errors
 class LLMResponseError(Exception):
@@ -219,8 +218,13 @@ class LLMCompletionProvider(Protocol):
     ) -> ModelResponse: ...
 
 
-NON_SYSTEM_MODELS = ["openai/o1-mini", "openai/o1-preview"]
-# Models that don't support cache_control parameters (strip these out before calling)
+NON_SYSTEM_MODELS = [
+    "openai/o1-mini",
+    "openai/o1-preview",
+    "openrouter/openai/o1-mini",
+    "openrouter/openai/o1-preview",
+    ]
+
 CACHE_ENABLED_MODELS = [
     "openrouter/anthropic/claude-3.7-sonnet:thinking",
     "openrouter/anthropic/claude-3.7-sonnet",
@@ -610,6 +614,11 @@ async def complete_prompt(
                 f"Response error details: type=RESPONSE_ERROR, message={str(e)}, "
                 f"error_class={e.__class__.__name__}, retry_attempt={response_retry_attempt}"
             )
+
+        except BadRequestError as e:
+            logger.error(f"Error completing prompt {model_info}: {str(e)} {e.litellm_debug_info}", exc_info=True)
+            logger.error(f"UNHANDLED_ERROR: {e.__class__.__name__}, retry count: {rate_limit_retry_attempt + response_retry_attempt}")
+            raise
             
         except Exception as e:
             # For any other exceptions, log with full traceback and raise immediately

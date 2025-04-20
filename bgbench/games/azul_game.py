@@ -171,16 +171,24 @@ class PlayerBoard:
         # Calculate horizontal line length containing (row, col)
         h_tiles = 1
         c = col - 1
-        while c >= 0 and self.wall[row][c]: h_tiles += 1; c -= 1 # Left
+        while c >= 0 and self.wall[row][c]:
+            h_tiles += 1
+            c -= 1  # Left
         c = col + 1
-        while c < WALL_SIZE and self.wall[row][c]: h_tiles += 1; c += 1 # Right
+        while c < WALL_SIZE and self.wall[row][c]:
+            h_tiles += 1
+            c += 1  # Right
 
         # Calculate vertical line length containing (row, col)
         v_tiles = 1
         r = row - 1
-        while r >= 0 and self.wall[r][col]: v_tiles += 1; r -= 1 # Up
+        while r >= 0 and self.wall[r][col]:
+            v_tiles += 1
+            r -= 1  # Up
         r = row + 1
-        while r < WALL_SIZE and self.wall[r][col]: v_tiles += 1; r += 1 # Down
+        while r < WALL_SIZE and self.wall[r][col]:
+            v_tiles += 1
+            r += 1  # Down
 
         # Determine score based on connections
         score = 0

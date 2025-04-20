@@ -550,8 +550,7 @@ async def complete_prompt(
     rate_limit_retry_attempt = 0
     response_retry_attempt = 0
     
-    # Track the last error for reporting
-    last_error = None
+    # We'll track attempt counts for retries
     
     while True:
         try:
@@ -594,13 +593,11 @@ async def complete_prompt(
                 e, model_info, rate_limit_retry_attempt, total_wait_time, 
                 base_delay, MAX_RETRY_TIMEOUT, 999999, "rate limit"  # Using large int instead of infinity
             )
-            last_error = {
-                "error_occurred": True,
-                "error_type": "RATE_LIMIT",
-                "error_message": str(e),
-                "error_details": {"retry_attempt": rate_limit_retry_attempt},
-                "retry_count": rate_limit_retry_attempt
-            }
+            # Log rate limit error details for monitoring
+            logger.debug(
+                f"Rate limit error details: type=RATE_LIMIT, message={str(e)}, "
+                f"retry_attempt={rate_limit_retry_attempt}"
+            )
             
         except LLMResponseError as e:
             # Handle response processing errors with limited retries
@@ -608,25 +605,16 @@ async def complete_prompt(
                 e, model_info, response_retry_attempt, total_wait_time,
                 base_delay, MAX_RETRY_TIMEOUT, MAX_RESPONSE_RETRIES, "response"
             )
-            last_error = {
-                "error_occurred": True,
-                "error_type": "RESPONSE_ERROR",
-                "error_message": str(e),
-                "error_details": {
-                    "error_class": e.__class__.__name__,
-                    "retry_attempt": response_retry_attempt
-                },
-                "retry_count": response_retry_attempt
-            }
+            # Log error details for monitoring, don't store in variable since we're continuing
+            logger.debug(
+                f"Response error details: type=RESPONSE_ERROR, message={str(e)}, "
+                f"error_class={e.__class__.__name__}, retry_attempt={response_retry_attempt}"
+            )
             
         except Exception as e:
             # For any other exceptions, log with full traceback and raise immediately
             logger.error(f"Error completing prompt {model_info}: {str(e)}", exc_info=True)
-            last_error = {
-                "error_occurred": True,
-                "error_type": "UNHANDLED_ERROR",
-                "error_message": str(e),
-                "error_details": {"error_class": e.__class__.__name__},
-                "retry_count": rate_limit_retry_attempt + response_retry_attempt
-            }
+            # Create error record for tracking but we're raising immediately so not using the variable
+            # Just log all error information before raising
+            logger.error(f"UNHANDLED_ERROR: {e.__class__.__name__}, retry count: {rate_limit_retry_attempt + response_retry_attempt}")
             raise

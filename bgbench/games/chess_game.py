@@ -46,7 +46,7 @@ class ChessState:
             try:
                 move = board.parse_san(move_san)
                 board.push(move)
-            except ValueError as e:
+            except ValueError:
                 # If we can't parse a move, fall back to using the FEN
                 if "fen" in data:
                     board = chess.Board(data["fen"])

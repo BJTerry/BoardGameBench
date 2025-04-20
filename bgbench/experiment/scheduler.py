@@ -9,7 +9,7 @@ with different implementations optimizing for different goals:
 """
 
 from dataclasses import dataclass
-from typing import List, Optional, Tuple, Dict, Set, cast, Any, TYPE_CHECKING
+from typing import List, Optional, Tuple, Dict, cast, Any, TYPE_CHECKING
 import numpy as np
 import logging
 from bgbench.experiment.rating import EloSystem, GameResult

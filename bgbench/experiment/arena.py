@@ -5,8 +5,8 @@ import random
 import asyncio
 from datetime import datetime # Add datetime import
 from typing import Any, Dict, List, Optional, Tuple, Set
-from sqlalchemy import func, desc # Add desc import
-from sqlalchemy.orm import Session, joinedload # Add joinedload import
+from sqlalchemy import func
+from sqlalchemy.orm import Session
 from tabulate import tabulate # Add tabulate import
 from bgbench.match.state_manager import MatchStateManager
 from bgbench.data.models import (
@@ -963,8 +963,8 @@ class Arena:
 
         # Main evaluation loop
         while not self._force_stop:
-            current_time = time.time()
-
+            # Track time for budget management if needed
+            
             # Check total cost against budget if specified
             if self.cost_budget is not None:
                 # Calculate current total cost
@@ -1062,7 +1062,7 @@ class Arena:
             # (Allowing for only the periodic logger task to remain)
             only_logger_active = len(self._active_tasks) == 1 and self._periodic_logger_task in self._active_tasks
             no_tasks_active = not self._active_tasks
-            can_schedule_more = not scheduled_something # Inverted logic for clarity below
+            # We can schedule more if we didn't already schedule something this iteration
             no_resumables_left = not self._resumable_matches
 
             # More detailed debug log for the exit condition check itself

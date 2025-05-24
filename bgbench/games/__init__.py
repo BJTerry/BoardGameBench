@@ -9,6 +9,7 @@ from .cant_stop_game import CantStopGame
 from .scrabble_game import ScrabbleGame
 from .azul_game import AzulGame
 from .reversi_game import ReversiGame
+from .backgammon_game import BackgammonGame
 
 AVAILABLE_GAMES = {
     "nim": NimGame,
@@ -22,6 +23,7 @@ AVAILABLE_GAMES = {
     "scrabble": ScrabbleGame,
     "azul": AzulGame,
     "reversi": ReversiGame,
+    "backgammon": BackgammonGame,
 }
 
 __all__ = [
